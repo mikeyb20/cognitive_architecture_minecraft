@@ -18,6 +18,7 @@ use rand::Rng;
 /// Danger at which a remembered hazard counts for O's veto credit (spec §7.1).
 pub(crate) const HAZARD: f32 = 0.5;
 
+#[derive(Debug, Clone)]
 pub(crate) struct Scored {
     pub choice: Choice,
     pub phi: Features,
@@ -169,7 +170,7 @@ impl Brain {
         }
         let p_leads_raw = {
             let w0 = self.oracle.weights(&x, WeightAdjust::default());
-            (0..4).all(|i| w0[Mode::Performing.index()] >= w0[i])
+            leads(&w0, Mode::Performing)
         };
         let adj = WeightAdjust {
             urgency_bias: self.config.beta_u * s.u,
@@ -180,7 +181,7 @@ impl Brain {
             },
         };
         let w = self.oracle.weights(&x, adj);
-        let dominant = (0..4).fold(0, |b, i| if w[i] > w[b] { i } else { b });
+        let dominant = dominant(&w);
         if s.stuck {
             // Stuck trigger: flip the dominant mode's scores for one tick.
             for sc in &mut all {
@@ -224,7 +225,7 @@ impl Brain {
         // 14 intensity.
         let sc = &all[k];
         let effort = if sc.commanded { e_cmd } else { g };
-        let p_leads = (0..4).all(|i| w[Mode::Performing.index()] >= w[i]);
+        let p_leads = leads(&w, Mode::Performing);
         let it = Intensity {
             effort,
             focus: self.perm.focus(p_leads),
@@ -234,13 +235,13 @@ impl Brain {
             w,
             x,
             it,
-            hazard_vetoed: self.hazard_vetoed(&all, k),
+            hazard_vetoed: hazard_vetoed(&all, k),
         };
         self.prepare(obs, cands, &all[k], &picked, tools)
     }
 
     /// Softmax over the allowed choices at temperature τ (01 §3.3).
-    fn sample(&mut self, allowed: &[usize], scores: &[f32], tau: f32) -> Option<usize> {
+    pub(crate) fn sample(&mut self, allowed: &[usize], scores: &[f32], tau: f32) -> Option<usize> {
         if allowed.is_empty() {
             return None;
         }
@@ -262,18 +263,6 @@ impl Brain {
             }
         }
         allowed.last().copied()
-    }
-
-    /// O avoided a remembered hazard: another option with remembered danger
-    /// was scored negative by O and not taken (spec §7.1).
-    fn hazard_vetoed(&self, all: &[Scored], chosen: usize) -> bool {
-        let o = Mode::Optimizing.index();
-        all.iter().enumerate().any(|(i, sc)| {
-            i != chosen
-                && sc.phi[f::RISK] >= HAZARD
-                && sc.m[o] < 0.0
-                && all[chosen].phi[f::RISK] < sc.phi[f::RISK]
-        })
     }
 
     fn prepare(
@@ -361,4 +350,26 @@ struct Picked {
 /// Re-export for the log: the Oracle's raw preferences Θ·x.
 pub(crate) fn preferences(o: &Oracle, x: &Context) -> [f32; 4] {
     std::array::from_fn(|i| o.theta[i].iter().zip(x).map(|(a, b)| a * b).sum())
+}
+
+/// O avoided a remembered hazard: another option with remembered danger
+/// was scored negative by O and not taken (spec §7.1).
+pub(crate) fn hazard_vetoed(all: &[Scored], chosen: usize) -> bool {
+    let o = Mode::Optimizing.index();
+    all.iter().enumerate().any(|(i, sc)| {
+        i != chosen
+            && sc.phi[f::RISK] >= HAZARD
+            && sc.m[o] < 0.0
+            && all[chosen].phi[f::RISK] < sc.phi[f::RISK]
+    })
+}
+
+/// Index of the largest weight; the first wins a tie (spec §8, stuck kick).
+pub(crate) fn dominant(w: &[f32; 4]) -> usize {
+    (0..4).fold(0, |b, i| if w[i] > w[b] { i } else { b })
+}
+
+/// Mode `m` leads: its weight is at least every other weight (#43).
+pub(crate) fn leads(w: &[f32; 4], m: Mode) -> bool {
+    w.iter().all(|&wi| w[m.index()] >= wi)
 }

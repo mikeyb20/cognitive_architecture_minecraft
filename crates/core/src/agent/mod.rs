@@ -14,6 +14,9 @@ pub mod log;
 mod perceive;
 pub mod think;
 
+#[cfg(test)]
+mod tests;
+
 pub use config::{BrainConfig, Horizon, LensPrior};
 pub use log::TickLog;
 pub use think::{NoTools, ThinkTools};
