@@ -12,7 +12,7 @@ mod prompt;
 pub use novelty::Counts;
 
 use host_api::{Candidate, Observation};
-use llm::{BudgetGuard, LlmParams, Prompt, Provider, Tier};
+use llm::{BudgetGuard, LlmParams, LlmStats, Prompt, Provider, Tier};
 
 use crate::Policy;
 use prompt::{candidate_line, chosen_id, user_prompt};
@@ -44,22 +44,6 @@ impl Default for ArmBConfig {
             seconds_per_tick: 0.05,
         }
     }
-}
-
-/// What the LLM cost so far, for the logs (spec §25).
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct LlmStats {
-    /// Replies received, from the provider or the replay cache.
-    pub calls: u32,
-    pub cached: u32,
-    /// Decisions made without the LLM (budget, error or no id).
-    pub fallbacks: u32,
-    /// Replies that named no offered id.
-    pub unparsed: u32,
-    /// Spent on calls that went out (cached replies are free).
-    pub input_tokens: u64,
-    pub output_tokens: u64,
-    pub cost_usd: f64,
 }
 
 pub struct ArmB<P> {
@@ -129,19 +113,11 @@ impl<P: Provider> ArmB<P> {
             return None;
         }
         let reply = self.llm.complete(&self.prompt(obs, c)).ok()?;
-        let s = &mut self.stats;
-        s.calls += 1;
-        if reply.cached {
-            s.cached += 1;
-        } else {
-            s.input_tokens += u64::from(reply.input_tokens);
-            s.output_tokens += u64::from(reply.output_tokens);
-            s.cost_usd += reply.cost_usd;
-        }
+        self.stats.record(&reply);
         let ids: Vec<u32> = c.iter().map(|x| x.id).collect();
         let id = chosen_id(&reply.text, &ids);
         if id.is_none() {
-            s.unparsed += 1;
+            self.stats.unparsed += 1;
         }
         c.iter().position(|x| Some(x.id) == id)
     }

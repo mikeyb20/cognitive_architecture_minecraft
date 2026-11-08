@@ -2,13 +2,13 @@
 
 use std::collections::VecDeque;
 
-use baselines::arm_b::{Counts, LlmStats};
+use baselines::arm_b::Counts;
 use baselines::{ArmB, ArmBConfig, Policy};
 use host_api::{
     AgentId, Candidate, ChatMsg, Inventory, Observation, Pos, Seen, SeenKind, Skill, Target,
     TaskType, ThingId,
 };
-use llm::{LlmError, Prompt, Provider, Reply, Tier};
+use llm::{LlmError, LlmStats, Prompt, Provider, Reply, Tier};
 
 /// Answers from a list and keeps every prompt it was sent.
 #[derive(Default)]

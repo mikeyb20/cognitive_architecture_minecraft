@@ -9,13 +9,16 @@
 pub mod anthropic;
 mod budget;
 mod cache;
+pub mod describe;
 mod http;
 pub mod openai;
 mod price;
+mod stats;
 
 pub use budget::BudgetGuard;
 pub use cache::{CacheMode, Cached, prompt_key};
 pub use price::Price;
+pub use stats::LlmStats;
 
 use serde::{Deserialize, Serialize};
 

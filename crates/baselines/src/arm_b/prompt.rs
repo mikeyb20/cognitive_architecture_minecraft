@@ -1,21 +1,8 @@
-//! What arm B's LLM sees (spec §23, §24): a short status, then one line per
-//! candidate. Kept under the input cap by dropping the least useful lines
-//! first (far things, then small inventory stacks); the candidates are
-//! never cut.
+//! What arm B's LLM sees (spec §23, §24): the shared status
+//! ([`llm::describe`]), then one line per candidate, which are never cut.
 
-use host_api::{Candidate, Observation, Pos, Target};
-
-/// Most visible things listed, nearest first.
-const MAX_SEEN: usize = 8;
-
-/// A whole number of percent, for the status line.
-fn pct(x: f32) -> i32 {
-    (x * 100.0).round() as i32
-}
-
-fn at(p: Pos) -> String {
-    format!("({}, {}, {})", p.x, p.y, p.z)
-}
+use host_api::{Candidate, Observation, Target};
+use llm::describe::{self, at};
 
 /// What a candidate is aimed at, in words.
 fn aim(obs: &Observation, t: Option<&Target>) -> String {
@@ -54,69 +41,16 @@ pub(crate) fn candidate_line(obs: &Observation, c: &Candidate, bonus: Option<f32
     )
 }
 
-/// The status block: body, time, place, then inventory and what is in view.
-fn status(obs: &Observation, items: usize, seen: usize) -> Vec<String> {
-    let time = if obs.is_night() { "night" } else { "day" };
-    let shelter = if obs.sheltered { ", sheltered" } else { "" };
-    let mut lines = vec![format!(
-        "health {}%, food {}%, {time}{shelter}, at {}",
-        pct(obs.health),
-        pct(obs.food),
-        at(obs.position)
-    )];
-    let mut inv = obs.inventory.items.clone();
-    inv.sort_by_key(|(n, c)| (std::cmp::Reverse(*c), n.clone()));
-    let inv: Vec<String> = inv
-        .iter()
-        .take(items)
-        .map(|(n, c)| format!("{n} x{c}"))
-        .collect();
-    lines.push(format!(
-        "inventory: {}",
-        if inv.is_empty() {
-            "empty".into()
-        } else {
-            inv.join(", ")
-        }
-    ));
-    let mut near: Vec<_> = obs.visible.iter().collect();
-    near.sort_by(|a, b| a.distance.total_cmp(&b.distance));
-    for s in near.into_iter().take(seen) {
-        lines.push(format!("see {} {:.0} away", s.thing.0, s.distance));
-    }
-    for m in obs.chat.iter().rev().take(2) {
-        lines.push(format!("{} says: {}", m.from, m.text));
-    }
-    lines
-}
-
-/// The user part of the prompt, shrunk until it fits `max_tokens`
-/// (estimated at four characters a token, as `llm::Prompt` does): fewer
-/// things in view first, then fewer inventory stacks. If even the bare
-/// list is too long it goes out anyway; the candidates are never cut.
+/// The user part of the prompt: status, then the options (spec §23).
 pub(crate) fn user_prompt(
     obs: &Observation,
     lines: &[String],
     system_chars: usize,
     max_tokens: u32,
 ) -> String {
-    let budget = (max_tokens as usize * 4).saturating_sub(system_chars);
-    let items = obs.inventory.items.len();
-    let steps = (0..=MAX_SEEN)
-        .rev()
-        .map(|seen| (items, seen))
-        .chain((0..items).rev().map(|i| (i, 0)));
-    let mut text = String::new();
-    for (items, seen) in steps {
-        let mut all = status(obs, items, seen);
-        all.push("Options:".into());
-        all.extend(lines.iter().cloned());
-        text = all.join("\n");
-        if text.chars().count() <= budget {
-            break;
-        }
-    }
-    text
+    let mut tail = vec!["Options:".to_string()];
+    tail.extend(lines.iter().cloned());
+    describe::fit(obs, &tail, system_chars, max_tokens)
 }
 
 /// The candidate id the reply names: the first whole number in it that is
