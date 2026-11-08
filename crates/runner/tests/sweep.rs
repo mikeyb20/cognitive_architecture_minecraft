@@ -4,8 +4,8 @@
 use cognitive_core::agent::{BrainConfig, TickLog};
 use runner::brain::BrainResult;
 use runner::sweep::{
-    FREEZE_CONFLICT, Meter, Row, RunMetrics, Summary, csv, ids, markdown, run_sweep, summarise,
-    sweep,
+    FREEZE_CONFLICT, Meter, Row, RunMetrics, Summary, all_scenarios, csv, ids, markdown, run_one,
+    run_sweep, select, summarise, sweep,
 };
 use std::process::Command;
 
@@ -63,30 +63,32 @@ fn meter_counts_by_hand() {
     let mut m = Meter::default();
     m.push(&row("idle", 0.1, 0.0, 0.0, 0.0));
     m.push(&row("Chop:1,2", 0.3, 0.2, -0.4, 0.95));
+    m.push(&row("Mine:3,4", 0.2, 0.0, 0.6, 0.99));
     let mut pushed = row("Flee", 0.2, 0.2, 0.0, FREEZE_CONFLICT);
     pushed.external_drive = true;
     m.push(&pushed);
-    let mut kicked = row("Plan", 0.4, 0.0, 0.4, 0.5);
+    let mut kicked = row("Plan", 0.4, 0.0, 0.2, 0.5);
     kicked.stuck_kick = true;
     m.push(&kicked);
     let inv = vec![
         ("wooden_pickaxe".to_string(), 1),
         ("furnace".to_string(), 0),
+        ("stone_pickaxe".to_string(), 1),
         ("oak_log".to_string(), 3),
     ];
     let r = m.finish(&result(true, inv));
-    assert_eq!(r.decisions, 4);
-    assert_eq!((r.active, r.self_started), (0.75, 0.5));
-    assert!((r.mean_c - 0.25).abs() < 1e-6 && (r.mean_d - 0.1).abs() < 1e-6);
-    assert!(r.mean_v.abs() < 1e-6);
+    assert_eq!(r.decisions, 5);
+    assert_eq!((r.active, r.self_started), (0.8, 0.6));
+    assert!((r.mean_c - 0.24).abs() < 1e-6 && (r.mean_d - 0.08).abs() < 1e-6);
+    assert!((r.mean_v - 0.08).abs() < 1e-6, "{}", r.mean_v);
     assert_eq!(
-        r.freeze, 0.25,
+        r.freeze, 0.4,
         "only conflict above the threshold, on actions"
     );
     assert_eq!((r.stuck_kicks, r.reflexes, r.new_things), (1, 2, 7));
     assert_eq!(
-        r.tech, 1,
-        "a held pickaxe; a zero-count furnace is not held"
+        r.tech, 2,
+        "two held pickaxes; a zero-count furnace is not held"
     );
     assert!(r.survived && r.ticks == 2400);
     let empty = Meter::default().finish(&result(false, vec![]));
@@ -207,4 +209,26 @@ fn sweep_command_writes_tables() {
         .output()
         .unwrap();
     assert_eq!(bad.status.code(), Some(2));
+}
+
+#[test]
+fn affect_grid_scales_each_rate_by_its_label() {
+    let base = BrainConfig::default().affect;
+    let s = sweep("OQ17").unwrap();
+    let v = s
+        .variants
+        .iter()
+        .find(|v| v.label == "rise×2 recover×0.5")
+        .unwrap();
+    assert_eq!(v.config.affect.d_rise, base.d_rise * 2.0);
+    assert_eq!(v.config.affect.d_recover, base.d_recover * 0.5);
+}
+
+#[test]
+fn one_run_is_measured_and_every_scenario_is_listed() {
+    let r = run_one(&BrainConfig::default(), "first_night", 0);
+    assert!(r.survived && r.decisions > 0 && r.ticks == 2400, "{r:?}");
+    assert_eq!(all_scenarios(), sim::scenario::NAMES.to_vec());
+    assert_eq!(select("all"), ids());
+    assert_eq!(select("OQ8"), vec!["OQ8"]);
 }

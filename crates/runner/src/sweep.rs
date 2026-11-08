@@ -62,6 +62,11 @@ pub fn ids() -> Vec<&'static str> {
     SWEEPS.iter().map(|s| s.0).collect()
 }
 
+/// The sweep ids a CLI argument names: `all` or one id (spec §27).
+pub fn select(which: &str) -> Vec<&str> {
+    if which == "all" { ids() } else { vec![which] }
+}
+
 /// Look up a sweep by id (case-insensitive).
 pub fn sweep(id: &str) -> Option<Sweep> {
     SWEEPS

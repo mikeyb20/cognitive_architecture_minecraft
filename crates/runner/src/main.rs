@@ -111,7 +111,7 @@ fn flag<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
 }
 
 fn sweep(args: &[String]) {
-    use runner::sweep::{all_scenarios, csv, ids, markdown, run_sweep, sweep};
+    use runner::sweep::{all_scenarios, csv, ids, markdown, run_sweep, select, sweep};
     let which = args.get(1).map_or("all", String::as_str);
     let seeds: u64 = flag(args, "--seeds")
         .and_then(|s| s.parse().ok())
@@ -121,8 +121,7 @@ fn sweep(args: &[String]) {
         None => all_scenarios(),
     };
     let threads = std::thread::available_parallelism().map_or(1, usize::from);
-    let todo: Vec<&str> = if which == "all" { ids() } else { vec![which] };
-    for id in todo {
+    for id in select(which) {
         let Some(s) = sweep(id) else {
             eprintln!("unknown sweep {id}; known: {:?}", ids());
             std::process::exit(2);
