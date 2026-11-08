@@ -4,9 +4,8 @@
 //! the external-drive floor (spec §16, #41). The player's presence feeds the
 //! social signal (spec §5).
 
-use host_api::{Candidate, ChatMsg, Observation, Pos, Seen, SeenKind, Target, ThingId};
-
-use crate::planner::{in_ontology, next_step};
+use host_api::command::mark_step;
+use host_api::{Candidate, ChatMsg, Observation, Pos, Seen, SeenKind, ThingId};
 
 /// The player's name in chat and perception.
 pub const PLAYER: &str = "steve";
@@ -74,36 +73,16 @@ impl ScriptedPlayer {
                 distance: PLAYER_DISTANCE as f32,
             });
         }
-        let Some(goal) = &self.active else {
-            return;
-        };
-        let Some(step) = next_step(&obs.inventory, goal) else {
-            return;
-        };
-        let (skill, thing, _) = in_ontology(step);
-        for c in cands.iter_mut() {
-            if c.skill == skill && serves(obs, c, &thing) {
-                c.commanded = true;
-            }
+        if let Some(goal) = &self.active {
+            mark_step(obs, cands, goal, 1);
         }
-    }
-}
-
-fn serves(obs: &Observation, c: &Candidate, thing: &str) -> bool {
-    match &c.target {
-        Some(Target::Item(i)) => thing.strip_prefix("item:") == Some(i.as_str()),
-        Some(Target::Pos(p)) => obs
-            .visible
-            .iter()
-            .any(|s| s.pos == *p && s.thing.0 == thing),
-        _ => false,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use host_api::{AgentId, Inventory, Skill, TaskType};
+    use host_api::{AgentId, Inventory, Skill, Target, TaskType};
 
     fn obs(tick: u64) -> Observation {
         Observation {

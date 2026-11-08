@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod command;
 pub mod craft;
 pub mod ontology;
 pub mod planner;

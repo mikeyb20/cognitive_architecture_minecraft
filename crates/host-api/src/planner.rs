@@ -33,6 +33,11 @@ fn raw(item: &str) -> Option<(Resource, u8)> {
     }
 }
 
+/// Whether the tech tree knows `item`: a raw material or a recipe output.
+pub fn in_tech_tree(item: &str) -> bool {
+    raw(item).is_some() || craft::recipe(item).is_some()
+}
+
 /// The pickaxe that unlocks a tier.
 fn pick_for(tier: u8) -> &'static str {
     if tier >= 2 {
@@ -98,10 +103,15 @@ pub const MAX_STEPS: u32 = 200;
 /// Steps left to hold `goal`, simulating each step's result. `None` if the
 /// goal has no route or takes more than `MAX_STEPS`.
 pub fn steps_left(inv: &Inventory, goal: &str) -> Option<u32> {
+    steps_left_for(inv, goal, 1)
+}
+
+/// Steps left to hold at least `qty` of `goal` (see [`steps_left`]).
+pub fn steps_left_for(inv: &Inventory, goal: &str, qty: u32) -> Option<u32> {
     let mut inv = inv.clone();
     for n in 0..=MAX_STEPS {
-        let Some(step) = next_step(&inv, goal) else {
-            return (inv.count(goal) > 0).then_some(n);
+        let Some(step) = need(&inv, goal, qty) else {
+            return (inv.count(goal) >= qty).then_some(n);
         };
         match step {
             Step::Craft(item) => {
@@ -226,6 +236,20 @@ mod tests {
         }
         assert_eq!(pick_tier(&i), 3);
         assert_eq!(steps, 30, "step count pins the plan's shape");
+    }
+
+    #[test]
+    fn steps_for_a_count_and_tech_tree_membership() {
+        assert_eq!(steps_left_for(&inv(&[]), "oak_log", 3), Some(3));
+        // 8 planks from 2 logs is two crafts; 9 needs a third log first.
+        let i = inv(&[("oak_log", 2)]);
+        assert_eq!(steps_left_for(&i, "oak_planks", 8), Some(2));
+        assert_eq!(steps_left_for(&i, "oak_planks", 9), Some(4));
+        assert_eq!(steps_left_for(&i, "oak_log", 2), Some(0));
+        assert_eq!(steps_left_for(&i, "diamond", 1), None);
+        assert_eq!(steps_left_for(&i, "oak_log", MAX_STEPS + 3), None);
+        assert!(in_tech_tree("oak_log") && in_tech_tree("bread") && in_tech_tree("stick"));
+        assert!(!in_tech_tree("diamond"));
     }
 
     #[test]
