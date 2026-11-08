@@ -1,6 +1,8 @@
 //! Seeded tile map with biomes (spec §21).
 
 use host_api::Pos;
+
+use crate::geom::{div_ceil, ring};
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 
@@ -74,7 +76,7 @@ impl Map {
     /// Generate a map. Biomes are picked per 12×12 cell; the centre cell is
     /// always plains so every run starts somewhere fair.
     pub fn generate(size: i32, tree_chops: u8, rng: &mut ChaCha8Rng) -> Self {
-        let cells = (size + CELL - 1) / CELL;
+        let cells = div_ceil(size, CELL);
         let mut biomes = Vec::with_capacity((cells * cells) as usize);
         for cy in 0..cells {
             for cx in 0..cells {
@@ -142,7 +144,7 @@ impl Map {
 
     /// A map of one tile and one biome (for hand-built scenarios and tests).
     pub fn filled(size: i32, tile: Tile, biome: Biome) -> Self {
-        let cells = (size + CELL - 1) / CELL;
+        let cells = div_ceil(size, CELL);
         Self {
             size,
             tiles: vec![tile; (size * size) as usize],
@@ -150,10 +152,17 @@ impl Map {
         }
     }
 
+    /// Index of the 12×12 cell holding `p` (clamped onto the map).
+    fn cell(&self, p: Pos) -> usize {
+        let cells = div_ceil(self.size, CELL);
+        let x = p.x.clamp(0, self.size - 1) / CELL;
+        let z = p.z.clamp(0, self.size - 1) / CELL;
+        (z * cells + x) as usize
+    }
+
     /// Set the biome of the 12×12 cell holding `p`.
     pub fn set_biome(&mut self, p: Pos, b: Biome) {
-        let cells = (self.size + CELL - 1) / CELL;
-        let i = ((p.z / CELL) * cells + p.x / CELL) as usize;
+        let i = self.cell(p);
         self.biomes[i] = b;
     }
 
@@ -187,30 +196,20 @@ impl Map {
     }
 
     pub fn biome(&self, p: Pos) -> Biome {
-        let cells = (self.size + CELL - 1) / CELL;
-        let x = p.x.clamp(0, self.size - 1) / CELL;
-        let z = p.z.clamp(0, self.size - 1) / CELL;
-        self.biomes[(z * cells + x) as usize]
+        self.biomes[self.cell(p)]
     }
 
     /// A walkable tile near the centre (the start position).
     pub fn start_pos(&self) -> Pos {
-        let c = self.size / 2;
-        for r in 0..self.size {
-            for dz in -r..=r {
-                for dx in -r..=r {
-                    let p = Pos {
-                        x: c + dx,
-                        y: 0,
-                        z: c + dz,
-                    };
-                    if self.get(p).walkable() {
-                        return p;
-                    }
-                }
-            }
-        }
-        Pos { x: c, y: 0, z: c }
+        let c = Pos {
+            x: self.size / 2,
+            y: 0,
+            z: self.size / 2,
+        };
+        (0..self.size)
+            .flat_map(|r| ring(c, r))
+            .find(|p| self.get(*p).walkable())
+            .unwrap_or(c)
     }
 }
 
@@ -294,6 +293,49 @@ mod tests {
                 "cave_floor",
                 "wheat"
             ]
+        );
+    }
+
+    #[test]
+    fn cells_are_12_by_12_and_x_is_not_z() {
+        let mut m = Map::filled(50, Tile::Grass, Biome::Plains);
+        m.set_biome(Pos { x: 30, y: 0, z: 5 }, Biome::Cave);
+        let b = |m: &Map, x, z| m.biome(Pos { x, y: 0, z });
+        assert_eq!(b(&m, 24, 0), Biome::Cave);
+        assert_eq!(b(&m, 35, 11), Biome::Cave);
+        assert_eq!(b(&m, 36, 11), Biome::Plains);
+        assert_eq!(b(&m, 30, 12), Biome::Plains);
+        assert_eq!(b(&m, 5, 30), Biome::Plains, "x and z are not swapped");
+        m.set_biome(Pos { x: 49, y: 0, z: 49 }, Biome::Lake);
+        assert_eq!(b(&m, 48, 48), Biome::Lake, "a partial last cell exists");
+        assert_eq!(
+            b(&m, 60, 60),
+            Biome::Lake,
+            "off-map reads clamp to the edge cell"
+        );
+        assert_eq!(b(&m, 47, 47), Biome::Plains);
+    }
+
+    #[test]
+    fn start_is_the_nearest_walkable_tile_to_the_centre() {
+        let mut m = Map::filled(24, Tile::Stone, Biome::Hills);
+        assert_eq!(
+            m.start_pos(),
+            Pos { x: 12, y: 0, z: 12 },
+            "nothing walkable: centre"
+        );
+        m.set(Pos { x: 15, y: 0, z: 14 }, Tile::Grass);
+        m.set(Pos { x: 10, y: 0, z: 9 }, Tile::Grass);
+        assert_eq!(
+            m.start_pos(),
+            Pos { x: 10, y: 0, z: 9 },
+            "ring 3, north-west first"
+        );
+        m.set(Pos { x: 13, y: 0, z: 10 }, Tile::Wheat);
+        assert_eq!(
+            m.start_pos(),
+            Pos { x: 13, y: 0, z: 10 },
+            "ring 2 beats ring 3"
         );
     }
 

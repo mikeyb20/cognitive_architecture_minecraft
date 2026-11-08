@@ -86,3 +86,11 @@ fn starving_triggers_the_eat_reflex() {
     let r = run_episode(rules, 2, &mut ArmA::default(), 1500);
     assert!(r.reflexes > 0, "{r:?}");
 }
+
+#[test]
+fn episodes_stop_at_the_tick_limit() {
+    let r = run_episode(Rules::default(), 1, &mut Idle, 0);
+    assert_eq!((r.decisions, r.ticks), (0, 0));
+    let r = run_episode(Rules::default(), 1, &mut Idle, 10);
+    assert_eq!((r.decisions, r.ticks, r.reflexes), (10, 10, 0));
+}

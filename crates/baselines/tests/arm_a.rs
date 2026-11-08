@@ -110,6 +110,12 @@ fn fights_one_close_hostile_when_healthy() {
     assert_eq!(pick(&o, &all()), Some(2));
     o.health = 0.51;
     assert_eq!(pick(&o, &all()), Some(2));
+    let a = all();
+    assert_eq!(
+        pick(&o, &only(&a, &[7, 2])),
+        Some(1),
+        "the zombie, not the pig"
+    );
 }
 
 #[test]
@@ -188,6 +194,11 @@ fn hunts_when_hungry_bread_then_pig_then_wheat_then_explore() {
     let a = all();
     assert_eq!(pick(&o, &a), Some(6), "craft bread");
     assert_eq!(pick(&o, &only(&a, &[0, 7, 8, 9])), Some(1), "pig");
+    assert_eq!(
+        pick(&o, &only(&a, &[2, 7])),
+        Some(1),
+        "the pig, not a zombie"
+    );
     assert_eq!(pick(&o, &only(&a, &[0, 8, 9])), Some(1), "wheat");
     assert_eq!(pick(&o, &only(&a, &[9, 0])), Some(1), "explore for food");
     o.food = 0.7;

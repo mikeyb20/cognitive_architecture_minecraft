@@ -172,7 +172,7 @@ fn night_spawns_zombies_in_a_ring_up_to_the_cap() {
     w.tick = 1200;
     w.step_world(1);
     assert_eq!(w.mobs.len(), 1);
-    let d = sim::mob::cheb(w.mobs[0].pos, w.body.pos);
+    let d = sim::geom::cheb(w.mobs[0].pos, w.body.pos);
     assert!((6..=12).contains(&d), "spawned {d} tiles away");
     assert_eq!(w.mobs[0].kind, MobKind::Zombie);
     w.step_world(30);
@@ -327,7 +327,7 @@ fn pigs_wander_every_24_ticks() {
     w.mobs.push(Mob::new(MobKind::Pig, p(5, 5), t));
     w.step_world(1);
     let first = w.mobs[0].pos;
-    assert_eq!(sim::mob::cheb(first, p(5, 5)), 1);
+    assert_eq!(sim::geom::cheb(first, p(5, 5)), 1);
     w.step_world(23);
     assert_eq!(w.mobs[0].pos, first);
     w.step_world(1);
@@ -1195,4 +1195,240 @@ fn food_values() {
     assert_eq!(sim::world::food_value(&r, "bread"), Some(0.5));
     assert_eq!(sim::world::food_value(&r, "porkchop"), Some(0.3));
     assert_eq!(sim::world::food_value(&r, "stick"), None);
+}
+
+// ---------- edges found by mutation testing ----------
+
+#[test]
+fn path_search_reaches_exactly_twenty_tiles() {
+    let w = flat();
+    assert_eq!(w.path_to(p(24, 44), false).map(|v| v.len()), Some(20));
+    assert_eq!(w.path_to(p(4, 24), false).map(|v| v.len()), Some(20));
+    let r = w.reach();
+    assert_eq!(r.steps(p(4, 24)), Some(20), "west edge of the window");
+    assert_eq!(r.steps(p(24, 4)), Some(20), "north edge of the window");
+    assert_eq!(r.steps(p(44, 24)), Some(20), "east edge of the window");
+}
+
+#[test]
+fn zombies_spawn_all_around_between_6_and_12_tiles() {
+    // Mobs are frozen after their first step, which comes in the tick they
+    // spawn: a zombie spawned 6–12 tiles out is found 5–12 tiles out (a
+    // diagonal step-in on one axis can leave it at 12).
+    let mut fresh = flat_with(Rules {
+        night_spawn: 1.0,
+        max_hostiles: 1000,
+        mob_move_ticks: 1_000_000,
+        ..exact()
+    });
+    fresh.tick = 1200;
+    fresh.step_world(400);
+    let rel: Vec<(i32, i32)> = fresh
+        .mobs
+        .iter()
+        .map(|m| (m.pos.x - 24, m.pos.z - 24))
+        .collect();
+    let ring: Vec<i32> = rel.iter().map(|(x, z)| x.abs().max(z.abs())).collect();
+    assert!(
+        ring.contains(&5) && ring.contains(&12),
+        "both ends of the ring: {ring:?}"
+    );
+    assert!(ring.iter().all(|r| (5..=12).contains(r)), "{ring:?}");
+    for (sx, sz) in [(1, 1), (1, -1), (-1, 1), (-1, -1)] {
+        assert!(
+            rel.iter()
+                .any(|(x, z)| x.signum() == sx && z.signum() == sz),
+            "quadrant {sx},{sz}"
+        );
+    }
+}
+
+#[test]
+fn pigs_wander_every_way_and_never_chase() {
+    let mut w = flat();
+    w.body.pos = p(2, 2);
+    let t = w.tick;
+    w.mobs.push(Mob::new(MobKind::Pig, p(24, 24), t));
+    let mut seen = std::collections::HashSet::new();
+    let mut last = w.mobs[0].pos;
+    for _ in 0..80 {
+        w.step_world(24);
+        let now = w.mobs[0].pos;
+        seen.insert((now.x - last.x, now.z - last.z));
+        last = now;
+    }
+    for d in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+        assert!(seen.contains(&d), "never moved {d:?}");
+    }
+    let mut chased = 0;
+    for seed in 0..8 {
+        let mut w = SimWorld::with_map(
+            exact(),
+            seed,
+            Map::filled(48, Tile::Grass, Biome::Plains),
+            p(24, 24),
+        );
+        let t = w.tick;
+        w.mobs.push(Mob::new(MobKind::Pig, p(28, 24), t));
+        w.step_world(1);
+        chased += usize::from(w.mobs[0].pos == p(27, 24));
+    }
+    assert!(chased < 8, "pigs walk at random, not at the agent");
+}
+
+#[test]
+fn zombies_lose_interest_beyond_16_tiles() {
+    let mut caught = 0;
+    for seed in 0..8 {
+        let mut w = SimWorld::with_map(
+            exact(),
+            seed,
+            Map::filled(48, Tile::Grass, Biome::Plains),
+            p(4, 24),
+        );
+        w.tick = 1200;
+        zombie(&mut w, 21, 24);
+        w.step_world(1);
+        caught += usize::from(w.mobs[0].pos == p(20, 24));
+    }
+    assert!(caught < 8, "17 tiles away it wanders");
+    let mut w = SimWorld::with_map(
+        exact(),
+        1,
+        Map::filled(48, Tile::Grass, Biome::Plains),
+        p(4, 24),
+    );
+    w.tick = 1200;
+    zombie(&mut w, 20, 24);
+    w.step_world(1);
+    assert_eq!(w.mobs[0].pos, p(19, 24), "16 tiles away it chases");
+}
+
+#[test]
+fn zombies_at_a_diagonal_stay_put() {
+    let mut w = flat();
+    w.tick = 1200;
+    zombie(&mut w, 25, 25);
+    w.step_world(30);
+    assert_eq!(w.mobs[0].pos, p(25, 25));
+}
+
+#[test]
+fn nothing_off_the_map_is_noticed() {
+    let mut w = SimWorld::with_map(
+        exact(),
+        1,
+        Map::filled(48, Tile::Grass, Biome::Plains),
+        p(0, 0),
+    );
+    let o = w.execute(&at(Skill::MoveTo, 0, 3), FULL);
+    assert!(o.new_things.is_empty(), "{:?}", o.new_things);
+}
+
+#[test]
+fn nearest_resource_wins_even_when_scanned_later() {
+    let mut w = flat();
+    w.map.set(p(24, 18), Tile::Wheat);
+    w.map.set(p(24, 27), Tile::Wheat);
+    let o = w.perceive();
+    let c = w.candidate_actions(&o);
+    assert_eq!(find(&c, Skill::Farm).target, Some(Target::Pos(p(24, 27))));
+    w.map.set(p(24, 21), Tile::Wheat);
+    let c = w.candidate_actions(&o);
+    assert_eq!(
+        find(&c, Skill::Farm).target,
+        Some(Target::Pos(p(24, 21))),
+        "a tie goes to the first in scan order (north)"
+    );
+}
+
+#[test]
+fn explore_clamps_at_the_far_edges_too() {
+    let mut w = SimWorld::with_map(
+        exact(),
+        1,
+        Map::filled(48, Tile::Grass, Biome::Plains),
+        p(45, 45),
+    );
+    let o = w.perceive();
+    let t: Vec<_> = w
+        .candidate_actions(&o)
+        .into_iter()
+        .filter(|x| x.skill == Skill::Explore)
+        .map(|x| x.target.unwrap())
+        .collect();
+    assert!(t.contains(&Target::Pos(p(47, 45))), "{t:?}");
+    assert!(t.contains(&Target::Pos(p(45, 47))), "{t:?}");
+}
+
+#[test]
+fn attacks_hit_the_targeted_animal_only() {
+    let mut w = flat();
+    let t = w.tick;
+    w.mobs.push(Mob::new(MobKind::Pig, p(40, 40), t));
+    w.mobs.push(Mob::new(MobKind::Pig, p(25, 24), t));
+    for m in &mut w.mobs {
+        m.next_move = u64::MAX;
+    }
+    let o = w.execute(&at(Skill::Attack, 25, 24), FULL);
+    assert!(o.success);
+    assert_eq!(w.mobs.len(), 1);
+    assert_eq!((w.mobs[0].pos, w.mobs[0].health), (p(40, 40), 0.5));
+}
+
+#[test]
+fn eat_offers_the_food_actually_held() {
+    let mut w = flat();
+    w.body.food = 0.5;
+    give(&mut w, "porkchop", 1);
+    let o = w.perceive();
+    let c = w.candidate_actions(&o);
+    assert_eq!(
+        find(&c, Skill::Eat).target,
+        Some(Target::Item("porkchop".into()))
+    );
+}
+
+#[test]
+fn zombies_are_not_offered_as_food() {
+    let mut w = flat();
+    w.tick = 1200;
+    zombie(&mut w, 31, 24);
+    let t = w.tick;
+    w.mobs.push(Mob::new(MobKind::Pig, p(24, 33), t));
+    let o = w.perceive();
+    let c = w.candidate_actions(&o);
+    assert!(
+        !c.iter()
+            .any(|x| x.skill == Skill::Attack && x.task_type == TaskType::Farming),
+        "the zombie is no food and the pig is out of view"
+    );
+}
+
+#[test]
+fn unchanged_items_are_not_gains() {
+    let mut w = flat();
+    give(&mut w, "stick", 2);
+    w.map.set(p(25, 24), Tile::Tree { chops_left: 3 });
+    let o = w.execute(&at(Skill::Chop, 25, 24), FULL);
+    assert_eq!(
+        o.items_gained,
+        Inventory {
+            items: vec![("oak_log".into(), 1)]
+        }
+    );
+}
+
+#[test]
+fn lava_on_any_side_adds_risk() {
+    for (x, z) in [(23, 23), (25, 25), (23, 25), (25, 23)] {
+        let mut w = flat();
+        w.map.set(p(x, z), Tile::Lava);
+        let o = w.perceive();
+        let c = w.candidate_actions(&o);
+        assert!(
+            close(find(&c, Skill::Shelter).est_risk, 0.3),
+            "lava at {x},{z}"
+        );
+    }
 }

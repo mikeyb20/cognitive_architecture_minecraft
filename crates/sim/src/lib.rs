@@ -3,6 +3,7 @@
 //! Craftium-style reset/step API. Built in step 3 (spec §27).
 
 pub mod craft;
+pub mod geom;
 pub mod map;
 pub mod mob;
 pub mod planner;

@@ -84,7 +84,7 @@ pub fn take(inv: &mut Inventory, item: &str, n: u32) -> bool {
     }
     let mut left = n;
     for (name, count) in inv.items.iter_mut() {
-        if name == item && left > 0 {
+        if name == item {
             let used = (*count).min(left);
             *count -= used;
             left -= used;
@@ -184,6 +184,13 @@ mod tests {
         assert_eq!(i.count("wheat"), 1);
         assert!(take(&mut i, "wheat", 1));
         assert!(i.items.is_empty(), "empty stacks are removed");
+        let mut j = inv(&[("wheat", 1), ("wheat", 5)]);
+        assert!(take(&mut j, "wheat", 3));
+        assert_eq!(
+            j.items,
+            vec![("wheat".to_string(), 3)],
+            "spans stacks in order"
+        );
         give(&mut i, "bread", 1);
         give(&mut i, "bread", 2);
         assert_eq!(i.items, vec![("bread".to_string(), 3)]);

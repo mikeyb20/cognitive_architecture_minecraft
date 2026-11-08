@@ -51,18 +51,6 @@ impl Mob {
     }
 }
 
-/// Chebyshev distance: king-move steps between two tiles.
-pub fn cheb(a: Pos, b: Pos) -> i32 {
-    (a.x - b.x).abs().max((a.z - b.z).abs())
-}
-
-/// Straight-line distance between two tiles.
-pub fn dist(a: Pos, b: Pos) -> f32 {
-    let dx = (a.x - b.x) as f32;
-    let dz = (a.z - b.z) as f32;
-    (dx * dx + dz * dz).sqrt()
-}
-
 /// Greedy chase steps toward `to`: the longer axis first, then the other.
 pub fn chase_steps(from: Pos, to: Pos) -> [(i32, i32); 2] {
     let dx = (to.x - from.x).signum();
@@ -94,16 +82,12 @@ mod tests {
     }
 
     #[test]
-    fn distances() {
-        assert_eq!(cheb(p(0, 0), p(3, -5)), 5);
-        assert_eq!(cheb(p(2, 2), p(2, 2)), 0);
-        assert_eq!(dist(p(0, 0), p(3, 4)), 5.0);
-    }
-
-    #[test]
     fn chase_prefers_longer_axis() {
         assert_eq!(chase_steps(p(0, 0), p(5, 2)), [(1, 0), (0, 1)]);
         assert_eq!(chase_steps(p(0, 0), p(-2, -5)), [(0, -1), (-1, 0)]);
         assert_eq!(chase_steps(p(0, 0), p(3, -3)), [(1, 0), (0, -1)]);
+        // Off-origin cases: the axis test uses differences, not sums.
+        assert_eq!(chase_steps(p(3, 0), p(1, 3)), [(0, 1), (-1, 0)]);
+        assert_eq!(chase_steps(p(0, 3), p(3, 1)), [(1, 0), (0, -1)]);
     }
 }

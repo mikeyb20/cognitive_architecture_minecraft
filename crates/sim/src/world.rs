@@ -13,8 +13,9 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 use crate::craft::{self, RECIPES};
+use crate::geom::{cheb, dist, div_ceil, neighbours4, offset, ring, square};
 use crate::map::{Biome, Map, Tile};
-use crate::mob::{Mob, MobKind, chase_steps, cheb, dist};
+use crate::mob::{Mob, MobKind, chase_steps};
 use crate::rules::Rules;
 
 /// Most candidates offered per decision (spec §6: K = 20).
@@ -80,16 +81,7 @@ impl Reach {
 
     /// Steps to stand on or next to `p` (king move), if reachable.
     pub fn steps_adjacent(&self, p: Pos) -> Option<u16> {
-        (-1..=1)
-            .flat_map(|dz| (-1..=1).map(move |dx| (dx, dz)))
-            .filter_map(|(dx, dz)| {
-                self.steps(Pos {
-                    x: p.x + dx,
-                    y: 0,
-                    z: p.z + dz,
-                })
-            })
-            .min()
+        square(p, 1).filter_map(|q| self.steps(q)).min()
     }
 }
 
@@ -145,12 +137,8 @@ impl SimWorld {
         let mut w = Self::new(rules, seed);
         w.map = map;
         w.mobs.clear();
-        let per_row = (w.map.size + REGION - 1) / REGION;
-        w.region_visits = vec![0; (per_row * per_row) as usize];
-        w.known.clear();
         w.body.pos = start;
-        w.enter(start);
-        w.pending_new.clear();
+        w.start_at(start);
         w
     }
 
@@ -171,8 +159,17 @@ impl SimWorld {
         self.map.get(self.body.pos) == Tile::Shelter
     }
 
+    /// Forget what was seen and visited, and stand at `start`.
+    fn start_at(&mut self, start: Pos) {
+        let per_row = div_ceil(self.map.size, REGION);
+        self.region_visits = vec![0; (per_row * per_row) as usize];
+        self.known.clear();
+        self.enter(start);
+        self.pending_new.clear();
+    }
+
     fn region_index(&self, p: Pos) -> usize {
-        let per_row = (self.map.size + REGION - 1) / REGION;
+        let per_row = div_ceil(self.map.size, REGION);
         ((p.z / REGION) * per_row + p.x / REGION) as usize
     }
 
@@ -207,20 +204,12 @@ impl SimWorld {
     fn scan(&mut self) {
         let r = self.rules.view_radius;
         let c = self.body.pos;
-        let mut names: Vec<String> = Vec::new();
-        for dz in -r..=r {
-            for dx in -r..=r {
-                let p = Pos {
-                    x: c.x + dx,
-                    y: 0,
-                    z: c.z + dz,
-                };
-                let t = self.map.get(p);
-                if self.map.in_bounds(p) && t.notable() {
-                    names.push(format!("block:{}", t.name()));
-                }
-            }
-        }
+        let mut names: Vec<String> = square(c, r)
+            .filter(|p| self.map.in_bounds(*p))
+            .map(|p| self.map.get(p))
+            .filter(|t| t.notable())
+            .map(|t| format!("block:{}", t.name()))
+            .collect();
         for m in &self.mobs {
             if cheb(m.pos, c) <= r {
                 names.push(format!("entity:{}", m.kind.name()));
@@ -261,11 +250,7 @@ impl SimWorld {
             if dx.abs().max(dz.abs()) < lo {
                 continue;
             }
-            let p = Pos {
-                x: self.body.pos.x + dx,
-                y: 0,
-                z: self.body.pos.z + dz,
-            };
+            let p = offset(self.body.pos, dx, dz);
             if self.walkable_free(p) {
                 self.mobs.push(Mob::new(MobKind::Zombie, p, self.tick));
                 return;
@@ -290,11 +275,7 @@ impl SimWorld {
             if dx == 0 && dz == 0 {
                 continue;
             }
-            let p = Pos {
-                x: self.mobs[i].pos.x + dx,
-                y: 0,
-                z: self.mobs[i].pos.z + dz,
-            };
+            let p = offset(self.mobs[i].pos, dx, dz);
             // By day, hostiles keep to the dark: they never step out of a cave.
             let sunlit = !self.is_night() && self.map.biome(p) != Biome::Cave;
             if self.walkable_free(p) && p != me && !(self.mobs[i].kind.hostile() && sunlit) {
@@ -323,7 +304,7 @@ impl SimWorld {
         } else {
             0.0
         };
-        if self.hostile_count() < self.rules.max_hostiles && self.rng.random::<f32>() < p {
+        if self.hostile_count() < self.rules.max_hostiles && self.chance(p) {
             self.spawn_hostile();
         }
         if !night {
@@ -369,12 +350,7 @@ impl SimWorld {
         let mut q = VecDeque::from([o]);
         while let Some(p) = q.pop_front() {
             let d = r.steps[r.idx(p).expect("queued tiles are inside")];
-            for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
-                let s = Pos {
-                    x: p.x + dx,
-                    y: 0,
-                    z: p.z + dz,
-                };
+            for s in neighbours4(p) {
                 let Some(i) = r.idx(s) else { continue };
                 if r.steps[i] == u16::MAX && self.map.in_bounds(s) && self.map.get(s).walkable() {
                     r.steps[i] = d + 1;
@@ -388,24 +364,9 @@ impl SimWorld {
     /// A reachable tile within 3 of `p` (nearest ring first), not the
     /// agent's own tile.
     fn reachable_near(&self, reach: &Reach, p: Pos) -> Option<Pos> {
-        for r in 0i32..=3 {
-            for dz in -r..=r {
-                for dx in -r..=r {
-                    if dx.abs().max(dz.abs()) != r {
-                        continue;
-                    }
-                    let q = Pos {
-                        x: p.x + dx,
-                        y: 0,
-                        z: p.z + dz,
-                    };
-                    if q != self.body.pos && reach.steps(q).is_some() {
-                        return Some(q);
-                    }
-                }
-            }
-        }
-        None
+        (0..=3)
+            .flat_map(|r| ring(p, r))
+            .find(|q| *q != self.body.pos && reach.steps(*q).is_some())
     }
 
     /// Shortest walkable path (4-way) from the agent to `goal`, or to a tile
@@ -428,12 +389,7 @@ impl SimWorld {
         let mut q = VecDeque::from([start]);
         parent[idx(start)] = idx(start) as i32;
         while let Some(p) = q.pop_front() {
-            for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
-                let s = Pos {
-                    x: p.x + dx,
-                    y: 0,
-                    z: p.z + dz,
-                };
+            for s in neighbours4(p) {
                 if !self.map.in_bounds(s)
                     || !self.map.get(s).walkable()
                     || parent[idx(s)] >= 0
@@ -501,9 +457,14 @@ impl SimWorld {
         self.rules.base_success * focus.clamp(0.0, 1.0) * threat
     }
 
+    /// True with probability `p`.
+    fn chance(&mut self, p: f32) -> bool {
+        self.rng.random::<f32>() < p
+    }
+
     fn roll(&mut self, focus: f32) -> bool {
         let p = self.success_chance(focus);
-        self.rng.random::<f32>() < p
+        self.chance(p)
     }
 
     fn give(&mut self, item: &str, n: u32) {
@@ -523,16 +484,7 @@ impl SimWorld {
             .filter(|m| m.kind.hostile() && cheb(m.pos, p) <= self.rules.view_radius)
             .count();
         r += 0.15 * near as f32;
-        let lava = (-1..=1).any(|dz| {
-            (-1..=1).any(|dx| {
-                self.map.get(Pos {
-                    x: p.x + dx,
-                    y: 0,
-                    z: p.z + dz,
-                }) == Tile::Lava
-            })
-        });
-        if lava {
+        if square(p, 1).any(|q| self.map.get(q) == Tile::Lava) {
             r += 0.3;
         }
         r.min(1.0)
@@ -546,27 +498,10 @@ impl SimWorld {
     /// The in-view tile matching `want` that is fewest steps away, counting
     /// steps to stand next to it.
     fn nearest_tile(&self, reach: &Reach, want: impl Fn(Tile) -> bool) -> Option<(Pos, u16)> {
-        let r = self.rules.view_radius;
-        let c = self.body.pos;
-        let mut best: Option<(u16, Pos)> = None;
-        for dz in -r..=r {
-            for dx in -r..=r {
-                let p = Pos {
-                    x: c.x + dx,
-                    y: 0,
-                    z: c.z + dz,
-                };
-                if !self.map.in_bounds(p) || !want(self.map.get(p)) {
-                    continue;
-                }
-                if let Some(d) = reach.steps_adjacent(p) {
-                    if best.is_none_or(|b| d < b.0) {
-                        best = Some((d, p));
-                    }
-                }
-            }
-        }
-        best.map(|(d, p)| (p, d))
+        square(self.body.pos, self.rules.view_radius)
+            .filter(|p| self.map.in_bounds(*p) && want(self.map.get(*p)))
+            .filter_map(|p| reach.steps_adjacent(p).map(|d| (p, d)))
+            .min_by_key(|(_, d)| *d)
     }
 
     fn nearest_mob(&self, want: impl Fn(&Mob) -> bool, within: i32) -> Option<usize> {
@@ -780,10 +715,6 @@ impl World for SimWorld {
         self.map = Map::generate(self.rules.map_size, self.rules.tree_chops, &mut self.rng);
         self.tick = 0;
         self.mobs.clear();
-        let per_row = (self.map.size + REGION - 1) / REGION;
-        self.region_visits = vec![0; (per_row * per_row) as usize];
-        self.known.clear();
-        self.pending_new.clear();
         self.damage_since_perceive = 0.0;
         self.action_damage = 0.0;
         self.body = Body {
@@ -800,15 +731,14 @@ impl World for SimWorld {
                 let p = Pos { x, y: 0, z };
                 if self.map.biome(p) == Biome::Plains
                     && self.map.get(p) == Tile::Grass
-                    && self.rng.random::<f32>() < self.rules.animal_density / 100.0
+                    && self.chance(self.rules.animal_density / 100.0)
                 {
                     self.mobs.push(Mob::new(MobKind::Pig, p, 0));
                 }
             }
         }
         let start = self.body.pos;
-        self.enter(start);
-        self.pending_new.clear();
+        self.start_at(start);
     }
 
     fn step_world(&mut self, ticks: u32) {
@@ -830,25 +760,15 @@ impl Host for SimWorld {
     fn perceive(&mut self) -> Observation {
         let r = self.rules.view_radius;
         let c = self.body.pos;
-        let mut blocks = Vec::new();
-        for dz in -r..=r {
-            for dx in -r..=r {
-                let p = Pos {
-                    x: c.x + dx,
-                    y: 0,
-                    z: c.z + dz,
-                };
-                let t = self.map.get(p);
-                if self.map.in_bounds(p) && t.notable() {
-                    blocks.push(Seen {
-                        thing: ThingId(format!("block:{}", t.name())),
-                        kind: SeenKind::Block,
-                        pos: p,
-                        distance: dist(c, p),
-                    });
-                }
-            }
-        }
+        let mut blocks: Vec<Seen> = square(c, r)
+            .filter(|p| self.map.in_bounds(*p) && self.map.get(*p).notable())
+            .map(|p| Seen {
+                thing: ThingId(format!("block:{}", self.map.get(p).name())),
+                kind: SeenKind::Block,
+                pos: p,
+                distance: dist(c, p),
+            })
+            .collect();
         blocks.sort_by(|a, b| a.distance.total_cmp(&b.distance));
         blocks.truncate(MAX_VISIBLE_BLOCKS);
         let mut visible: Vec<Seen> = self

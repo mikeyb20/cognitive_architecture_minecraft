@@ -23,6 +23,10 @@ fn runner_first_night_reports_survival() {
     assert!(out.status.success());
     let text = String::from_utf8(out.stdout).unwrap();
     assert!(text.contains("arm A first-night survival: 3/3"), "{text}");
+    assert!(
+        !text.contains("died"),
+        "survivors are not listed as deaths: {text}"
+    );
 }
 
 #[test]
