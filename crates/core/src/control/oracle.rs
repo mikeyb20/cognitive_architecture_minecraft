@@ -121,7 +121,7 @@ impl Oracle {
     ) {
         if let Some(e) = self.exp3.as_mut() {
             e.update(w, credited, r);
-            self.r_bar += self.r_bar_rate * (r - self.r_bar);
+            self.track(r);
             return;
         }
         let adv = r - self.r_bar;
@@ -135,6 +135,11 @@ impl Oracle {
                 *t += step * xi;
             }
         }
+        self.track(r);
+    }
+
+    /// R̄ ← R̄ + rate·(R − R̄): the bandit baseline (spec §8).
+    fn track(&mut self, r: f32) {
         self.r_bar += self.r_bar_rate * (r - self.r_bar);
     }
 }
@@ -183,6 +188,10 @@ mod tests {
         assert_eq!(e.log_w, [-0.1, -0.1, 0.0, -0.1]);
         assert_eq!(o.theta, Oracle::default().theta, "Θ untouched");
         assert!((o.r_bar - 0.01).abs() < 1e-7);
+        // R̄ keeps tracking under EXP3: 0.01 + 0.01·(0.5 − 0.01) = 0.0149.
+        let mut o2 = o.clone();
+        o2.update(&x, &w, Mode::Performing, 0.5, &[0.0; 4]);
+        assert!((o2.r_bar - 0.0149).abs() < 1e-6, "{}", o2.r_bar);
         let after = o.weights(&[0.0; CONTEXT_DIM], WeightAdjust::default());
         assert!(after[2] > after[0] && (after.iter().sum::<f32>() - 1.0).abs() < 1e-6);
         // R = −1 gives r̂ = 0: no step. A rarely used mode gets a bigger step.
