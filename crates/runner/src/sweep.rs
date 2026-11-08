@@ -24,7 +24,7 @@ pub struct Sweep {
     pub variants: Vec<Variant>,
 }
 
-fn v(label: impl Into<String>, config: BrainConfig) -> Variant {
+pub(crate) fn v(label: impl Into<String>, config: BrainConfig) -> Variant {
     Variant {
         label: label.into(),
         config,
@@ -62,9 +62,13 @@ pub fn ids() -> Vec<&'static str> {
     SWEEPS.iter().map(|s| s.0).collect()
 }
 
-/// The sweep ids a CLI argument names: `all` or one id (spec §27).
-pub fn select(which: &str) -> Vec<&str> {
-    if which == "all" { ids() } else { vec![which] }
+/// The ids a CLI argument names: `all` of them or one (spec §27).
+pub fn select<'a>(which: &'a str, all: &[&'static str]) -> Vec<&'a str> {
+    if which == "all" {
+        all.to_vec()
+    } else {
+        vec![which]
+    }
 }
 
 /// Look up a sweep by id (case-insensitive).
@@ -80,7 +84,7 @@ pub fn sweep(id: &str) -> Option<Sweep> {
 }
 
 /// "label (default)" for the default value, else "label".
-fn named(label: String, is_default: bool) -> String {
+pub(crate) fn named(label: String, is_default: bool) -> String {
     if is_default {
         format!("{label} (default)")
     } else {
@@ -88,7 +92,7 @@ fn named(label: String, is_default: bool) -> String {
     }
 }
 
-fn with(f: impl FnOnce(&mut BrainConfig)) -> BrainConfig {
+pub(crate) fn with(f: impl FnOnce(&mut BrainConfig)) -> BrainConfig {
     let mut c = BrainConfig::default();
     f(&mut c);
     c
@@ -215,7 +219,6 @@ impl Meter {
     pub fn finish(&self, r: &BrainResult) -> RunMetrics {
         let n = self.n.max(1) as f32;
         let mean = |x: f64| (x / f64::from(self.n.max(1))) as f32;
-        let held = |g: &str| r.inventory.iter().any(|(i, k)| i == g && *k > 0);
         RunMetrics {
             survived: r.survived,
             ticks: r.ticks,
@@ -229,9 +232,15 @@ impl Meter {
             stuck_kicks: self.stuck,
             reflexes: r.reflexes,
             new_things: r.new_things,
-            tech: TECH_GOALS.iter().filter(|g| held(g)).count() as u32,
+            tech: tech_held(&r.inventory),
         }
     }
+}
+
+/// Tech-tree goals held in an inventory (spec §21), 0..4.
+pub fn tech_held(inventory: &[(String, u32)]) -> u32 {
+    let held = |g: &str| inventory.iter().any(|(i, k)| i == g && *k > 0);
+    TECH_GOALS.iter().filter(|g| held(g)).count() as u32
 }
 
 /// Run one variant on one scenario and seed.
@@ -298,16 +307,8 @@ pub fn run_sweep(s: &Sweep, scenarios: &[&str], seeds: u64, threads: usize) -> V
                 .flat_map(move |sc| (0..seeds).map(move |seed| (vi, *sc, seed)))
         })
         .collect();
-    let mut out = vec![RunMetrics::default(); jobs.len()];
-    let chunk = jobs.len().div_ceil(threads.max(1)).max(1);
-    std::thread::scope(|scope| {
-        for (js, os) in jobs.chunks(chunk).zip(out.chunks_mut(chunk)) {
-            scope.spawn(move || {
-                for (&(vi, sc, seed), o) in js.iter().zip(os) {
-                    *o = run_one(&s.variants[vi].config, sc, seed);
-                }
-            });
-        }
+    let out = crate::par::par_map(&jobs, threads, |&(vi, sc, seed)| {
+        run_one(&s.variants[vi].config, sc, seed)
     });
     let per = seeds as usize;
     out.chunks(per.max(1))
@@ -387,7 +388,7 @@ mod tests {
     // A unit test so it fails before the CLI tests run every sweep.
     #[test]
     fn select_names_all_or_one() {
-        assert_eq!(select("all"), ids());
-        assert_eq!(select("OQ8"), vec!["OQ8"]);
+        assert_eq!(select("all", &ids()), ids());
+        assert_eq!(select("OQ8", &ids()), vec!["OQ8"]);
     }
 }

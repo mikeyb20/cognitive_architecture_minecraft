@@ -9,6 +9,8 @@
 //! - `runner sweep <OQ|all> [--seeds N] [--scenarios a,b] [--out DIR]`: an
 //!   open-question sweep (step 5); prints a Markdown table and, with
 //!   `--out`, writes `<OQ>.md` and `<OQ>.csv` there.
+//! - `runner theory <ID|all> [--seeds N] [--out DIR]`: a theory test (spec
+//!   §29, step 5d), printed and written the same way.
 
 use baselines::ArmA;
 use std::io::Write;
@@ -34,6 +36,7 @@ fn main() {
             speed(n(1, 20), gate.unwrap_or(SPEED_GATE));
         }
         Some("sweep") => sweep(&args),
+        Some("theory") => theory(&args),
         _ => {}
     }
 }
@@ -113,27 +116,52 @@ fn flag<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
 fn sweep(args: &[String]) {
     use runner::sweep::{all_scenarios, csv, ids, markdown, run_sweep, select, sweep};
     let which = args.get(1).map_or("all", String::as_str);
-    let seeds: u64 = flag(args, "--seeds")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(10);
+    let seeds = seeds(args);
     let scenarios: Vec<&str> = match flag(args, "--scenarios") {
         Some(list) => list.split(',').collect(),
         None => all_scenarios(),
     };
-    let threads = std::thread::available_parallelism().map_or(1, usize::from);
-    for id in select(which) {
+    for id in select(which, &ids()) {
         let Some(s) = sweep(id) else {
             eprintln!("unknown sweep {id}; known: {:?}", ids());
             std::process::exit(2);
         };
-        let rows = run_sweep(&s, &scenarios, seeds, threads);
-        let md = markdown(&s, &rows, seeds);
-        println!("{md}");
-        if let Some(dir) = flag(args, "--out") {
-            std::fs::create_dir_all(dir).expect("cannot create the output folder");
-            let p = std::path::Path::new(dir);
-            std::fs::write(p.join(format!("{}.md", s.id)), &md).expect("write failed");
-            std::fs::write(p.join(format!("{}.csv", s.id)), csv(&s, &rows)).expect("write failed");
-        }
+        let rows = run_sweep(&s, &scenarios, seeds, threads());
+        publish(args, s.id, &markdown(&s, &rows, seeds), &csv(&s, &rows));
+    }
+}
+
+fn seeds(args: &[String]) -> u64 {
+    flag(args, "--seeds")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(10)
+}
+
+fn threads() -> usize {
+    std::thread::available_parallelism().map_or(1, usize::from)
+}
+
+/// Print a table and, with `--out DIR`, write `<id>.md` and `<id>.csv`.
+fn publish(args: &[String], id: &str, md: &str, csv: &str) {
+    println!("{md}");
+    if let Some(dir) = flag(args, "--out") {
+        std::fs::create_dir_all(dir).expect("cannot create the output folder");
+        let p = std::path::Path::new(dir);
+        std::fs::write(p.join(format!("{id}.md")), md).expect("write failed");
+        std::fs::write(p.join(format!("{id}.csv")), csv).expect("write failed");
+    }
+}
+
+fn theory(args: &[String]) {
+    use runner::theory::{claim, csv, ids, markdown, run_claim};
+    let which = args.get(1).map_or("all", String::as_str);
+    let n = seeds(args);
+    for id in runner::sweep::select(which, &ids()) {
+        let Some(c) = claim(id) else {
+            eprintln!("unknown theory test {id}; known: {:?}", ids());
+            std::process::exit(2);
+        };
+        let rows = run_claim(&c, n, threads());
+        publish(args, c.id, &markdown(&c, &rows, n), &csv(&c, &rows));
     }
 }

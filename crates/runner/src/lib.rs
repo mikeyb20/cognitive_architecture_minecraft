@@ -4,7 +4,9 @@
 //! arm, #42) or the arm's choice → execute.
 
 pub mod brain;
+pub(crate) mod par;
 pub mod sweep;
+pub mod theory;
 
 use baselines::Policy;
 use host_api::reflex::{ReflexThresholds, emergency_reflex};
