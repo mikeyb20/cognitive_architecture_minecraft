@@ -394,7 +394,7 @@ fn claims_replay_and_tabulate() {
 fn theory_command_writes_tables() {
     let dir = std::env::temp_dir().join(format!("theory-cli-{}", std::process::id()));
     let out = Command::new(env!("CARGO_BIN_EXE_runner"))
-        .args(["theory", "harsh", "--seeds", "1"])
+        .args(["theory", "harsh", "--seeds", "2"])
         .args(["--out", dir.to_str().unwrap()])
         .output()
         .unwrap();
@@ -403,7 +403,7 @@ fn theory_command_writes_tables() {
     assert!(
         std::fs::read_to_string(dir.join("HARSH.md"))
             .unwrap()
-            .contains("1 seeds")
+            .contains("2 seeds")
     );
     let c = std::fs::read_to_string(dir.join("HARSH.csv")).unwrap();
     assert_eq!(c.lines().count(), 3);

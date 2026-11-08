@@ -5,6 +5,10 @@
 # behaviour, so no test can ever catch them. Each is listed with the reason.
 # Do not add an exclusion for a mutant that changes behaviour: write a test.
 exclude_re = [
+    # The CLI's thread count: tables are the same whatever the count (the
+    # runner orders results by job, pinned in `keeps_job_order_...` and
+    # `..._replay_...` tests), and 0 is read as 1.
+    "replace threads -> usize with [01]",
     # `delta > 0` vs `>= 0`: scaling a zero delta by (1 − D) is still zero.
     "replace > with >= in Curiosity::apply",
     # `choke_shift > 0` vs `>= 0`: a zero shift moves zero weight.
