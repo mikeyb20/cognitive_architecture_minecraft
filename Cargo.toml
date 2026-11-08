@@ -22,6 +22,7 @@ host-api = { path = "crates/host-api" }
 cognitive-core = { path = "crates/core" }
 sim = { path = "crates/sim" }
 minecraft = { path = "crates/minecraft" }
+llm = { path = "crates/llm" }
 serde = { version = "1", features = ["derive"] }
 rand = { version = "0.9", default-features = false }
 rand_chacha = "0.9"

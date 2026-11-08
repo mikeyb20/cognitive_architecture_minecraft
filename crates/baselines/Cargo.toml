@@ -9,10 +9,12 @@ rust-version.workspace = true
 
 [dependencies]
 host-api.workspace = true
+llm.workspace = true
 
 [dev-dependencies]
 # Tests drive Arm A in the sim; the crate itself runs in any world.
 sim.workspace = true
+proptest.workspace = true
 
 [lints]
 workspace = true

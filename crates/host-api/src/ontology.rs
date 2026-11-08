@@ -24,6 +24,46 @@ pub enum Skill {
     Chat,
 }
 
+impl Skill {
+    /// Every skill, in declaration order.
+    pub const ALL: [Skill; 14] = [
+        Skill::Explore,
+        Skill::MoveTo,
+        Skill::Mine,
+        Skill::Chop,
+        Skill::Craft,
+        Skill::Place,
+        Skill::Attack,
+        Skill::Flee,
+        Skill::Eat,
+        Skill::Farm,
+        Skill::Shelter,
+        Skill::Rest,
+        Skill::FollowPlayer,
+        Skill::Chat,
+    ];
+
+    /// The wire name (spec §2), as serde writes it; used in LLM prompts.
+    pub fn name(self) -> &'static str {
+        match self {
+            Skill::Explore => "explore",
+            Skill::MoveTo => "move_to",
+            Skill::Mine => "mine",
+            Skill::Chop => "chop",
+            Skill::Craft => "craft",
+            Skill::Place => "place",
+            Skill::Attack => "attack",
+            Skill::Flee => "flee",
+            Skill::Eat => "eat",
+            Skill::Farm => "farm",
+            Skill::Shelter => "shelter",
+            Skill::Rest => "rest",
+            Skill::FollowPlayer => "follow_player",
+            Skill::Chat => "chat",
+        }
+    }
+}
+
 /// The 7 tenacity task types (#36). Finer splits only if logs show a type
 /// behaves differently.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
