@@ -3,6 +3,7 @@
 //! stable. The speed gate runs in CI as `runner speed` in a release build.
 
 use cognitive_core::activation::{CuriosityParams, SignalWeights};
+use cognitive_core::agent::digest::{float_sums, sums_close, trace_digest};
 use cognitive_core::agent::{Brain, BrainConfig, TickLog};
 use runner::brain::{BrainResult, run_with, setup};
 
@@ -119,28 +120,24 @@ fn stuck_kick_escapes_a_loop() {
     }
 }
 
-/// FNV-1a over the JSON rows: any behaviour change shows up here.
-fn trace_hash(rows: &[TickLog]) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for r in rows {
-        for b in serde_json::to_string(r).unwrap().bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x0100_0000_01b3);
-        }
-    }
-    h
-}
-
 #[test]
 fn golden_trace_is_stable() {
     let (rows, r) = run("first_night", 0, Brain::new(BrainConfig::default(), 0));
     let (again, _) = run("first_night", 0, Brain::new(BrainConfig::default(), 0));
-    assert_eq!(trace_hash(&rows), trace_hash(&again), "same seed, same run");
+    assert_eq!(
+        trace_digest(&rows),
+        trace_digest(&again),
+        "same seed, same run"
+    );
     // Pinned. Change only on a deliberate behaviour change, and say why in
     // the PR (CLAUDE.md "Testing").
     assert_eq!((r.decisions, r.idle, r.thoughts), GOLDEN_COUNTS, "{r:?}");
-    assert_eq!(trace_hash(&rows), GOLDEN_HASH);
+    assert_eq!(trace_digest(&rows), GOLDEN_HASH);
+    let sums = float_sums(&rows);
+    assert!(sums_close(sums, GOLDEN_SUMS, 1e-3), "{sums:?}");
 }
 
-const GOLDEN_COUNTS: (u32, u32, u32) = (563, 264, 5);
-const GOLDEN_HASH: u64 = 2_752_055_207_582_446_854;
+const GOLDEN_COUNTS: (u32, u32, u32) = (641, 584, 26);
+const GOLDEN_HASH: u64 = 3_702_787_714_657_621_692;
+/// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).
+const GOLDEN_SUMS: [f64; 5] = [84.9208, 0.0, 36.5736, 32.4975, 473.5020];

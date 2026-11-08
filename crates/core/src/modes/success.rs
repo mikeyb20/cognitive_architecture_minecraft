@@ -115,6 +115,15 @@ mod tests {
     }
 
     #[test]
+    fn credit_values() {
+        assert_eq!((PARTIAL, NOTHING_RETAINED), (0.3, -0.5));
+        // With thr_E = 0, an action that found nothing still gets no full
+        // credit: Exploring needs at least one new item.
+        let zero = Thresholds { e: 0.0, ..THR };
+        assert_eq!(success(Mode::Exploring, &ok(), &zero), 0.0);
+    }
+
+    #[test]
     fn novelty_of_an_outcome() {
         let mut o = ok();
         assert_eq!(o.novelty(), 0.0);

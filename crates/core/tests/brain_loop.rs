@@ -7,10 +7,11 @@
 mod common;
 
 use cognitive_core::activation::GShape;
+use cognitive_core::agent::digest::{float_sums, sums_close, trace_digest};
 use cognitive_core::agent::{Brain, BrainConfig, BudgetPolicy, Goal, TickLog};
 use cognitive_core::control::oracle::Exp3;
 use cognitive_core::modes::Mode;
-use common::{DAY, busy, in_range, low_commanded, run, trace_hash};
+use common::{DAY, busy, in_range, low_commanded, run};
 
 #[test]
 fn every_row_stays_in_range() {
@@ -97,7 +98,7 @@ fn same_seed_same_trace_and_the_trace_is_pinned() {
     let (_, na) = run(Brain::new(busy(), 11), 2 * DAY, &mut a);
     let mut b = vec![];
     let (_, nb) = run(Brain::new(busy(), 11), 2 * DAY, &mut b);
-    assert_eq!(trace_hash(&a), trace_hash(&b));
+    assert_eq!(trace_digest(&a), trace_digest(&b));
     assert_eq!(na, nb);
     let mut d = vec![];
     run(Brain::new(BrainConfig::default(), 11), DAY, &mut d);
@@ -114,18 +115,33 @@ fn same_seed_same_trace_and_the_trace_is_pinned() {
         "{na:?}"
     );
     assert_eq!(
-        (trace_hash(&a), trace_hash(&d), trace_hash(&e)),
+        (trace_digest(&a), trace_digest(&d), trace_digest(&e)),
         GOLDEN_HASHES,
         "{:?}",
-        (trace_hash(&a), trace_hash(&d), trace_hash(&e))
+        (trace_digest(&a), trace_digest(&d), trace_digest(&e))
     );
+    for (rows, want) in [
+        (&a, GOLDEN_SUMS[0]),
+        (&d, GOLDEN_SUMS[1]),
+        (&e, GOLDEN_SUMS[2]),
+    ] {
+        let got = float_sums(rows);
+        assert!(sums_close(got, want, 1e-3), "{got:?} vs {want:?}");
+    }
 }
 
-const GOLDEN_COUNTS: (u32, u32, u32, u32) = (364, 0, 61, 1);
+/// Float sums per golden run (busy, default, low-commanded).
+const GOLDEN_SUMS: [[f64; 5]; 3] = [
+    [234.5497, 0.0, 142.1773, 214.5472, 258.0193],
+    [216.5376, 0.0, 57.7794, 101.1325, 960.2663],
+    [99.5373, 0.0, 9.5234, 38.0627, 753.6387],
+];
+
+const GOLDEN_COUNTS: (u32, u32, u32, u32) = (313, 0, 1, 1);
 const GOLDEN_HASHES: (u64, u64, u64) = (
-    13_283_574_105_874_438_703,
-    8_962_753_563_372_705_096,
-    5_682_825_806_676_103_874,
+    3_733_673_918_618_476_048,
+    10_683_333_504_317_154_318,
+    18_388_800_014_989_128_682,
 );
 
 #[test]
@@ -174,7 +190,7 @@ fn variants_change_behaviour() {
     let base = {
         let mut r = vec![];
         run(Brain::new(busy(), 2), DAY, &mut r);
-        trace_hash(&r)
+        trace_digest(&r)
     };
     let cfgs = [
         BrainConfig {
@@ -193,7 +209,7 @@ fn variants_change_behaviour() {
     for cfg in cfgs {
         let mut r = vec![];
         let (b, _) = run(Brain::new(cfg.clone(), 2), DAY, &mut r);
-        assert_ne!(trace_hash(&r), base, "{cfg:?}");
+        assert_ne!(trace_digest(&r), base, "{cfg:?}");
         if cfg.oracle_exp3.is_some() {
             assert_ne!(b.oracle().exp3.unwrap().log_w, [0.0; 4]);
         }
