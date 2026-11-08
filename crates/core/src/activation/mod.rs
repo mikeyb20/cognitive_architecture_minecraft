@@ -7,6 +7,8 @@ pub mod signals;
 mod valence;
 
 pub use curiosity::{Curiosity, CuriosityParams};
-pub use g::{Activation, LogActivation, PowerActivation, external_drive_effort};
+pub use g::{
+    Activation, GShape, LogActivation, PowerActivation, build_activation, external_drive_effort,
+};
 pub use signals::{SignalWeights, Signals};
 pub use valence::{Affect, AffectParams, ValenceInputs};

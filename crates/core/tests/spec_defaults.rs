@@ -2,8 +2,10 @@
 //! silent change to a default breaks a test. If a default changes on purpose,
 //! change the spec (and log the decision) and then this file.
 
-use cognitive_core::activation::{AffectParams, CuriosityParams, PowerActivation, SignalWeights};
-use cognitive_core::agent::BrainConfig;
+use cognitive_core::activation::{
+    AffectParams, CuriosityParams, GShape, PowerActivation, SignalWeights,
+};
+use cognitive_core::agent::{BrainConfig, BudgetPolicy};
 use cognitive_core::control::kick::KickParams;
 use cognitive_core::control::oracle::Oracle;
 use cognitive_core::control::permeability::PermeabilityParams;
@@ -148,6 +150,11 @@ fn brain_defaults_match_spec_19() {
     assert_eq!(
         (b.thr_l, b.thr_e, b.thr_p),
         ((0.1, 0.4), (0.1, 0.5), (0.3, 0.9))
+    );
+    assert_eq!((b.g_shape, b.g_k), (GShape::Power, 10.0));
+    assert_eq!(
+        (b.budget_policy, b.oracle_exp3),
+        (BudgetPolicy::RestBoost, None)
     );
     // The nested params are the module defaults pinned above.
     assert_eq!(b.curiosity, CuriosityParams::default());

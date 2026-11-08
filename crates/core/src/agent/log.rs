@@ -231,7 +231,7 @@ impl Brain {
         l.dt = s.dt;
         l.c = self.curiosity.value();
         l.c_target = self.c_target;
-        l.g = crate::activation::Activation::g(&self.act, l.c);
+        l.g = self.act.g(l.c);
         l.d = self.affect.d();
         l.v = self.affect.v();
         l.pi = self.perm.value();

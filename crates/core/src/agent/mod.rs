@@ -14,12 +14,12 @@ pub mod log;
 mod perceive;
 pub mod think;
 
-pub use config::{BrainConfig, Horizon, LensPrior};
+pub use config::{BrainConfig, BudgetPolicy, Horizon, LensPrior};
 pub use log::TickLog;
 pub use think::{NoTools, ThinkTools};
 
 use crate::activation::signals::{LearningProgress, NoveltyWindow};
-use crate::activation::{Affect, Curiosity, PowerActivation, Signals};
+use crate::activation::{Activation, Affect, Curiosity, Signals, build_activation};
 use crate::body::Fatigue;
 use crate::control::development::Development;
 use crate::control::episodes::TenacityTable;
@@ -144,7 +144,7 @@ pub struct Brain {
     pub(crate) rng: ChaCha8Rng,
     pub(crate) curiosity: Curiosity,
     pub(crate) affect: Affect,
-    pub(crate) act: PowerActivation,
+    pub(crate) act: Box<dyn Activation>,
     pub(crate) fatigue: Fatigue,
     pub(crate) tm: ThoughtMomentum,
     pub(crate) lenses: [Lens; 4],
@@ -205,6 +205,7 @@ impl Brain {
         let tenacity = TenacityTable::new(config.tenacity_ab.map(|(a, b)| (a, b, g)));
         let oracle = Oracle {
             theta: oracle_priors(config.oracle_bias),
+            exp3: config.oracle_exp3,
             floor: config.oracle_floor,
             eta: config.oracle_eta,
             ..Oracle::default()
@@ -217,9 +218,7 @@ impl Brain {
         Self {
             curiosity: Curiosity::new(config.curiosity.clone()),
             affect: Affect::new(config.affect.clone()),
-            act: PowerActivation {
-                alpha: config.alpha,
-            },
+            act: build_activation(config.g_shape, config.alpha, config.g_k),
             fatigue: Fatigue::default(),
             tm: ThoughtMomentum::new(config.tm_k, config.tm_tau),
             lenses,

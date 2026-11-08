@@ -2,8 +2,8 @@
 //! integrated over the world ticks since the last decision.
 
 use super::{Brain, Goal};
+use crate::activation::ValenceInputs;
 use crate::activation::signals::{social, threat};
-use crate::activation::{Activation, ValenceInputs};
 use crate::body::energy;
 use crate::control::time::urgency;
 use crate::memory::{PriorityInputs, Source, Tier};
@@ -75,9 +75,10 @@ impl Brain {
         self.signals.learning_progress = self.lp.value();
         self.signals.habituation = self.current_target_habituation(now);
         // subconscious, with the budget for the ticks that passed
-        let budget = self
-            .dev
-            .subconscious_budget(self.config.subconscious.b_base, obs.resting);
+        let budget = self.dev.subconscious_budget(
+            self.config.subconscious.b_base,
+            self.config.budget_policy.boost(obs.resting),
+        );
         let rep = self.sub.run(&mut self.mem, budget * dt as f32, now);
         s.sub_processed = rep.processed;
         s.pruned = rep.pruned;

@@ -2,9 +2,9 @@
 //! proposed values from spec §5–§17. `Default` is spec §19's "default" column.
 //! Archetypes are TOML files that override fields (build step 7).
 
-use crate::activation::{AffectParams, CuriosityParams, PowerActivation, SignalWeights};
+use crate::activation::{AffectParams, CuriosityParams, GShape, PowerActivation, SignalWeights};
 use crate::control::kick::KickParams;
-use crate::control::oracle::Oracle;
+use crate::control::oracle::{Exp3, Oracle};
 use crate::control::permeability::PermeabilityParams;
 use crate::control::subconscious::SubconsciousParams;
 use crate::memory::MemoryParams;
@@ -25,6 +25,27 @@ pub struct LensPrior {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Horizon {
     pub ticks: f32,
+}
+
+/// k for the log form of g(C) (spec §16 sweep; proposed).
+pub const G_LOG_K: f32 = 10.0;
+
+/// Subconscious budget policy (OQ16).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BudgetPolicy {
+    /// `B = B_base·(1 + (1 − ρ_eff))·(1 + 2·[resting])` (spec §14).
+    #[default]
+    RestBoost,
+    /// The same without the rest boost.
+    Fixed,
+}
+
+impl BudgetPolicy {
+    /// Whether resting boosts the budget under this policy.
+    pub fn boost(self, resting: bool) -> bool {
+        resting && self == BudgetPolicy::RestBoost
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -68,6 +89,14 @@ pub struct BrainConfig {
     pub age_per_experience: f32,
     /// g(C) = C^α (spec §16).
     pub alpha: f32,
+    /// Form of g(C) and the log form's k (OQ8 sweep; spec §16).
+    pub g_shape: GShape,
+    pub g_k: f32,
+    /// Subconscious budget policy (OQ16; spec §14, §17).
+    pub budget_policy: BudgetPolicy,
+    /// Oracle learner: `None` is the contextual gradient bandit (spec §8);
+    /// `Some` uses EXP3 (OQ18 alternative).
+    pub oracle_exp3: Option<Exp3>,
     /// Multiplier on the dominant mode's temperature (OQ19 sweep handle).
     pub tau_scale: f32,
     /// k_g in R (spec §13).
@@ -110,6 +139,10 @@ impl Default for BrainConfig {
             age_per_tick: 1.0,
             age_per_experience: 0.0,
             alpha: PowerActivation::default().alpha,
+            g_shape: GShape::default(),
+            g_k: G_LOG_K,
+            budget_policy: BudgetPolicy::default(),
+            oracle_exp3: None,
             tau_scale: 1.0,
             k_goal: 0.5,
             rho_pre: 0.0,
