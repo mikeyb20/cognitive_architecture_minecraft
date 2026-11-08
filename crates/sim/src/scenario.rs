@@ -139,6 +139,47 @@ mod tests {
         assert_eq!(l.horizon, Some(9600.0));
         assert_eq!(build("open_day", r(), 0).unwrap().max_ticks, 3 * DAY);
         assert_eq!(build("first_night", r(), 0).unwrap().max_ticks, DAY);
+        assert_eq!((c.max_ticks, h.max_ticks), (2 * DAY, 3 * DAY));
+        assert_eq!(l.max_ticks, 5 * DAY);
+    }
+
+    #[test]
+    fn harass_counts_only_close_hostiles_and_spawns_on_free_ground() {
+        let mut s = build("harsh", Rules::default(), 3).unwrap();
+        let w = &mut s.world;
+        w.mobs.clear();
+        let me = Pos { x: 20, y: 0, z: 20 };
+        w.body.pos = me;
+        for (i, p) in ring(me, HARSH_RING).enumerate() {
+            w.map.set(
+                p,
+                if i < 8 {
+                    crate::map::Tile::Stone
+                } else {
+                    crate::map::Tile::Grass
+                },
+            );
+        }
+        for i in 0..HARSH_MOBS as i32 {
+            let far = Pos { x: 30 + i, ..me };
+            w.mobs.push(Mob::new(MobKind::Zombie, far, w.tick));
+        }
+        let pig = Pos { x: 21, ..me };
+        w.mobs.push(Mob::new(MobKind::Pig, pig, w.tick));
+        harass(w);
+        let new: Vec<&Mob> = w.mobs[HARSH_MOBS + 1..].iter().collect();
+        assert_eq!(new.len(), HARSH_MOBS, "far zombies and a pig do not count");
+        for m in &new {
+            assert!(
+                m.kind.hostile() && w.map.get(m.pos).walkable(),
+                "{:?}",
+                m.pos
+            );
+            assert!(crate::geom::cheb(m.pos, me) == HARSH_RING);
+        }
+        let mut spots: Vec<(i32, i32)> = new.iter().map(|m| (m.pos.x, m.pos.z)).collect();
+        spots.dedup();
+        assert_eq!(spots.len(), HARSH_MOBS, "one per tile");
     }
 
     #[test]

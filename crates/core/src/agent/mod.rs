@@ -9,10 +9,14 @@
 
 mod choose;
 pub mod config;
+pub mod digest;
 mod learn;
 pub mod log;
 mod perceive;
 pub mod think;
+
+#[cfg(test)]
+mod tests;
 
 pub use config::{BrainConfig, BudgetPolicy, Horizon, LensPrior};
 pub use log::TickLog;

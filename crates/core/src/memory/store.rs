@@ -309,7 +309,7 @@ mod tests {
             5,
             Source::Llm,
         );
-        assert!(new);
+        assert!(new && !s.is_empty());
         assert_eq!(s.entry(a).confidence, 0.6);
         assert_eq!(s.entry(a).item.priority, 0.1);
         let (a2, new2) = s.encode(

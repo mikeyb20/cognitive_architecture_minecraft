@@ -396,18 +396,6 @@ pub fn low_commanded(seed: u64) -> Brain {
     b
 }
 
-/// FNV-1a over the Debug form of each row (floats print exactly).
-pub fn trace_hash(rows: &[TickLog]) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for r in rows {
-        for b in format!("{r:?}").bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x0000_0100_0000_01b3);
-        }
-    }
-    h
-}
-
 pub fn in_range(v: f32, lo: f32, hi: f32) -> bool {
     v.is_finite() && (lo..=hi).contains(&v)
 }

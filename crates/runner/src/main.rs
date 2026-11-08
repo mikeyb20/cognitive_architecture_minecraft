@@ -4,8 +4,8 @@
 //! - `runner first-night [N]`: arm A over N seeds (build step 3 gate).
 //! - `runner brain <scenario> [N] [--log FILE]`: the brain over N seeds,
 //!   optionally writing one JSONL row per decision (spec §25).
-//! - `runner speed [N]`: world ticks per second for the brain (step 4 gate:
-//!   at least 5,000); exits non-zero below the gate.
+//! - `runner speed [N] [--gate G]`: world ticks per second for the brain
+//!   (step 4 gate: at least 5,000); exits non-zero below the gate.
 //! - `runner sweep <OQ|all> [--seeds N] [--scenarios a,b] [--out DIR]`: an
 //!   open-question sweep (step 5); prints a Markdown table and, with
 //!   `--out`, writes `<OQ>.md` and `<OQ>.csv` there.
@@ -29,7 +29,10 @@ fn main() {
     match args.first().map(String::as_str) {
         Some("first-night") => first_night(n(1, 100)),
         Some("brain") => brain(&args),
-        Some("speed") => speed(n(1, 20)),
+        Some("speed") => {
+            let gate = flag(&args, "--gate").and_then(|g| g.parse().ok());
+            speed(n(1, 20), gate.unwrap_or(SPEED_GATE));
+        }
         Some("sweep") => sweep(&args),
         _ => {}
     }
@@ -89,25 +92,13 @@ fn brain(args: &[String]) {
     println!("brain {name}: {alive}/{n} survived");
 }
 
-fn speed(n: u64) {
+fn speed(n: u64, gate: f64) {
     let start = Instant::now();
-    let mut ticks = 0;
-    for seed in 0..n {
-        let setup = runner::brain::setup("open_day", seed);
-        let r = runner::brain::run_brain(
-            setup,
-            cognitive_core::agent::BrainConfig::default(),
-            seed,
-            |_| {},
-        );
-        ticks += r.ticks;
-    }
+    let ticks = runner::brain::speed_ticks(n);
     let secs = start.elapsed().as_secs_f64();
-    let rate = ticks as f64 / secs;
-    println!(
-        "brain speed: {ticks} world ticks in {secs:.2} s = {rate:.0} ticks/s (gate {SPEED_GATE})"
-    );
-    if rate < SPEED_GATE {
+    let rate = runner::brain::rate(ticks, secs);
+    println!("brain speed: {ticks} world ticks in {secs:.2} s = {rate:.0} ticks/s (gate {gate})");
+    if rate < gate {
         std::process::exit(1);
     }
 }

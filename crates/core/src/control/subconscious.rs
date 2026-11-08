@@ -97,7 +97,7 @@ impl Subconscious {
         }
         for _ in 0..n.min(cap) {
             let id = self.cursor % cap;
-            self.cursor = (self.cursor + 1) % cap;
+            self.cursor = id + 1;
             if mem.is_alive(id) {
                 self.visit(mem, id, now, &mut r);
             }
@@ -123,7 +123,7 @@ impl Subconscious {
             e.item.priority = e.item.priority.clamp(0.0, 1.0);
             (e.useful, e.unresolved, e.item.v_enc, e.item.priority)
         };
-        if useful > REINFORCE_AT {
+        if reinforces(useful) {
             mem.access(id, now);
             r.reinforced += 1;
         }
@@ -135,6 +135,11 @@ impl Subconscious {
             r.nudge = r.nudge.max(p.nudge * sig);
         }
     }
+}
+
+/// Consolidation reinforces items used often enough (spec §17).
+fn reinforces(useful: f32) -> bool {
+    useful > REINFORCE_AT
 }
 
 #[cfg(test)]
@@ -168,6 +173,50 @@ mod tests {
         let mut empty = MemoryStore::default();
         assert_eq!(s.run(&mut empty, 3.0, 0), Report::default());
         assert_eq!(s.run(&mut m, -1.0, 0).processed, 0);
+    }
+
+    #[test]
+    fn weak_share_is_an_ema_of_weak_visits() {
+        // Semantic P = 0.1, base 0.8: σ = 0.08 < 2·σ_min, weak.
+        let mut m = mem_with(&[("a", Tier::Semantic, 0.0)]);
+        let mut s = Subconscious::default();
+        s.run(&mut m, 1.0, 0);
+        s.run(&mut m, 1.0, 0);
+        assert!((s.weak_share() - (0.05 + 0.05 * 0.95)).abs() < 1e-6);
+        // A strong item (procedural, high priority) is not weak.
+        let mut strong = MemoryStore::new(MemoryParams::default());
+        let x = PriorityInputs {
+            v_enc: 1.0,
+            repetition: 1.0,
+            survival: 1.0,
+            ..PriorityInputs::default()
+        };
+        strong.encode("skill", Tier::Procedural, x, 0, Source::Perception);
+        assert!(strong.strength(0, 0) > 0.3, "{}", strong.strength(0, 0));
+        let mut s = Subconscious::default();
+        s.run(&mut strong, 1.0, 0);
+        assert_eq!(s.weak_share(), 0.0);
+    }
+
+    #[test]
+    fn flag_and_nudge_need_more_than_the_threshold() {
+        let at = |mix: [f32; 3]| {
+            let mut m = mem_with(&[("x", Tier::Semantic, 0.0)]);
+            m.entry_mut(0).unresolved = true;
+            let mut s = Subconscious::new(SubconsciousParams {
+                mix,
+                ..SubconsciousParams::default()
+            });
+            s.run(&mut m, 1.0, 0)
+        };
+        // sig = mix[0] exactly: at the flag line (0.5), then the nudge line (0.6).
+        let r = at([0.5, 0.0, 0.0]);
+        assert!(r.flagged.is_empty() && r.nudge == 0.0);
+        let r = at([0.6, 0.0, 0.0]);
+        assert_eq!((r.flagged, r.nudge), (vec![0], 0.0));
+        let r = at([0.7, 0.0, 0.0]);
+        assert!((r.nudge - 0.05 * 0.7).abs() < 1e-6);
+        assert!(reinforces(0.51) && !reinforces(0.5));
     }
 
     #[test]

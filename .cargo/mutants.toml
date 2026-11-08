@@ -20,7 +20,24 @@ exclude_re = [
     # Pruning activations `> 1e-6` vs `>= 1e-6`: an item at exactly 1e-6 is
     # below anything that could reach the top-k.
     "replace > with >= in ThoughtMomentum::tick_n_inner",
+    # Subconscious σ thresholds (weak below 2·σ_min, pruned below σ_min):
+    # `<` vs `<=` differs only when a decayed strength lands exactly on the
+    # threshold.
+    "replace < with <= in Subconscious::visit",
+    # Reinforce when usefulness > 0.5: usefulness is faded by ×0.99 before
+    # the check, and no f32 times 0.99 gives exactly 0.5.
+    "replace > with >= in reinforces",
     # Sim random draw `rng < p` vs `<= p`: differs only when a uniform f32
     # draw equals p exactly (probability ~2^-24 per draw).
     "replace < with <= in SimWorld::chance",
+    # Brain random draw `rng < p` vs `<= p`: same as above.
+    "replace < with <= in <impl RandomBool for R>::random_bool_f32",
+    # TM co-activation links `top[i + 1..]` vs `top[i * 1..]`: the extra pair
+    # is (a, a), and `MemoryStore::link` ignores self-links.
+    "replace \\+ with \\* in Brain::recall",
+    # `ScriptedPlayer::idle()` is defined as `Self::default()`.
+    "replace ScriptedPlayer::idle -> Self with Default::default\\(\\)",
+    # Speed gate `rate < gate` vs `<=`: a measured wall-clock rate never
+    # equals the gate exactly.
+    "replace < with <= in speed",
 ]
