@@ -5,6 +5,7 @@
 
 pub mod archetype;
 pub mod brain;
+pub(crate) mod drive;
 pub mod mc;
 pub(crate) mod par;
 pub mod sweep;

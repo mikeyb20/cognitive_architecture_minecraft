@@ -3,13 +3,13 @@
 
 use cognitive_core::agent::{Brain, BrainConfig, Decision, Horizon, ThinkTools, TickLog};
 use cognitive_core::direction::PlanStep;
-use host_api::reflex::{ReflexThresholds, emergency_reflex};
-use host_api::{Host, Observation, Skill, TaskType, World};
+use host_api::{Candidate, Outcome};
+use host_api::{Observation, Skill, TaskType};
 use sim::planner;
 use sim::scenario::{self, Setup};
 use sim::{Death, Rules};
 
-use crate::FULL;
+use crate::drive::{Driver, run_scenario};
 
 /// The sim's code tools (spec §21): the scripted planner and the
 /// tech-tree recombiner stand in for the LLM.
@@ -95,6 +95,27 @@ pub fn run_brain(
     run_with(setup, &mut brain, seed, &mut on_row)
 }
 
+/// The brain as a scenario driver, thinking with the sim's code tools.
+struct BrainDriver<'a> {
+    brain: &'a mut Brain,
+    tools: SimTools,
+}
+
+impl Driver for BrainDriver<'_> {
+    fn decide(&mut self, obs: &Observation, cands: &[Candidate]) -> Decision {
+        self.brain.step(obs, cands, &mut self.tools)
+    }
+    fn outcome(&mut self, out: Outcome) {
+        self.brain.outcome(out);
+    }
+    fn reflex_fired(&mut self, tick: u64) {
+        self.brain.reflex_fired(tick);
+    }
+    fn log(&self) -> Option<&TickLog> {
+        Some(self.brain.last_log())
+    }
+}
+
 /// Run with a brain the caller built (tests force states first).
 pub fn run_with(
     setup: Setup,
@@ -102,71 +123,12 @@ pub fn run_with(
     seed: u64,
     on_row: &mut dyn FnMut(&TickLog),
 ) -> BrainResult {
-    let Setup {
-        name,
-        mut world,
-        mut player,
-        max_ticks,
-        harass_until,
-        ..
-    } = setup;
-    let end = brain.lifespan().map_or(max_ticks, |l| l.min(max_ticks));
-    let mut tools = SimTools;
-    let mut harsh_open = false;
-    let mut r = BrainResult {
-        scenario: name,
-        seed,
-        survived: false,
-        ticks: 0,
-        death: None,
-        decisions: 0,
-        idle: 0,
-        thoughts: 0,
-        reflexes: 0,
-        new_things: 0,
-        inventory: Vec::new(),
+    let end = brain.lifespan();
+    let mut d = BrainDriver {
+        brain,
+        tools: SimTools,
     };
-    while world.tick < end && world.alive() {
-        if world.tick < harass_until {
-            scenario::harass(&mut world);
-            harsh_open = true;
-        } else if harsh_open {
-            scenario::end_harsh(&mut world);
-            harsh_open = false;
-        }
-        let mut obs = world.perceive();
-        let mut cands = world.candidate_actions(&obs);
-        player.apply(&mut obs, &mut cands);
-        if let Some((_, c)) = emergency_reflex(&obs, &cands, ReflexThresholds::default()) {
-            let c = c.clone();
-            r.reflexes += 1;
-            brain.reflex_fired(obs.tick);
-            r.new_things += world.execute(&c, FULL).new_things.len();
-            continue;
-        }
-        r.decisions += 1;
-        match brain.step(&obs, &cands, &mut tools) {
-            Decision::Act(i, it) => {
-                let out = world.execute(&cands[i], it);
-                r.new_things += out.new_things.len();
-                brain.outcome(out);
-            }
-            Decision::Thought(_) => {
-                r.thoughts += 1;
-                world.step_world(1);
-            }
-            Decision::Idle => {
-                r.idle += 1;
-                world.step_world(1);
-            }
-        }
-        on_row(brain.last_log());
-    }
-    r.survived = world.alive();
-    r.ticks = world.tick;
-    r.death = world.body.death;
-    r.inventory = world.body.inv.items.clone();
-    r
+    run_scenario(setup, &mut d, end, seed, on_row)
 }
 
 /// World ticks the default brain runs on `open_day` over seeds 0..n (the
@@ -229,5 +191,39 @@ mod tests {
         assert!(r.survived, "{r:?}");
         let r = (r.decisions, r.ticks);
         assert_eq!(r, (0, 0));
+    }
+
+    // The driver passes reflexes on, so O learns from them (spec §7.1).
+    #[test]
+    fn the_brain_driver_passes_reflexes_on() {
+        use cognitive_core::modes::Mode;
+        use host_api::{Host, World};
+        let mut s = setup("first_night", 0);
+        let mut brain = Brain::new(BrainConfig::default(), 0);
+        let mut d = BrainDriver {
+            brain: &mut brain,
+            tools: SimTools,
+        };
+        // Run until one action has been taken and learned from.
+        let mut acted = false;
+        let mut tick = 0;
+        for _ in 0..500 {
+            let obs = s.world.perceive();
+            let cands = s.world.candidate_actions(&obs);
+            tick = obs.tick;
+            match d.decide(&obs, &cands) {
+                Decision::Act(i, it) if !acted => {
+                    let out = s.world.execute(&cands[i], it);
+                    d.outcome(out);
+                    acted = true;
+                }
+                _ if acted => break,
+                _ => s.world.step_world(1),
+            }
+        }
+        assert!(acted);
+        let before = d.brain.lens(Mode::Optimizing).theta;
+        d.reflex_fired(tick);
+        assert_ne!(d.brain.lens(Mode::Optimizing).theta, before);
     }
 }
