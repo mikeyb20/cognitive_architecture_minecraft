@@ -13,6 +13,7 @@ cognitive-core.workspace = true
 sim.workspace = true
 baselines = { path = "../baselines" }
 llm.workspace = true
+minecraft.workspace = true
 serde_json = "1"
 
 [lints]

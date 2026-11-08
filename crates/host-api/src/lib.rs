@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod command;
 pub mod craft;
+pub mod link;
 pub mod ontology;
 pub mod planner;
 pub mod reflex;

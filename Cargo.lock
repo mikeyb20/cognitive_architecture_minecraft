@@ -400,6 +400,8 @@ dependencies = [
  "baselines",
  "cognitive-core",
  "host-api",
+ "llm",
+ "minecraft",
  "serde_json",
  "sim",
 ]

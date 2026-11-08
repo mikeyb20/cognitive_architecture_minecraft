@@ -4,6 +4,7 @@
 //! arm, #42) or the arm's choice → execute.
 
 pub mod brain;
+pub mod mc;
 pub(crate) mod par;
 pub mod sweep;
 pub mod theory;
