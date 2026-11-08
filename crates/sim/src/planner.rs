@@ -3,7 +3,7 @@
 //! next step. It re-plans from scratch every call, so it never holds stale
 //! state.
 
-use host_api::Inventory;
+use host_api::{Inventory, Skill, TaskType};
 
 use crate::craft::{self, pick_tier};
 
@@ -73,6 +73,72 @@ pub fn need(inv: &Inventory, item: &str, qty: u32) -> Option<Step> {
 /// Next step toward one `goal` item.
 pub fn next_step(inv: &Inventory, goal: &str) -> Option<Step> {
     need(inv, goal, 1)
+}
+
+/// A step in shared-ontology terms: the skill, the thing it acts on (memory
+/// key) and its task type. This is how the brain sees a plan (spec §6).
+pub fn in_ontology(step: Step) -> (Skill, String, TaskType) {
+    match step {
+        Step::Craft(item) => (Skill::Craft, format!("item:{item}"), TaskType::Crafting),
+        Step::Gather(r) => {
+            let (skill, block, task) = match r {
+                Resource::Log => (Skill::Chop, "oak_log", TaskType::Mining),
+                Resource::Stone => (Skill::Mine, "stone", TaskType::Mining),
+                Resource::IronOre => (Skill::Mine, "iron_ore", TaskType::Mining),
+                Resource::Wheat => (Skill::Farm, "wheat", TaskType::Farming),
+            };
+            (skill, format!("block:{block}"), task)
+        }
+    }
+}
+
+/// Most steps simulated when counting what is left.
+pub const MAX_STEPS: u32 = 200;
+
+/// Steps left to hold `goal`, simulating each step's result. `None` if the
+/// goal has no route or takes more than `MAX_STEPS`.
+pub fn steps_left(inv: &Inventory, goal: &str) -> Option<u32> {
+    let mut inv = inv.clone();
+    for n in 0..=MAX_STEPS {
+        let Some(step) = next_step(&inv, goal) else {
+            return (inv.count(goal) > 0).then_some(n);
+        };
+        match step {
+            Step::Craft(item) => {
+                craft::craft(&mut inv, craft::recipe(item)?);
+            }
+            Step::Gather(r) => {
+                let item = match r {
+                    Resource::Log => "oak_log",
+                    Resource::Stone => "cobblestone",
+                    Resource::IronOre => "iron_ore",
+                    Resource::Wheat => "wheat",
+                };
+                craft::give(&mut inv, item, 1);
+            }
+        }
+    }
+    None
+}
+
+/// Goal progress (spec §13): `1 − left/left_from_nothing`, in [0, 1].
+pub fn progress(inv: &Inventory, goal: &str) -> f32 {
+    let (Some(left), Some(total)) = (
+        steps_left(inv, goal),
+        steps_left(&Inventory::default(), goal),
+    ) else {
+        return 0.0;
+    };
+    // An empty inventory never holds the goal, so total ≥ 1.
+    (1.0 - left as f32 / total.max(1) as f32).clamp(0.0, 1.0)
+}
+
+/// The tech tree in order (spec §21); the code recombiner proposes the first
+/// one not yet held as an own goal.
+pub const TECH_GOALS: [&str; 4] = ["wooden_pickaxe", "stone_pickaxe", "furnace", "iron_pickaxe"];
+
+pub fn next_goal(inv: &Inventory) -> Option<&'static str> {
+    TECH_GOALS.into_iter().find(|g| inv.count(g) == 0)
 }
 
 #[cfg(test)]
@@ -160,5 +226,66 @@ mod tests {
         }
         assert_eq!(pick_tier(&i), 3);
         assert_eq!(steps, 30, "step count pins the plan's shape");
+    }
+
+    #[test]
+    fn steps_in_ontology_terms() {
+        assert_eq!(
+            in_ontology(Step::Craft("stick")),
+            (Skill::Craft, "item:stick".into(), TaskType::Crafting)
+        );
+        let g = |r| in_ontology(Step::Gather(r));
+        assert_eq!(
+            g(Resource::Log),
+            (Skill::Chop, "block:oak_log".into(), TaskType::Mining)
+        );
+        assert_eq!(
+            g(Resource::Stone),
+            (Skill::Mine, "block:stone".into(), TaskType::Mining)
+        );
+        assert_eq!(
+            g(Resource::IronOre),
+            (Skill::Mine, "block:iron_ore".into(), TaskType::Mining)
+        );
+        assert_eq!(
+            g(Resource::Wheat),
+            (Skill::Farm, "block:wheat".into(), TaskType::Farming)
+        );
+    }
+
+    #[test]
+    fn steps_left_and_progress() {
+        let empty = Inventory::default();
+        // Planks: one log, one craft. A wooden pickaxe needs 9 planks (table
+        // 4, pickaxe 3, sticks 2) = 3 logs, 3 plank crafts, then table,
+        // sticks and pickaxe. Bread: 3 wheat and a craft.
+        assert_eq!(steps_left(&empty, "oak_planks"), Some(2));
+        assert_eq!(steps_left(&empty, "wooden_pickaxe"), Some(9));
+        assert_eq!(steps_left(&empty, "bread"), Some(4));
+        assert_eq!(steps_left(&empty, "diamond"), None);
+        assert_eq!(progress(&empty, "diamond"), 0.0);
+        assert_eq!(progress(&empty, "wooden_pickaxe"), 0.0);
+        let mut inv = Inventory::default();
+        inv.items.push(("wooden_pickaxe".into(), 1));
+        assert_eq!(steps_left(&inv, "wooden_pickaxe"), Some(0));
+        assert_eq!(progress(&inv, "wooden_pickaxe"), 1.0);
+        let mut part = Inventory::default();
+        part.items.push(("oak_log".into(), 3));
+        let p = progress(&part, "wooden_pickaxe");
+        assert!((p - 3.0 / 9.0).abs() < 1e-6, "{p}");
+        let iron = steps_left(&empty, "iron_pickaxe").unwrap();
+        assert!(iron > 20 && iron < MAX_STEPS, "{iron}");
+    }
+
+    #[test]
+    fn next_goal_walks_the_tech_tree() {
+        let mut inv = Inventory::default();
+        assert_eq!(next_goal(&inv), Some("wooden_pickaxe"));
+        for g in TECH_GOALS {
+            inv.items.push((g.into(), 1));
+        }
+        assert_eq!(next_goal(&inv), None);
+        inv.items.remove(2);
+        assert_eq!(next_goal(&inv), Some("furnace"));
     }
 }

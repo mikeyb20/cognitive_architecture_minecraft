@@ -7,7 +7,9 @@ pub mod geom;
 pub mod map;
 pub mod mob;
 pub mod planner;
+pub mod player;
 pub mod rules;
+pub mod scenario;
 pub mod world;
 
 pub use host_api;

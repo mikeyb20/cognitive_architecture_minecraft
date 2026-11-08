@@ -26,6 +26,8 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: cargo run -q -p runner
+      # Build step 4 gate: the brain runs at >= 5,000 world ticks/s (spec §21).
+      - run: cargo run --release -q -p runner -- speed 20
 
   coverage:
     name: coverage (>= 95% of lines)

@@ -48,7 +48,9 @@ Most sprawl comes from one central function that every new feature edits: a `mat
 | Skills | one handler per skill, implementing a trait, registered in a table | **not yet**, see D2 |
 | Worlds (sim, Minecraft) | `World` + `Host` traits | in place |
 | Arms (A, B, B+N, brain) | `Policy` trait | in place |
-| LLM providers and tiers | a provider trait in `llm` | step 4 or 6 |
+| Thinking tools (plan, progress, own goals) | `ThinkTools` trait in `core::agent::think`; the sim's code tools implement it (`runner::brain::SimTools`) | in place; LLM tiers implement it in step 6 |
+| LLM providers and tiers | a provider trait in `llm` | step 6 |
+| Scenarios | `sim::scenario::build` by name | in place (moves to TOML with archetypes, step 7) |
 | Archetypes, scenarios, experiments | TOML in `configs/`, no code | step 7 |
 
 Rule: if a change needs a new branch in a function that already branches on the same thing, add a seam instead.
@@ -59,6 +61,21 @@ Rule: if a change needs a new branch in a function that already branches on the 
 - **Spec numbers** live once, as a default in a params struct, pinned by a test in `tests/spec_defaults.rs`. No literal spec value appears twice.
 - **Formulas** live once, in the module that mirrors their 01 section. Other code calls them; it never re-derives them.
 - **Duplication** is checked by jscpd (more than 3% of code in copied blocks of 70+ tokens fails CI). Below that, use the rule of three: the second copy is allowed, the third gets extracted. Extract to the lowest crate both callers already depend on; never add a dependency just to share a helper.
+
+### Where the brain loop lives
+
+`cognitive-core::agent` wires the 01 modules into one tick (spec §4). Each file is one phase, so a rule change has one home:
+
+| Phase | File | Spec |
+|---|---|---|
+| Config and defaults | `agent/config.rs` | §19 |
+| Learn from the last outcome (success, R, lenses, Oracle, tenacity, memory writes) | `agent/learn.rs` | §7.1, §8, §10, §13, §17 |
+| Sense (chat goals, signals, C/V/D/π drift over dt, subconscious, recall) | `agent/perceive.rs` | §5, §11, §12, §14, §17 |
+| Choose (scores, kicks, starts, softmax, intensity) | `agent/choose.rs` | §3, §9, §16 |
+| Internal actions and their tools | `agent/think.rs` | §6 |
+| Log row | `agent/log.rs` | §25 |
+
+The formulas themselves stay in the module that mirrors their 01 section (`activation`, `control`, `modes`, `memory`, `direction`); the agent files only call them.
 
 ## 5. Size budgets
 
@@ -104,3 +121,4 @@ Known shortcuts, each with the point by which it must be paid.
 | D2 | `sim::world` has one function arm per skill in `exec_inner` and `candidate_actions` (both over 100 lines); `sim/tests/world.rs` mirrors it. Every new skill edits both. | Step 6, before more skills arrive | A `SkillHandler` trait with `candidates()` and `execute()`, one file per skill under `sim/src/skills/`, registered in a table. Split the tests the same way. |
 | D3 | The ontology will be needed in TypeScript; hand-copied names will drift. | Step 6 | Generate TS types from the Rust ontology (napi-rs typings or `ts-rs`), checked in CI. |
 | D4 | Public items lack doc comments (about 300). | Rolling | Enable `missing_docs` on `host-api` first (the contract), then crate by crate. |
+| D5 | The sim offers no `Flee` candidate when the only hostile is diagonal or the way away is blocked (`point_toward` in `sim::world`), so a threatened agent sometimes cannot flee. Not fixed in step 4 because `world.rs` is at its size cap. | With D2 (step 6) | Move fleeing into its own skill handler and pick the best open neighbour away from all hostiles. |

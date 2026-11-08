@@ -265,6 +265,8 @@ dependencies = [
  "baselines",
  "cognitive-core",
  "host-api",
+ "serde",
+ "serde_json",
  "sim",
 ]
 

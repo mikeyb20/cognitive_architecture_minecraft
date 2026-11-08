@@ -3,6 +3,8 @@
 //! Each decision: perceive → candidates → emergency reflex (shared by every
 //! arm, #42) or the arm's choice → execute.
 
+pub mod brain;
+
 use baselines::Policy;
 use host_api::reflex::{ReflexThresholds, emergency_reflex};
 use host_api::{Host, Intensity, World};
