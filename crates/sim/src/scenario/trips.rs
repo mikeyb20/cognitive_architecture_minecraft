@@ -128,7 +128,7 @@ pub fn expedition(rules: Rules, seed: u64) -> Setup {
     craft::give(&mut world.body.inv, "stone_pickaxe", 1);
     world.body.food = EXPEDITION_FOOD;
     let mut s = setup("expedition", world, 3 * DAY);
-    s.player = ScriptedPlayer::commanding(vec![(0, "iron_ore".into())]);
+    s.player = ScriptedPlayer::commanding(vec![(0, "raw_iron".into())]);
     s
 }
 

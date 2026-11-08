@@ -6,6 +6,7 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use super::{Command, Parsed, mark_step, parse};
+use crate::craft::drop_of;
 use crate::planner::steps_left_for;
 use crate::{Candidate, ChatMsg, Observation, SeenKind, Skill, Target};
 
@@ -34,7 +35,8 @@ impl Default for QueueParams {
 /// One thing the agent was asked to do.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Task {
-    /// Gain `count` of `item`.
+    /// Gain `count` of `item`. Asking for a block counts what it drops
+    /// ("mine iron ore" counts `raw_iron`).
     Get { item: String, count: u32 },
     /// Stay near `player` until told to stay; any new task replaces it.
     Follow { player: String },
@@ -112,6 +114,7 @@ impl CommandQueue {
         let player = msg.from.clone();
         Some(match cmd {
             Command::Get { item, count } => {
+                let item = drop_of(&item).to_string();
                 let count = count
                     .or_else(|| self.last_count.get(&item).copied())
                     .unwrap_or(1);

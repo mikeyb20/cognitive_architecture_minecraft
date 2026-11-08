@@ -252,7 +252,7 @@ fn the_fullest_candidate_list_fits_in_twenty() {
         ("stick", 4),
         ("cobblestone", 11),
         ("iron_ingot", 3),
-        ("iron_ore", 1),
+        ("raw_iron", 1),
         ("wheat", 3),
         ("bread", 1),
         ("crafting_table", 1),

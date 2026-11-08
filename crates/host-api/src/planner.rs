@@ -27,7 +27,7 @@ fn raw(item: &str) -> Option<(Resource, u8)> {
     match item {
         "oak_log" => Some((Resource::Log, 0)),
         "cobblestone" => Some((Resource::Stone, 1)),
-        "iron_ore" => Some((Resource::IronOre, 2)),
+        "raw_iron" => Some((Resource::IronOre, 2)),
         "wheat" => Some((Resource::Wheat, 0)),
         _ => None,
     }
@@ -121,7 +121,7 @@ pub fn steps_left_for(inv: &Inventory, goal: &str, qty: u32) -> Option<u32> {
                 let item = match r {
                     Resource::Log => "oak_log",
                     Resource::Stone => "cobblestone",
-                    Resource::IronOre => "iron_ore",
+                    Resource::IronOre => "raw_iron",
                     Resource::Wheat => "wheat",
                 };
                 craft::give(&mut inv, item, 1);
@@ -225,7 +225,7 @@ mod tests {
             match s {
                 Step::Gather(Resource::Log) => craft::give(&mut i, "oak_log", 1),
                 Step::Gather(Resource::Stone) => craft::give(&mut i, "cobblestone", 1),
-                Step::Gather(Resource::IronOre) => craft::give(&mut i, "iron_ore", 1),
+                Step::Gather(Resource::IronOre) => craft::give(&mut i, "raw_iron", 1),
                 Step::Gather(Resource::Wheat) => panic!("wheat is not on the pickaxe path"),
                 Step::Craft(item) => {
                     assert!(craft::craft(&mut i, craft::recipe(item).unwrap()), "{item}");

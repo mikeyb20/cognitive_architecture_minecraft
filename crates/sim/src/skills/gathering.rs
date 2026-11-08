@@ -95,11 +95,11 @@ fn harvest(w: &mut SimWorld, at: Pos, tile: Tile) {
             w.map.set(at, Tile::Grass);
         }
         Tile::Stone => {
-            w.give("cobblestone", 1);
+            w.give(craft::drop_of("stone"), 1);
             w.map.set(at, w.map.ground(at));
         }
         _ => {
-            w.give("iron_ore", 1);
+            w.give(craft::drop_of("iron_ore"), 1);
             w.map.set(at, w.map.ground(at));
         }
     }

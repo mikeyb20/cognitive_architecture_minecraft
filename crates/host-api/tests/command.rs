@@ -14,6 +14,7 @@ use host_api::{
 fn mc(name: &str) -> bool {
     in_tech_tree(name)
         || [
+            "iron_ore",
             "diamond_ore",
             "gold_ore",
             "torch",
@@ -178,7 +179,7 @@ fn more_repeats_the_last_count_and_unroutable_items_are_refused() {
     let o = obs(&[("stone_pickaxe", 1)], vec![]);
     say(&mut q, "mine 5 iron ore", &o);
     say(&mut q, "!cancel", &o);
-    assert_eq!(say(&mut q, "mine more iron", &o), "On it: 5 iron_ore.");
+    assert_eq!(say(&mut q, "mine more iron", &o), "On it: 5 raw_iron.");
     say(&mut q, "!stop", &o);
     assert_eq!(
         say(&mut q, "get sticks", &o),
@@ -187,7 +188,7 @@ fn more_repeats_the_last_count_and_unroutable_items_are_refused() {
     );
     assert_eq!(
         say(&mut q, "mine 10 diamond ore", &o),
-        "I don't know how to get diamond_ore yet."
+        "I don't know how to get diamond yet."
     );
     assert_eq!(
         say(&mut q, "!dance", &o),
@@ -207,24 +208,24 @@ fn second_command_queues_and_runs_after_the_first() {
     say(&mut q, "mine 20 iron ore", &o);
     assert_eq!(
         say(&mut q, "mine 30 oak logs", &o),
-        "Queued 30 oak_log as #2, after 20 iron_ore."
+        "Queued 30 oak_log as #2, after 20 raw_iron."
     );
     assert_eq!(
         say(&mut q, "get 2 sticks", &o),
-        "Queued 2 stick as #3, after 20 iron_ore."
+        "Queued 2 stick as #3, after 20 raw_iron."
     );
     assert_eq!(say(&mut q, "get a furnace", &o), "My queue is full (2).");
     assert_eq!(
         q.status(&o),
-        "Working on iron_ore: 0/20. Queue: 30 oak_log, 2 stick."
+        "Working on raw_iron: 0/20. Queue: 30 oak_log, 2 stick."
     );
     let iron = obs(
-        &[("stone_pickaxe", 1), ("iron_ore", 20), ("oak_log", 4)],
+        &[("stone_pickaxe", 1), ("raw_iron", 20), ("oak_log", 4)],
         vec![],
     );
     assert_eq!(
         q.update(&iron).as_deref(),
-        Some("Done: 20 iron_ore. On it: 30 oak_log.")
+        Some("Done: 20 raw_iron. On it: 30 oak_log.")
     );
     assert_eq!(
         q.status(&iron),

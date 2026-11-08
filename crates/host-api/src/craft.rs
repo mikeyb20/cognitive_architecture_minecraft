@@ -1,7 +1,32 @@
 //! The tech tree (spec §21): log → planks → sticks → table → wood pick →
-//! stone → stone pick → furnace → iron → iron pick, plus bread.
+//! stone → stone pick → furnace → iron → iron pick, plus bread. Item names
+//! and drops follow Minecraft 1.21, so the sim and Minecraft share one tree.
 
 use crate::Inventory;
+
+/// What mining a block puts in the inventory, where it differs from the
+/// block's own name (Minecraft 1.21 without Silk Touch). Ores found deeper
+/// down (`deepslate_*`) drop the same as their plain form.
+pub const DROPS: [(&str, &str); 10] = [
+    ("stone", "cobblestone"),
+    ("deepslate", "cobbled_deepslate"),
+    ("iron_ore", "raw_iron"),
+    ("deepslate_iron_ore", "raw_iron"),
+    ("coal_ore", "coal"),
+    ("deepslate_coal_ore", "coal"),
+    ("gold_ore", "raw_gold"),
+    ("deepslate_gold_ore", "raw_gold"),
+    ("diamond_ore", "diamond"),
+    ("deepslate_diamond_ore", "diamond"),
+];
+
+/// The item a mined block gives (see [`DROPS`]); the block itself otherwise.
+pub fn drop_of(block: &str) -> &str {
+    DROPS
+        .iter()
+        .find(|(b, _)| *b == block)
+        .map_or(block, |(_, item)| item)
+}
 
 /// A recipe: inputs, output, and whether it needs a crafting table or furnace.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -52,7 +77,7 @@ pub const RECIPES: &[Recipe] = &[
     Recipe {
         output: "iron_ingot",
         count: 1,
-        inputs: &[("iron_ore", 1)],
+        inputs: &[("raw_iron", 1)],
         needs: Some("furnace"),
     },
     Recipe {
@@ -138,7 +163,7 @@ mod tests {
 
     #[test]
     fn full_tech_tree_from_logs_stone_and_ore() {
-        let mut i = inv(&[("oak_log", 4), ("cobblestone", 11), ("iron_ore", 3)]);
+        let mut i = inv(&[("oak_log", 4), ("cobblestone", 11), ("raw_iron", 3)]);
         for out in [
             "oak_planks",
             "oak_planks",
@@ -159,6 +184,16 @@ mod tests {
         assert_eq!(pick_tier(&i), 3);
         assert_eq!(i.count("cobblestone"), 0);
         assert_eq!(i.count("iron_ingot"), 0);
+    }
+
+    #[test]
+    fn mined_blocks_drop_what_minecraft_drops() {
+        assert_eq!(drop_of("iron_ore"), "raw_iron");
+        assert_eq!(drop_of("deepslate_iron_ore"), "raw_iron");
+        assert_eq!(drop_of("stone"), "cobblestone");
+        assert_eq!(drop_of("deepslate_diamond_ore"), "diamond");
+        assert_eq!(drop_of("oak_log"), "oak_log", "most blocks drop themselves");
+        assert_eq!(drop_of("raw_iron"), "raw_iron");
     }
 
     #[test]

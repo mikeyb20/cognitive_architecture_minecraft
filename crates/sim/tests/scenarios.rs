@@ -168,7 +168,7 @@ fn expedition_needs_packed_food_for_far_iron() {
         assert!(pigs(w).iter().all(|p| cheb(*p, home) <= 1));
         assert_eq!(w.body.inv.count("stone_pickaxe"), 1);
         assert_eq!(w.body.food, EXPEDITION_FOOD);
-        assert_eq!(s.player.commands, vec![(0, "iron_ore".to_string())]);
+        assert_eq!(s.player.commands, vec![(0, "raw_iron".to_string())]);
         road_open(w, WEST_START, EXPEDITION);
         assert_eq!(s.max_ticks, 3 * DAY);
     }

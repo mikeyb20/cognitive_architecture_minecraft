@@ -149,7 +149,7 @@ fn mining_needs_the_right_pickaxe_and_is_faster_with_better_ones() {
     give(&mut w, "stone_pickaxe", 1);
     let o = w.execute(&at(Skill::Mine, 23, 24), FULL);
     assert_eq!((o.success, o.duration_ticks), (true, 30));
-    assert_eq!(o.items_gained.count("iron_ore"), 1);
+    assert_eq!(o.items_gained.count("raw_iron"), 1);
     give(&mut w, "iron_pickaxe", 1);
     w.map.set(p(25, 24), Tile::Stone);
     assert_eq!(w.execute(&at(Skill::Mine, 25, 24), FULL).duration_ticks, 20);
