@@ -6,7 +6,9 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod craft;
 pub mod ontology;
+pub mod planner;
 pub mod reflex;
 
 pub use ontology::{Skill, TaskType};

@@ -9,22 +9,20 @@ The aim is simple: **no big rewrites.** We get there by paying small costs conti
 Dependencies point one way. A crate may use only the crates below it.
 
 ```
-            runner                     CLI: scenarios x arms x seeds -> logs
-     ┌────────┼─────────┐
- baselines    │        llm             comparison arms; LLM client
-     │        │         │
-    sim  cognitive-core │              the world; the brain
-     └────────┼─────────┘
-          host-api                     the contract: World, Host, ontology
+                  runner                   CLI: scenarios x arms x seeds -> logs
+     ┌─────────┬────┴─────┬──────────┐
+    sim  cognitive-core  baselines ─► llm  the world; the brain; comparison arms; LLM client
+     └─────────┴────┬─────┴──────────┘
+                 host-api                  the contract: World, Host, ontology, tech tree
 ```
 
 | Crate | May depend on | Why |
 |---|---|---|
-| `host-api` | nothing in the workspace | It is the contract. Everything else agrees on it. |
+| `host-api` | nothing in the workspace | It is the contract. Everything else agrees on it. It also holds the tech tree (`craft`) and its planner, which are Minecraft knowledge shared by every world and arm. |
 | `cognitive-core` | `host-api` | The brain must not know which world it is in (spec §2). |
 | `sim` | `host-api` | A world implements the contract and knows nothing about brains. |
 | `llm` | `host-api` | A tool the brain calls through a trait, never directly. |
-| `baselines` | `host-api`, `sim`, `llm` | See debt D1. |
+| `baselines` | `host-api`, `llm` | Arms run in any world, like the brain. (Tests use `sim` as a dev-dependency.) |
 | `runner` | everything | The only place that wires parts together. |
 
 `scripts/check-architecture.sh` fails CI on any edge not in this table. Adding a crate means adding a row here and in the script, so its place is a decision, not an accident.
@@ -117,7 +115,6 @@ Known shortcuts, each with the point by which it must be paid.
 
 | ID | Debt | Pay before | Plan |
 |---|---|---|---|
-| D1 | `baselines` (Arm A) uses `sim::planner`, so Arm A cannot run in Minecraft. | Step 6 (Minecraft adapter) | Move the planner onto `Observation` data in `host-api` terms, or into `baselines`, then drop the `sim` edge. |
 | D3 | The ontology will be needed in TypeScript; hand-copied names will drift. | Step 6 | Generate TS types from the Rust ontology (napi-rs typings or `ts-rs`), checked in CI. |
 | D4 | Public items lack doc comments (about 300). | Rolling | Enable `missing_docs` on `host-api` first (the contract), then crate by crate. |
 | D5 | The sim offers no `Flee` candidate when the only hostile is diagonal or the way away is blocked (`point_toward`, used by `sim::skills::threats`), so a threatened agent sometimes cannot flee. A behaviour change, so it gets its own PR after the D2 refactor. | Step 6 | In `sim::skills::threats`, pick the best open neighbour away from all hostiles. |

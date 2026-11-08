@@ -1,7 +1,7 @@
 //! The tech tree (spec §21): log → planks → sticks → table → wood pick →
 //! stone → stone pick → furnace → iron → iron pick, plus bread.
 
-use host_api::Inventory;
+use crate::Inventory;
 
 /// A recipe: inputs, output, and whether it needs a crafting table or furnace.
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -3,7 +3,7 @@
 //! next step. It re-plans from scratch every call, so it never holds stale
 //! state.
 
-use host_api::{Inventory, Skill, TaskType};
+use crate::{Inventory, Skill, TaskType};
 
 use crate::craft::{self, pick_tier};
 

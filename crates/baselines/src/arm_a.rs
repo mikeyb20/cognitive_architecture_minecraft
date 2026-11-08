@@ -2,8 +2,8 @@
 //! nearest resource → explore. It uses the same candidates and code tools as
 //! every other arm; it just never learns.
 
+use host_api::planner::{self, Resource, Step};
 use host_api::{Candidate, Observation, Pos, SeenKind, Skill, Target, TaskType};
-use sim::planner::{self, Resource, Step};
 
 use crate::Policy;
 

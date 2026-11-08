@@ -20,8 +20,7 @@ declare -A allowed=(
   [cognitive-core]="host-api"
   [sim]="host-api"
   [llm]="host-api"
-  # Known debt D1: Arm A uses sim's planner, so it cannot run in Minecraft yet.
-  [baselines]="host-api sim llm"
+  [baselines]="host-api llm"
   [runner]="host-api cognitive-core sim baselines llm"
 )
 meta=$(cargo metadata --format-version 1 --no-deps)
