@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 /// External skills a host can execute (spec §2).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Skill {
     Explore,

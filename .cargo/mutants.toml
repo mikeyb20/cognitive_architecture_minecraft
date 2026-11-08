@@ -20,4 +20,7 @@ exclude_re = [
     # Pruning activations `> 1e-6` vs `>= 1e-6`: an item at exactly 1e-6 is
     # below anything that could reach the top-k.
     "replace > with >= in ThoughtMomentum::tick",
+    # Sim random draw `rng < p` vs `<= p`: differs only when a uniform f32
+    # draw equals p exactly (probability ~2^-24 per draw).
+    "replace < with <= in SimWorld::chance",
 ]
