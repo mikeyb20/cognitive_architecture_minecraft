@@ -1,0 +1,41 @@
+# Helper (spec §19, #44; numbers proposed until the sim pilot).
+# Cooperative companion, ≈ agreeableness: the strongest pull toward players
+# and the highest external drive. Means only; each agent is drawn around them
+# (Normal, sd 10% of the mean).
+tenacity_ab = [[1.0, 1.0], [1.0, 1.0], [2.0, 1.0], [1.0, 1.0]]
+tenacity_gamma = 0.98
+oracle_bias = [0.0, -0.2, 0.6, 0.0]
+lens_lr = [1.0, 1.0, 1.1, 1.0]
+tm_k = 7
+tm_tau = 50.0
+beta_u = 0.2
+beta_c = 0.1
+eps_ext = 0.35
+aging_rate = 1e-6
+
+[curiosity]
+base = 0.40
+rate = 0.10
+
+[k]
+novelty = 0.30
+learning_progress = 0.30
+energy = -0.40
+threat = -0.40
+habituation = -0.20
+social = 0.60
+
+[permeability]
+base = 0.40
+
+[kick]
+p_base = 0.05
+theta = 0.9
+n = 300
+kappa = 0.15
+
+# Performing's relevance weight +1.5 instead of +1.0: commanded goals count most.
+[[lens_priors]]
+mode = 2
+feature = 5
+weight = 1.5

@@ -167,3 +167,8 @@ fn version_constants() {
     assert_eq!(cognitive_core::DEFS_VERSION, "01 v2");
     assert_eq!(cognitive_core::SPEC_VERSION, "0.2");
 }
+
+#[test]
+fn personality_spread_is_ten_percent_spec_19() {
+    assert_eq!(cognitive_core::agent::Spread::default().sd_frac, 0.10);
+}

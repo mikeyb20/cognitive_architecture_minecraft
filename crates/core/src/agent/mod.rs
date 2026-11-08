@@ -13,6 +13,7 @@ pub mod digest;
 mod learn;
 pub mod log;
 mod perceive;
+mod personality;
 pub mod think;
 
 #[cfg(test)]
@@ -20,6 +21,7 @@ mod tests;
 
 pub use config::{BrainConfig, BudgetPolicy, Horizon, LensPrior};
 pub use log::TickLog;
+pub use personality::{Spread, draw, jitter};
 pub use think::{NoTools, ThinkTools};
 
 use crate::activation::signals::{LearningProgress, NoveltyWindow};

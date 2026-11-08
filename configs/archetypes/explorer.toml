@@ -1,0 +1,40 @@
+# Explorer (spec §19, #44; numbers proposed until the sim pilot).
+# Bold and novelty-seeking, ≈ openness (01 §4.10). Means only; each agent is
+# drawn around them (Normal, sd 10% of the mean).
+tenacity_ab = [[1.0, 1.0], [1.0, 1.0], [1.0, 1.0], [1.0, 1.0]]
+tenacity_gamma = 0.97
+oracle_bias = [0.0, 0.8, -0.3, 0.0]
+lens_lr = [1.0, 1.3, 1.0, 1.0]
+tm_k = 7
+tm_tau = 30.0
+beta_u = 0.3
+beta_c = 0.1
+eps_ext = 0.20
+aging_rate = 1e-6
+
+[curiosity]
+base = 0.55
+rate = 0.15
+
+[k]
+novelty = 0.60
+learning_progress = 0.35
+energy = -0.30
+threat = -0.25
+habituation = -0.45
+social = 0.10
+
+[permeability]
+base = 0.45
+
+[kick]
+p_base = 0.08
+theta = 0.9
+n = 200
+kappa = 0.20
+
+# Exploring's risk weight −1.0 instead of −1.5: bolder.
+[[lens_priors]]
+mode = 1
+feature = 7
+weight = -1.0

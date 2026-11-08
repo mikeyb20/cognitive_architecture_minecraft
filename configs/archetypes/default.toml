@@ -1,0 +1,2 @@
+# Spec §19 "default" column: the brain's built-in defaults, no overrides.
+# Means only; each agent is drawn around them (Normal, sd 10% of the mean).

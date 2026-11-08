@@ -56,7 +56,7 @@ Most sprawl comes from one central function that every new feature edits: a `mat
 | Thinking tools (plan, progress, own goals) | `ThinkTools` trait in `core::agent::think`; the sim's code tools implement it (`runner::brain::SimTools`) | in place; LLM tiers implement it in step 6 |
 | LLM providers and tiers | a provider trait in `llm` | step 6 |
 | Scenarios | `sim::scenario::build` by name | in place (moves to TOML with archetypes, step 7) |
-| Archetypes, scenarios, experiments | TOML in `configs/`, no code | step 7 |
+| Archetypes, scenarios, experiments | TOML in `configs/`, no code | in place for archetypes (`runner::archetype`, drawn per agent by `core::agent::draw`); scenarios and experiments later |
 
 Rule: if a change needs a new branch in a function that already branches on the same thing, add a seam instead.
 
@@ -125,3 +125,4 @@ Known shortcuts, each with the point by which it must be paid.
 | D4 | Public items lack doc comments (about 300). | Rolling | Enable `missing_docs` on `host-api` first (the contract), then crate by crate. |
 | D5 | The sim offers no `Flee` candidate when the only hostile is diagonal or the way away is blocked (`point_toward`, used by `sim::skills::threats`), so a threatened agent sometimes cannot flee. A behaviour change, so it gets its own PR after the D2 refactor. | Step 6 | In `sim::skills::threats`, pick the best open neighbour away from all hostiles. |
 | D6 | Arm B picks only from external candidates; spec §24 also offers it the internal ones (plan, reflect, imagine). Those need the LLM thinking tools. | Step 6 gate | When 6f-3 adds the LLM `ThinkTools`, list the internal actions after the external ones in arm B's prompt. |
+| D7 | The helper's idle `imagine` is not yet seeded with the player's recent commands (spec §19, proposed). The helper differs from the others only by its numbers. | Step 7 gate | Give `ThinkTools::propose_goal` the recent command goals and let the helper's config prefer them. |

@@ -3,6 +3,7 @@
 //! Each decision: perceive → candidates → emergency reflex (shared by every
 //! arm, #42) or the arm's choice → execute.
 
+pub mod archetype;
 pub mod brain;
 pub mod mc;
 pub(crate) mod par;
