@@ -8,6 +8,7 @@
 //!   silent definition change (DEF CHANGE proposals go through 02-status).
 
 pub mod activation;
+pub mod agent;
 pub mod body;
 pub mod control;
 pub mod derived;

@@ -3,6 +3,7 @@
 //! change the spec (and log the decision) and then this file.
 
 use cognitive_core::activation::{AffectParams, CuriosityParams, PowerActivation, SignalWeights};
+use cognitive_core::agent::BrainConfig;
 use cognitive_core::control::kick::KickParams;
 use cognitive_core::control::oracle::Oracle;
 use cognitive_core::control::permeability::PermeabilityParams;
@@ -121,6 +122,37 @@ fn subconscious_defaults_match_spec_17() {
         (4.0, 0.05, 0.5, 0.6, 0.05)
     );
     assert_eq!((p.mix, p.rescore_rate), ([0.4, 0.3, 0.3], 0.05));
+}
+
+#[test]
+fn brain_defaults_match_spec_19() {
+    let b = BrainConfig::default();
+    assert!(b.kick_enabled && b.threat_drive && b.horizon.is_none());
+    assert_eq!((b.tenacity_ab, b.tenacity_gamma), ([(1.0, 1.0); 4], 0.98));
+    assert_eq!(
+        (b.oracle_bias, b.oracle_eta, b.oracle_floor),
+        ([0.0; 4], 0.05, 0.02)
+    );
+    assert!(b.lens_priors.is_empty());
+    assert_eq!((b.lens_lr, b.lens_frozen), ([1.0; 4], [false; 4]));
+    assert_eq!((b.tm_k, b.tm_tau), (7, 50.0));
+    assert_eq!((b.beta_u, b.beta_c, b.eps_ext), (0.2, 0.1, 0.20));
+    assert_eq!(
+        (b.aging_rate, b.age_per_tick, b.age_per_experience),
+        (1e-6, 1.0, 0.0)
+    );
+    assert_eq!(
+        (b.alpha, b.tau_scale, b.k_goal, b.rho_pre),
+        (2.0, 1.0, 0.5, 0.0)
+    );
+    assert_eq!(
+        (b.thr_l, b.thr_e, b.thr_p),
+        ((0.1, 0.4), (0.1, 0.5), (0.3, 0.9))
+    );
+    // The nested params are the module defaults pinned above.
+    assert_eq!(b.curiosity, CuriosityParams::default());
+    assert_eq!(b.k, SignalWeights::default());
+    assert_eq!(b.subconscious, SubconsciousParams::default());
 }
 
 #[test]
