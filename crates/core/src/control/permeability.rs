@@ -125,4 +125,22 @@ mod tests {
         assert!(flow.value() < 0.2 && flow.choke_shift() == 0.0);
         assert_eq!(flow.focus(true), 1.0);
     }
+
+    #[test]
+    fn focus_is_full_when_performing_does_not_lead() {
+        let mut p = Permeability::new(PermeabilityParams::default());
+        for _ in 0..200 {
+            p.step(PermeabilityInputs {
+                threat: 1.0,
+                stakes: 1.0,
+                ..Default::default()
+            });
+        }
+        assert!(p.value() > 0.6);
+        assert_eq!(p.focus(false), 1.0);
+        assert!((0.0..=1.0).contains(&p.target(PermeabilityInputs {
+            threat: 5.0,
+            ..Default::default()
+        })));
+    }
 }

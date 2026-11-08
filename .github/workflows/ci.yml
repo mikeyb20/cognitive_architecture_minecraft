@@ -27,6 +27,41 @@ jobs:
       - run: cargo test --workspace
       - run: cargo run -q -p runner
 
+  coverage:
+    name: coverage (>= 95% of lines)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      # The runner's main() is a stub covered by an integration test, so the
+      # whole workspace is measured.
+      - run: cargo llvm-cov --workspace --fail-under-lines 95 --summary-only
+
+  mutants:
+    name: mutation test (changed code)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      # Breaks the lines this PR changed on purpose; fails if any change
+      # survives every test. Equivalent mutants are listed in
+      # .cargo/mutants.toml with reasons.
+      - run: git diff origin/${{ github.base_ref }}...HEAD > pr.diff
+      - run: cargo mutants --in-diff pr.diff --no-shuffle -j 2 --timeout 120
+
   bot:
     name: bot (tsc)
     runs-on: ubuntu-latest

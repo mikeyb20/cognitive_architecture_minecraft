@@ -156,4 +156,16 @@ mod tests {
             prop_assert!(a.value() > 0.99);
         }
     }
+
+    #[test]
+    fn defaults_and_target_clamp() {
+        let a = Curiosity::new(CuriosityParams::default());
+        assert_eq!(a.value(), 0.40);
+        assert_eq!(a.target(5.0, 0.0), 1.0);
+        assert_eq!(a.target(-5.0, 0.0), 0.0);
+        assert!(
+            (a.target(0.0, 0.1) - 0.5).abs() < 1e-6,
+            "urgency raises C_base"
+        );
+    }
 }

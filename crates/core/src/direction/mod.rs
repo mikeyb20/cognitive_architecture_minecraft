@@ -34,6 +34,14 @@ impl ThoughtMomentum {
         self.activation.retain(|(_, a)| *a > 1e-6);
     }
 
+    /// Current running activation a_j of one item (0 if absent).
+    pub fn activation(&self, id: usize) -> f32 {
+        self.activation
+            .iter()
+            .find(|(i, _)| *i == id)
+            .map_or(0.0, |(_, a)| *a)
+    }
+
     /// Item ids in TM, strongest first.
     pub fn top(&self) -> Vec<usize> {
         let mut v = self.activation.clone();

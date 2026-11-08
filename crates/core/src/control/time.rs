@@ -39,4 +39,16 @@ mod tests {
         assert!(urgency(50.0, 100.0) < urgency(10.0, 100.0));
         assert_eq!(urgency(0.0, 100.0), 1.0);
     }
+
+    #[test]
+    fn edge_cases() {
+        assert_eq!(urgency(10.0, 0.0), 1.0, "no horizon means maximum urgency");
+        assert_eq!(urgency(200.0, 100.0), 0.0, "overestimates clamp to zero");
+        assert_eq!(age(0.0, 100, 1.0, 7), 7.0, "use-only aging");
+        assert_eq!(
+            plasticity(0.05, 1e-3, 0.0, 0.0),
+            0.05,
+            "newborn keeps base rate"
+        );
+    }
 }

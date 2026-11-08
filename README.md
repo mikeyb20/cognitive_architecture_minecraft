@@ -30,6 +30,17 @@ cargo run -p runner
 cd bot && npm ci && npm run typecheck
 ```
 
+## Testing
+
+Every rule in the definitions has a test, checked three ways:
+- **Property tests** (proptest): ranges and invariants hold for thousands of random inputs, e.g. Oracle weights always sum to 1 and never drop below the floor.
+- **Exact-value tests** (`crates/core/tests/formulas.rs`): each formula against numbers worked out by hand, so a wrong sign or coefficient fails.
+- **Pinned defaults** (`crates/core/tests/spec_defaults.rs`): every default parameter matches the spec, so a silent change breaks a test.
+
+CI enforces two more checks on top of the tests:
+- **Coverage:** at least 95% of lines must run under test (`cargo llvm-cov`).
+- **Mutation testing:** on every pull request, `cargo mutants` deliberately breaks the changed code and fails if any break goes unnoticed. To run it on the whole brain locally: `cargo mutants -p cognitive-core`.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Issues are welcome; code contributions aren't being accepted yet.

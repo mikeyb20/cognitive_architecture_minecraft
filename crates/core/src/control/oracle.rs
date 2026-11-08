@@ -208,4 +208,45 @@ mod tests {
             Mode::Performing
         );
     }
+
+    #[test]
+    fn floor_projection_handles_all_zero_input() {
+        assert_eq!(with_floor([0.0; 4], 0.02), [0.25; 4]);
+        let w = with_floor([-1.0, 0.0, 2.0, 0.0], 0.02);
+        assert_eq!(w[0], 0.02, "negative raw weights count as zero");
+        assert!((w.iter().sum::<f32>() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn urgency_bias_raises_exploring() {
+        let o = Oracle::default();
+        let mut x = [0.0; CONTEXT_DIM];
+        x[0] = 1.0;
+        let calm = o.weights(&x, WeightAdjust::default());
+        let urgent = o.weights(
+            &x,
+            WeightAdjust {
+                urgency_bias: 0.3,
+                choke_shift: 0.0,
+            },
+        );
+        assert!(urgent[Mode::Exploring.index()] > calm[Mode::Exploring.index()]);
+    }
+
+    #[test]
+    fn no_choking_when_p_does_not_lead() {
+        let mut o = Oracle::default();
+        o.theta[Mode::Exploring.index()][0] = 3.0;
+        let mut x = [0.0; CONTEXT_DIM];
+        x[0] = 1.0;
+        let a = o.weights(&x, WeightAdjust::default());
+        let b = o.weights(
+            &x,
+            WeightAdjust {
+                urgency_bias: 0.0,
+                choke_shift: 0.3,
+            },
+        );
+        assert_eq!(a, b);
+    }
 }

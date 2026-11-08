@@ -130,4 +130,27 @@ mod tests {
         assert!(young.kick_rate(0.05) > old.kick_rate(0.05));
         assert!((young.kick_rate(0.05) - 0.2).abs() < 1e-6);
     }
+
+    #[test]
+    fn maturation_band() {
+        assert_eq!(Development::new(0.7).stage(), Stage::Maturation);
+        assert_eq!(Development::new(0.0).rho(), 0.0, "no experiences yet");
+    }
+
+    #[test]
+    fn useful_never_exceeds_total() {
+        let mut d = Development::new(0.0);
+        d.record_useful();
+        d.record_useful();
+        assert_eq!(d.rho(), 0.0);
+        d.record_experience();
+        d.record_useful();
+        d.record_useful();
+        assert_eq!(d.rho(), 1.0);
+        assert_eq!(
+            d.subconscious_budget(1.0, true),
+            3.0,
+            "rest triples the budget"
+        );
+    }
 }

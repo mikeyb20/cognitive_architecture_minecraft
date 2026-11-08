@@ -164,4 +164,31 @@ mod tests {
         }
         assert!(!moving.is_stuck(), "C moved by 0.09");
     }
+
+    #[test]
+    fn stuck_needs_a_full_window_and_resets() {
+        let mut s = StuckDetector::new(5);
+        for _ in 0..4 {
+            s.record([0.25; 4], 0.3, 1);
+        }
+        assert!(!s.is_stuck(), "window not full yet");
+        s.record([0.25; 4], 0.3, 1);
+        assert!(s.is_stuck());
+        s.reset();
+        assert!(!s.is_stuck());
+        assert!(
+            !StuckDetector::new(0).is_stuck(),
+            "N = 0 disables the trigger"
+        );
+    }
+
+    #[test]
+    fn weights_moving_is_not_stuck() {
+        let mut s = StuckDetector::new(5);
+        for i in 0..5 {
+            let x = 0.25 + 0.02 * i as f32;
+            s.record([x, 0.25, 0.25, 0.5 - x], 0.3, 1);
+        }
+        assert!(!s.is_stuck());
+    }
 }
