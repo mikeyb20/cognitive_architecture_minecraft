@@ -55,6 +55,12 @@ jobs:
       matrix:
         shard: [0, 1, 2, 3]
     env:
+      # Run every test binary under a 4 GiB address-space cap. Some mutants
+      # (e.g. a path-finding loop that never ends) allocate without limit;
+      # with the cap the test aborts and the mutant counts as caught, instead
+      # of the runner running out of memory and being shut down. rustc is
+      # not affected: this only wraps the built test binaries.
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: prlimit --as=4294967296 --
       # Base the mutated diff is taken against. Normally the PR's base branch.
       # TEMPORARY (revert before merge): mutate all of step 3 (PR #3).
       MUTANTS_BASE: 9feedf5
