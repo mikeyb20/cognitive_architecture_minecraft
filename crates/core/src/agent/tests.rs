@@ -379,7 +379,9 @@ fn sensing_averages_long_run_c_and_fades_rehearsal() {
     let want = 0.9 + a * (b.c() - 0.9);
     assert!((b.c_long - want).abs() < 1e-6, "{} vs {want}", b.c_long);
     assert!(b.c_long < 0.9 && b.c_long > b.c());
-    assert_eq!(b.routine_bonus, [0.5 * ROUTINE_FADE.powi(500); 7]);
+    // powi and the per-tick product round differently in release builds.
+    let faded = 0.5 * ROUTINE_FADE.powi(500);
+    assert!(b.routine_bonus.iter().all(|r| (r - faded).abs() < 1e-5));
 }
 
 fn encode(b: &mut Brain, key: &str, tier: crate::memory::Tier) -> usize {

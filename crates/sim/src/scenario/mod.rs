@@ -1,5 +1,6 @@
 //! Named scenarios (spec §21). Each builds a world, a scripted player and a
-//! tick limit from a seed. More arrive with the theory tests (step 5).
+//! tick limit from a seed. The trip scenarios of spec §20.1 and incubation
+//! live in `trips`.
 
 use host_api::Pos;
 
@@ -8,6 +9,8 @@ use crate::mob::{Mob, MobKind};
 use crate::player::ScriptedPlayer;
 use crate::rules::Rules;
 use crate::world::SimWorld;
+
+pub mod trips;
 
 /// One day (spec §21).
 pub const DAY: u64 = 2400;
@@ -19,12 +22,17 @@ pub const HARSH_RING: i32 = 2;
 pub const HARSH_DAMAGE: f32 = 0.01;
 
 /// The scenario names `build` knows.
-pub const NAMES: [&str; 5] = [
+pub const NAMES: [&str; 10] = [
     "first_night",
     "open_day",
     "commanded",
     "harsh",
     "long_horizon",
+    "far_food",
+    "dusk_errand",
+    "hostile_at_food",
+    "expedition",
+    "incubation",
 ];
 
 pub struct Setup {
@@ -40,6 +48,9 @@ pub struct Setup {
 
 /// Build a scenario by name.
 pub fn build(name: &str, rules: Rules, seed: u64) -> Option<Setup> {
+    if let Some((_, make)) = trips::TRIPS.iter().find(|(n, _)| *n == name) {
+        return Some(make(rules, seed));
+    }
     let mut s = Setup {
         name: NAMES.into_iter().find(|n| *n == name)?,
         world: SimWorld::new(rules.clone(), seed),
