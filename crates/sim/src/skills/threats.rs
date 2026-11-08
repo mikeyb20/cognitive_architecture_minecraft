@@ -1,11 +1,12 @@
-//! Flee from and fight the nearest hostile (spec §20: flee before health is
+//! Flee from and fight hostiles (spec §20: fleeing before health is
 //! critical is a brain choice). Fleeing runs in `travelling`, attacking in
 //! `hunting`.
 
-use host_api::{Skill, Target, TaskType};
+use host_api::{Pos, Skill, Target, TaskType};
 
 use super::{Ctx, Handler, Out};
-use crate::world::SimWorld;
+use crate::geom::{cheb, dist, square};
+use crate::world::{Reach, SimWorld};
 
 /// How close a hostile must be to offer flee and fight, in tiles.
 pub(crate) const THREAT_RANGE: i32 = 6;
@@ -17,12 +18,15 @@ impl Handler for Threats {
         let Some(i) = w.nearest_mob(|m| m.kind.hostile(), THREAT_RANGE) else {
             return;
         };
-        let (me, reach) = (cx.me, &cx.reach);
+        let reach = &cx.reach;
         let h = w.mobs[i].pos;
-        let away = ((me.x - h.x).signum(), (me.z - h.z).signum());
-        let away = if away == (0, 0) { (1, 0) } else { away };
-        if let Some(p) = w.point_toward(reach, away.0, away.1) {
-            let steps = reach.steps(p).unwrap_or(0);
+        let hostiles: Vec<Pos> = w
+            .mobs
+            .iter()
+            .filter(|m| m.kind.hostile() && cheb(m.pos, cx.me) <= w.rules.chase_radius)
+            .map(|m| m.pos)
+            .collect();
+        if let Some((p, steps)) = refuge(cx.me, reach, &hostiles, w.rules.max_move) {
             out.add(
                 Skill::Flee,
                 Some(Target::Pos(p)),
@@ -41,4 +45,40 @@ impl Handler for Threats {
             );
         }
     }
+}
+
+/// Distance from `p` to the nearest of `hostiles`.
+fn clearance(p: Pos, hostiles: &[Pos]) -> f32 {
+    hostiles
+        .iter()
+        .map(|h| dist(p, *h))
+        .fold(f32::INFINITY, f32::min)
+}
+
+/// Where to flee (debt D5): of the tiles reachable within `max_move` steps,
+/// the one furthest from the nearest hostile; ties go to fewer steps, then
+/// to the first tile in scan order. `None` if no tile is further from the
+/// hostiles than where the agent stands.
+pub(crate) fn refuge(
+    me: Pos,
+    reach: &Reach,
+    hostiles: &[Pos],
+    max_move: i32,
+) -> Option<(Pos, u16)> {
+    let here = clearance(me, hostiles);
+    let mut best: Option<(Pos, u16, f32)> = None;
+    for p in square(me, max_move) {
+        let Some(steps) = reach.steps(p).filter(|s| i32::from(*s) <= max_move) else {
+            continue;
+        };
+        let c = clearance(p, hostiles);
+        let better = match best {
+            None => c > here,
+            Some((_, s, b)) => c > b || (c == b && steps < s),
+        };
+        if better {
+            best = Some((p, steps, c));
+        }
+    }
+    best.map(|(p, s, _)| (p, s))
 }

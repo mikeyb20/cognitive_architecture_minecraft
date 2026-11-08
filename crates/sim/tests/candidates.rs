@@ -136,8 +136,8 @@ fn threats_offer_flee_away_and_attack() {
     let c = w.candidate_actions(&o);
     assert_eq!(
         c[0].target,
-        Some(Target::Pos(p(32, 24))),
-        "on top: run east"
+        Some(Target::Pos(p(24, 16))),
+        "on top: four tiles tie at 8; the first in scan order (north) wins"
     );
     w.mobs[0].pos = p(31, 24);
     assert_ne!(
@@ -145,6 +145,87 @@ fn threats_offer_flee_away_and_attack() {
         Skill::Flee,
         "7 tiles is not a threat"
     );
+}
+
+#[test]
+fn flee_finds_a_way_out_when_the_hostile_is_diagonal_or_the_way_is_walled() {
+    // Debt D5: a diagonal hostile and a wall behind used to leave no flee.
+    let mut w = flat();
+    for z in 0..48 {
+        w.map.set(p(22, z), Tile::Stone);
+    }
+    zombie(&mut w, 26, 26);
+    let o = w.perceive();
+    let c = w.candidate_actions(&o);
+    let flee = find(&c, Skill::Flee);
+    // The old rule aimed at (16, 16), behind the wall, and offered nothing.
+    // Now: the furthest open tile within 8 steps, √104 ≈ 10.2 tiles away.
+    assert_eq!(flee.target, Some(Target::Pos(p(24, 16))));
+    assert!(close(flee.est_cost, 0.1 + 8.0 / 32.0));
+}
+
+#[test]
+fn flee_weighs_every_hostile_in_chase_range() {
+    let mut w = flat();
+    zombie(&mut w, 20, 24);
+    zombie(&mut w, 28, 24);
+    zombie(&mut w, 24, 41);
+    let o = w.perceive();
+    let c = w.candidate_actions(&o);
+    assert_eq!(
+        find(&c, Skill::Flee).target,
+        Some(Target::Pos(p(24, 16))),
+        "between two, run north; the one 17 tiles south is out of chase range"
+    );
+}
+
+#[test]
+fn flee_ignores_passive_mobs() {
+    let mut w = flat();
+    zombie(&mut w, 27, 24);
+    let t = w.tick;
+    w.mobs.push(Mob::new(MobKind::Pig, p(19, 24), t));
+    let o = w.perceive();
+    let c = w.candidate_actions(&o);
+    assert_eq!(
+        find(&c, Skill::Flee).target,
+        Some(Target::Pos(p(16, 24))),
+        "a pig in the way is not a threat"
+    );
+}
+
+#[test]
+fn flee_takes_the_shorter_way_when_two_spots_are_as_safe() {
+    // Walled in with the zombie on top: a corridor runs 5 tiles north to
+    // (24, 19), and another east then north to (27, 20). Both are 5 tiles
+    // from the zombie; the first is 5 steps away, the second 7.
+    let mut w = flat();
+    for q in sim::geom::square(p(24, 24), 9) {
+        w.map.set(q, Tile::Stone);
+    }
+    let open = [(24, 24), (24, 23), (24, 22), (24, 21), (24, 20), (24, 19)];
+    let bend = [(25, 24), (26, 24), (27, 24), (27, 23), (27, 22), (27, 21)];
+    for (x, z) in open.into_iter().chain(bend).chain([(27, 20)]) {
+        w.map.set(p(x, z), Tile::Grass);
+    }
+    zombie(&mut w, 24, 24);
+    let o = w.perceive();
+    let flee = find(&w.candidate_actions(&o), Skill::Flee).clone();
+    assert_eq!(flee.target, Some(Target::Pos(p(24, 19))));
+    assert!(close(flee.est_cost, 0.1 + 5.0 / 32.0));
+}
+
+#[test]
+fn no_flee_when_nowhere_is_further_away() {
+    let mut w = flat();
+    for q in sim::geom::ring(p(24, 24), 1) {
+        w.map.set(q, Tile::Stone);
+    }
+    zombie(&mut w, 25, 25);
+    let o = w.perceive();
+    let c = w.candidate_actions(&o);
+    assert!(!skills(&c).contains(&Skill::Flee), "boxed in with it");
+    assert!(skills(&c).contains(&Skill::Attack));
 }
 
 #[test]

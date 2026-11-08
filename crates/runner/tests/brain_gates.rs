@@ -55,8 +55,11 @@ fn drift_goes_where_commands_push_it() {
     for seed in 0..3 {
         let (rows, r) = run("commanded", seed, Brain::new(drift_config(), seed));
         assert!(rows.iter().all(|r| r.c < 0.01), "C stays near 0");
-        assert!(rows.iter().all(|r| r.d < 0.1), "no suppression");
-        let mean_v = rows.iter().map(|r| r.v.abs()).sum::<f32>() / rows.len() as f32;
+        // Nothing threatens it by day. At night a chased drifting agent can
+        // slide into shutdown (see `shutdown_barely_responds`).
+        let day: Vec<&TickLog> = rows.iter().filter(|r| r.tick < 1200).collect();
+        assert!(day.iter().all(|r| r.d < 0.1), "no suppression by day");
+        let mean_v = day.iter().map(|r| r.v.abs()).sum::<f32>() / day.len() as f32;
         assert!(mean_v < 0.15, "V near 0: {mean_v}");
         assert_eq!(self_generated(&rows), 0, "no self-generated movement");
         assert!(rows.iter().filter(|r| r.external_drive).count() > 20);
@@ -111,13 +114,25 @@ fn shutdown_barely_responds() {
         let (drift, _) = run("commanded", seed, Brain::new(drift_config(), seed));
         assert!(early(&drift) > 0.0, "a drifting agent does respond");
     }
-    // Naturally: the harsh episode drives D up and C down (seeds 0 and 2;
-    // in seed 1 the agent shelters early and stays calm).
-    for seed in [0, 2] {
+    // Naturally: a drifting agent chased all night (seed 1) flees only at
+    // ε_ext·(1 − D), so V sits at the D threshold, D rises, flight slows,
+    // and it ends the night shut down (01 §1.3, §1.5).
+    let (rows, _) = run("commanded", 1, Brain::new(drift_config(), 1));
+    let dawn = rows.iter().find(|r| r.tick >= 2400).unwrap();
+    assert!(dawn.d > 0.7, "D at dawn: {}", dawn.d);
+    assert!(dawn.c < 0.01 && dawn.v < -0.25, "{dawn:?}");
+}
+
+#[test]
+fn a_default_agent_that_can_flee_stays_calm_through_the_harsh_night() {
+    // Decision #49, recorded: once flee always has a way out (D5), the
+    // default agent escapes the harsh night's mobs, so its V never stays
+    // below the D threshold and D stays near 0. The V/D rules are unchanged.
+    for seed in 0..3 {
         let (rows, _) = run("harsh", seed, Brain::new(BrainConfig::default(), seed));
+        assert!(rows.iter().filter(|r| r.chosen.starts_with("Flee")).count() > 20);
         let after = rows.iter().find(|r| r.tick >= 2400).unwrap();
-        assert!(after.d > 0.7, "D after the harsh night: {}", after.d);
-        assert!(after.c < 0.3, "C after the harsh night: {}", after.c);
+        assert!(after.d < 0.1, "seed {seed}: D after the night {}", after.d);
     }
 }
 
@@ -172,8 +187,8 @@ fn golden_commanded_run_counts_reflexes_and_new_things() {
     assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");
 }
 
-const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (1316, 1196, 66, 0, 54);
-const GOLDEN_COUNTS: (u32, u32, u32) = (641, 584, 26);
-const GOLDEN_HASH: u64 = 3_702_787_714_657_621_692;
+const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (1601, 1477, 71, 0, 35);
+const GOLDEN_COUNTS: (u32, u32, u32) = (669, 614, 14);
+const GOLDEN_HASH: u64 = 3_031_246_186_955_019_076;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).
-const GOLDEN_SUMS: [f64; 5] = [84.9208, 0.0, 36.5736, 32.4975, 473.5020];
+const GOLDEN_SUMS: [f64; 5] = [54.9072, 0.0, -119.6980, 31.2821, 497.2279];
