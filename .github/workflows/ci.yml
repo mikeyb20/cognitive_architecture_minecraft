@@ -62,8 +62,7 @@ jobs:
       # not affected: this only wraps the built test binaries.
       CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: prlimit --as=4294967296 --
       # Base the mutated diff is taken against. Normally the PR's base branch.
-      # TEMPORARY (revert before merge): mutate all of step 3 (PR #3).
-      MUTANTS_BASE: 9feedf5
+      MUTANTS_BASE: origin/${{ github.base_ref }}
     steps:
       - uses: actions/checkout@v4
         with:
