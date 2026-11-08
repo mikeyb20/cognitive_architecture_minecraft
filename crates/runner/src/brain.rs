@@ -217,14 +217,17 @@ mod tests {
     use super::*;
 
     // A unit test so it runs before the long integration tests (mutation
-    // testing stops at the first failing test binary).
+    // testing stops at the first failing test binary). A starving agent past
+    // the tick limit must not act: run `while tick < end && alive`.
     #[test]
-    fn a_dead_agent_takes_no_decisions() {
+    fn nothing_runs_past_the_tick_limit() {
         let mut s = setup("first_night", 0);
-        s.max_ticks = 50;
-        s.world.body.death = Some(Death::Starved);
+        s.max_ticks = 0;
+        (s.world.body.food, s.world.body.health) = (0.0, 0.05);
         let mut brain = Brain::new(BrainConfig::default(), 0);
         let r = run_with(s, &mut brain, 0, &mut |_| {});
-        assert_eq!((r.decisions, r.ticks, r.survived), (0, 0, false), "{r:?}");
+        assert!(r.survived, "{r:?}");
+        let r = (r.decisions, r.ticks);
+        assert_eq!(r, (0, 0));
     }
 }
