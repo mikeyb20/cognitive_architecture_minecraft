@@ -28,6 +28,8 @@ pub(crate) struct Scored {
     /// Effort-floor share in [0, 1]: 1 for a command or danger, a felt
     /// need's push otherwise (01 §1.6), 0 for none.
     pub push: f32,
+    /// A felt need's push alone, for the choice bonus (prototype).
+    pub need: f32,
 }
 
 impl Brain {
@@ -133,12 +135,11 @@ impl Brain {
         let threatened = self.config.threat_drive && self.signals.threat > 0.0;
         for (i, c) in cands.iter().enumerate() {
             let forced = c.commanded || (threatened && c.skill == Skill::Flee);
-            let push = if forced {
-                1.0
-            } else {
-                self.need_push(obs, c, felt)
-            };
-            out.push(self.scored(Choice::External(i), fi.external(c), push));
+            let need = self.need_push(obs, c, felt);
+            let push = if forced { 1.0 } else { need };
+            let mut sc = self.scored(Choice::External(i), fi.external(c), push);
+            sc.need = need;
+            out.push(sc);
         }
         let chosen = InternalAction::ALL
             .into_iter()
@@ -158,6 +159,7 @@ impl Brain {
             m,
             kicked: m,
             push,
+            need: 0.0,
         }
     }
 
@@ -208,7 +210,11 @@ impl Brain {
             }
         }
         // 12–13 score and choose.
-        let scores: Vec<f32> = all.iter().map(|sc| score(&w, &sc.kicked)).collect();
+        let steer = self.config.needs.steer;
+        let scores: Vec<f32> = all
+            .iter()
+            .map(|sc| score(&w, &sc.kicked) + steer * sc.need)
+            .collect();
         let g = self.g();
         // A command, danger or felt need sets an effort floor (#41; 01 §1.6).
         let (eps, d) = (self.config.eps_ext, self.d());

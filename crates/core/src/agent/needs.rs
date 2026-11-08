@@ -31,6 +31,8 @@ pub struct NeedParams {
     /// The teacher's hints fade as ρ rises (#47); off keeps them at full
     /// strength (an ablation).
     pub fades: bool,
+    /// Prototype: choice-score bonus per unit of need push (0 = off).
+    pub steer: f32,
 }
 
 impl Default for NeedParams {
@@ -40,6 +42,7 @@ impl Default for NeedParams {
             food_at: 0.75,
             relief_step: 0.5,
             fades: true,
+            steer: 0.0,
         }
     }
 }
