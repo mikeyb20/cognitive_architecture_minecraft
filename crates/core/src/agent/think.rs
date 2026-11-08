@@ -151,13 +151,22 @@ impl Brain {
         r
     }
 
-    /// Code recombiner: with no goal, propose one; otherwise join the first
+    /// The player's last command, when this agent takes its goals from
+    /// commands and does not hold the item yet (spec §19 helper; proposed).
+    fn command_goal(&self, obs: &Observation) -> Option<String> {
+        let item = self.last_command.as_ref()?;
+        let held = obs.inventory.items.iter().any(|(n, c)| n == item && *c > 0);
+        (self.config.goals_from_commands && !held).then(|| item.clone())
+    }
+
+    /// Code recombiner: with no goal, propose one (from the player's last
+    /// command first, for agents that take goals from commands); otherwise join the first
     /// unlinked pair of semantic items in TM into a new idea (spec §6
     /// `imagine`).
     fn imagine(&mut self, obs: &Observation, tools: &mut dyn ThinkTools) -> ThoughtResult {
         let mut r = ThoughtResult::default();
         if self.goal.is_none() {
-            if let Some(item) = tools.propose_goal(obs) {
+            if let Some(item) = self.command_goal(obs).or_else(|| tools.propose_goal(obs)) {
                 let x = PriorityInputs {
                     c_enc: self.c(),
                     ..PriorityInputs::default()

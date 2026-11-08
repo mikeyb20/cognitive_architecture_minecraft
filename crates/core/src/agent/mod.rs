@@ -166,6 +166,8 @@ pub struct Brain {
     pub(crate) lp: LearningProgress,
     pub(crate) episodes: VecDeque<EpisodeRecord>,
     pub(crate) goal: Option<Goal>,
+    /// The item of the player's last `get` command (spec §19 helper).
+    pub(crate) last_command: Option<String>,
     pub(crate) step: Option<PlanStep>,
     pub(crate) plan_inv: Option<Inventory>,
     pub(crate) plan_tick: u64,
@@ -240,6 +242,7 @@ impl Brain {
             lp: LearningProgress::default(),
             episodes: VecDeque::new(),
             goal: None,
+            last_command: None,
             step: None,
             plan_inv: None,
             plan_tick: 0,

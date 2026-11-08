@@ -554,3 +554,39 @@ fn recall_links_only_live_items_in_thought_momentum() {
     assert!(!raw(a).contains(&dead) && !raw(c).contains(&dead));
     assert!(raw(dead).is_empty());
 }
+
+#[test]
+fn goals_from_commands_reuse_the_last_command_until_it_is_held() {
+    let cfg = BrainConfig {
+        goals_from_commands: true,
+        ..BrainConfig::default()
+    };
+    let mut b = Brain::new(cfg, 0);
+    let mut o = test_obs();
+    o.chat = vec![host_api::ChatMsg {
+        from: "alex".into(),
+        text: "get stick".into(),
+    }];
+    b.sense(&o);
+    assert_eq!(b.last_command.as_deref(), Some("stick"));
+    b.set_goal(None);
+    o.inventory.items = vec![("stick".into(), 0)];
+    b.think(InternalAction::Imagine, 0.5, &o, &mut Propose);
+    assert_eq!(
+        b.goal,
+        Some(Goal {
+            item: "stick".into(),
+            commanded: false
+        })
+    );
+    // Held: the tools propose instead. Off: the command is ignored.
+    b.set_goal(None);
+    o.inventory.items = vec![("stick".into(), 1)];
+    b.think(InternalAction::Imagine, 0.5, &o, &mut Propose);
+    assert_eq!(b.goal.as_ref().map(|g| g.item.as_str()), Some("bread"));
+    let mut off = brain();
+    off.sense(&test_obs());
+    off.last_command = Some("stick".into());
+    think(&mut off, InternalAction::Imagine, &mut Propose);
+    assert_eq!(off.goal.as_ref().map(|g| g.item.as_str()), Some("bread"));
+}

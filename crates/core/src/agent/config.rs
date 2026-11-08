@@ -83,6 +83,10 @@ pub struct BrainConfig {
     /// Michael's call; without it a threatened agent cannot start to flee
     /// because threat lowers C).
     pub threat_drive: bool,
+    /// Idle `imagine` re-proposes the player's last command as the agent's
+    /// own goal while the item is not held, so its goals support the
+    /// player's (spec §19 helper; proposed).
+    pub goals_from_commands: bool,
     pub aging_rate: f32,
     /// age = a_t·ticks + a_e·experiences (spec §15; proposed 1 and 0).
     pub age_per_tick: f32,
@@ -135,6 +139,7 @@ impl Default for BrainConfig {
             beta_c: 0.1,
             eps_ext: 0.20,
             threat_drive: true,
+            goals_from_commands: false,
             aging_rate: 1e-6,
             age_per_tick: 1.0,
             age_per_experience: 0.0,

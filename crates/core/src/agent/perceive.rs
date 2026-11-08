@@ -157,8 +157,10 @@ impl Brain {
                 Source::PlayerChat,
             );
             if let Some(item) = m.text.strip_prefix("get ") {
+                let item = item.trim().to_string();
+                self.last_command = Some(item.clone());
                 self.set_goal(Some(Goal {
-                    item: item.trim().to_string(),
+                    item,
                     commanded: true,
                 }));
             }

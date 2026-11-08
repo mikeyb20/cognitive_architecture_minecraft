@@ -19,6 +19,7 @@ struct Column {
     tau: f32,
     beta_u: f32,
     eps_ext: f32,
+    from_commands: bool,
 }
 
 fn column(name: &str) -> Column {
@@ -37,6 +38,7 @@ fn column(name: &str) -> Column {
             tau: 30.0,
             beta_u: 0.3,
             eps_ext: 0.20,
+            from_commands: false,
         },
         "builder" => Column {
             c_base: 0.35,
@@ -52,6 +54,7 @@ fn column(name: &str) -> Column {
             tau: 100.0,
             beta_u: 0.1,
             eps_ext: 0.20,
+            from_commands: false,
         },
         "guardian" => Column {
             c_base: 0.40,
@@ -67,6 +70,7 @@ fn column(name: &str) -> Column {
             tau: 50.0,
             beta_u: 0.2,
             eps_ext: 0.20,
+            from_commands: false,
         },
         "helper" => Column {
             c_base: 0.40,
@@ -82,6 +86,7 @@ fn column(name: &str) -> Column {
             tau: 50.0,
             beta_u: 0.2,
             eps_ext: 0.35,
+            from_commands: true,
         },
         _ => unreachable!(),
     }
@@ -118,6 +123,7 @@ fn expected(x: &Column) -> BrainConfig {
     c.tm_tau = x.tau;
     c.beta_u = x.beta_u;
     c.eps_ext = x.eps_ext;
+    c.goals_from_commands = x.from_commands;
     c
 }
 

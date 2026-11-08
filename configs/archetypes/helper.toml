@@ -12,6 +12,8 @@ beta_u = 0.2
 beta_c = 0.1
 eps_ext = 0.35
 aging_rate = 1e-6
+# Idle goals come from the player's last command first (proposed).
+goals_from_commands = true
 
 [curiosity]
 base = 0.40
