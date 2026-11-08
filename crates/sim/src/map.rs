@@ -317,6 +317,14 @@ mod tests {
     }
 
     #[test]
+    fn off_map_reads_clamp_on_an_exact_multiple_of_12() {
+        let mut m = Map::filled(48, Tile::Grass, Biome::Plains);
+        m.set_biome(Pos { x: 47, y: 0, z: 0 }, Biome::Cave);
+        assert_eq!(m.biome(Pos { x: 100, y: 0, z: 0 }), Biome::Cave);
+        assert_eq!(m.biome(Pos { x: 0, y: 0, z: 100 }), Biome::Plains);
+    }
+
+    #[test]
     fn start_is_the_nearest_walkable_tile_to_the_centre() {
         let mut m = Map::filled(24, Tile::Stone, Biome::Hills);
         assert_eq!(
