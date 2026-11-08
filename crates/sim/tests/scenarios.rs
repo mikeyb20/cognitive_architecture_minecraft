@@ -6,8 +6,9 @@ use sim::geom::{cheb, offset};
 use sim::map::{Biome, Tile};
 use sim::mob::MobKind;
 use sim::scenario::trips::{
-    ERRAND_DISTANCE, ERRAND_PHASE, EXPEDITION, EXPEDITION_FOOD, FAR_FOOD, GUARD_AT, GUARDED_FOOD,
-    HUNGRY_START, INCUBATION_SPLIT, LANE_Z, SITE_PIGS, SITE_RADIUS, TRIPS, WEST_START, east,
+    ERRAND_DISTANCE, ERRAND_PHASE, EXPEDITION, EXPEDITION_FOOD, EXPEDITION_HOME, FAR_FOOD,
+    GUARD_AT, GUARDED_FOOD, HUNGRY_START, INCUBATION_SPLIT, LANE_Z, SITE_PIGS, SITE_RADIUS, TRIPS,
+    WEST_START, east,
 };
 use sim::scenario::{DAY, NAMES, Setup, build};
 use sim::{Rules, SimWorld};
@@ -76,6 +77,11 @@ fn far_food_puts_all_food_sixty_tiles_out() {
             only_at(w, site, |t| t == Tile::Wheat),
             10,
             "two rows of five"
+        );
+        let wheat = tiles(w, |t| t == Tile::Wheat);
+        assert!(
+            wheat.iter().all(|p| p.z < site.z),
+            "wheat north, pigs south"
         );
         let pigs = pigs(w);
         assert_eq!(pigs.len(), SITE_PIGS);
@@ -156,7 +162,8 @@ fn expedition_needs_packed_food_for_far_iron() {
         let w = &s.world;
         let ore = east(WEST_START, EXPEDITION);
         only_at(w, ore, |t| t == Tile::IronOre);
-        let home = east(WEST_START, 2 * SITE_RADIUS + 1);
+        assert_eq!(EXPEDITION_HOME, 5);
+        let home = east(WEST_START, EXPEDITION_HOME);
         only_at(w, home, |t| t == Tile::Wheat);
         assert!(pigs(w).iter().all(|p| cheb(*p, home) <= 1));
         assert_eq!(w.body.inv.count("stone_pickaxe"), 1);

@@ -42,6 +42,8 @@ pub const HUNGRY_START: f32 = 0.3;
 /// near the start, so it has to pack some.
 pub const EXPEDITION: i32 = 80;
 pub const EXPEDITION_FOOD: f32 = 0.4;
+/// Expedition: the food site this far east of the start.
+pub const EXPEDITION_HOME: i32 = 5;
 /// Incubation: the only trees and the only stone are this far west and east
 /// of a centre start, out of sight of each other (view radius 8).
 pub const INCUBATION_SPLIT: i32 = 20;
@@ -118,7 +120,7 @@ pub fn hostile_at_food(rules: Rules, seed: u64) -> Setup {
 pub fn expedition(rules: Rules, seed: u64) -> Setup {
     let mut map = lane_map(&rules, seed, WEST_START, EXPEDITION);
     clear(&mut map, |t| matches!(t, Tile::Wheat | Tile::IronOre));
-    let home = east(WEST_START, 2 * SITE_RADIUS + 1);
+    let home = east(WEST_START, EXPEDITION_HOME);
     food_site(&mut map, home);
     patch(&mut map, east(WEST_START, EXPEDITION), Tile::IronOre);
     let mut world = SimWorld::with_map(rules, seed, map, WEST_START);
@@ -138,11 +140,12 @@ pub fn incubation(rules: Rules, seed: u64) -> Setup {
     let start = base.body.pos;
     let mut map = base.map.clone();
     let west = offset(start, -INCUBATION_SPLIT, 0);
-    road(&mut map, west, 2 * INCUBATION_SPLIT);
+    let stone = east(start, INCUBATION_SPLIT);
+    road(&mut map, west, stone);
     clear(&mut map, |t| matches!(t, Tile::Tree { .. } | Tile::Stone));
     let chops = rules.tree_chops;
     patch(&mut map, west, Tile::Tree { chops_left: chops });
-    patch(&mut map, east(start, INCUBATION_SPLIT), Tile::Stone);
+    patch(&mut map, stone, Tile::Stone);
     let pigs = base.mobs.clone();
     let mut world = SimWorld::with_map(rules, seed, map, start);
     world.mobs = pigs
@@ -166,14 +169,14 @@ fn setup(name: &'static str, world: SimWorld, max_ticks: u64) -> Setup {
 /// The seed's map with a clear start and a road `len` tiles east of it.
 fn lane_map(rules: &Rules, seed: u64, start: Pos, len: i32) -> Map {
     let mut map = SimWorld::new(rules.clone(), seed).map;
-    road(&mut map, start, len);
+    road(&mut map, start, east(start, len));
     map
 }
 
-/// Make the 3×3 around `from` and the row east of it for `len` tiles
-/// walkable, so every site can be reached.
-fn road(map: &mut Map, from: Pos, len: i32) {
-    let row = (0..=len).map(|d| east(from, d));
+/// Make the 3×3 around `from` and the row from it east to `to` walkable,
+/// so every site can be reached.
+fn road(map: &mut Map, from: Pos, to: Pos) {
+    let row = (from.x..=to.x).map(|x| Pos { x, ..from });
     let spots: Vec<Pos> = square(from, 1).chain(row).collect();
     for p in spots {
         if !map.get(p).walkable() {
