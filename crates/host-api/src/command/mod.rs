@@ -7,8 +7,9 @@
 
 pub mod queue;
 
+use crate::craft::same_block;
 use crate::planner::{in_ontology, need};
-use crate::{Candidate, Observation, Target};
+use crate::{Candidate, Inventory, Observation, Pos, Target};
 
 pub use queue::{CommandQueue, QueueParams, Task};
 
@@ -153,30 +154,50 @@ pub fn parse(text: &str, known: impl Fn(&str) -> bool) -> Parsed {
     }
 }
 
+/// Where things are known to be (spec §22): what is seen now and, for a
+/// host that remembers, where things were seen before.
+pub trait Whereabouts {
+    /// Whether `thing` (a memory key such as "block:oak_log") is at `p`.
+    fn is_at(&self, p: Pos, thing: &str) -> bool;
+}
+
+/// What is in view.
+impl Whereabouts for Observation {
+    fn is_at(&self, p: Pos, thing: &str) -> bool {
+        self.visible
+            .iter()
+            .any(|s| s.pos == p && same_block(&s.thing.0, thing))
+    }
+}
+
 /// Whether candidate `c` acts on `thing` (a memory key such as
-/// "block:oak_log" or "item:stick"): an item target by name, or a position
-/// where that thing is seen.
-pub fn serves(obs: &Observation, c: &Candidate, thing: &str) -> bool {
+/// "block:oak_log" or "item:stick"): an item target by name, a position
+/// where that thing is known to be, or a search for it.
+pub fn serves(known: &impl Whereabouts, c: &Candidate, thing: &str) -> bool {
     match &c.target {
         Some(Target::Item(i)) => thing.strip_prefix("item:") == Some(i.as_str()),
-        Some(Target::Pos(p)) => obs
-            .visible
-            .iter()
-            .any(|s| s.pos == *p && s.thing.0 == thing),
-        _ => false,
+        Some(Target::Pos(p)) => known.is_at(*p, thing),
+        Some(Target::Thing(t)) => same_block(&t.0, thing),
+        Some(Target::Player(_)) | None => false,
     }
 }
 
 /// Mark the candidates that do the planner's next step toward holding `qty`
-/// of `goal` (spec §16, #41). Marks nothing when the goal is held or has no
-/// route.
-pub fn mark_step(obs: &Observation, cands: &mut [Candidate], goal: &str, qty: u32) {
-    let Some(step) = need(&obs.inventory, goal, qty) else {
+/// of `goal` with inventory `inv` (spec §16, #41). Marks nothing when the
+/// goal is held or has no route.
+pub fn mark_step(
+    inv: &Inventory,
+    known: &impl Whereabouts,
+    cands: &mut [Candidate],
+    goal: &str,
+    qty: u32,
+) {
+    let Some(step) = need(inv, goal, qty) else {
         return;
     };
     let (skill, thing, _) = in_ontology(step);
     for c in cands.iter_mut() {
-        if c.skill == skill && serves(obs, c, &thing) {
+        if c.skill == skill && serves(known, c, &thing) {
             c.commanded = true;
         }
     }

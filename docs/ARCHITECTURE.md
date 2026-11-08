@@ -9,11 +9,11 @@ The aim is simple: **no big rewrites.** We get there by paying small costs conti
 Dependencies point one way. A crate may use only the crates below it.
 
 ```
-                  runner                   CLI: scenarios x arms x seeds -> logs
-     ┌─────────┬────┴─────┬──────────┐
-    sim  cognitive-core  baselines ─► llm  the world; the brain; comparison arms; LLM client
-     └─────────┴────┬─────┴──────────┘
-                 host-api                  the contract: World, Host, ontology, tech tree
+                        runner                   CLI: scenarios x arms x seeds -> logs
+     ┌──────────┬─────────┴┬──────────┬──────────┐
+    sim  minecraft  cognitive-core  baselines ─► llm  worlds; the brain; comparison arms; LLM client
+     └──────────┴─────────┬┴──────────┴──────────┘
+                       host-api                  the contract: World, Host, ontology, tech tree
 ```
 
 | Crate | May depend on | Why |
@@ -21,6 +21,7 @@ Dependencies point one way. A crate may use only the crates below it.
 | `host-api` | nothing in the workspace | It is the contract. Everything else agrees on it. It also holds the tech tree (`craft`) and its planner, which are Minecraft knowledge shared by every world and arm. |
 | `cognitive-core` | `host-api` | The brain must not know which world it is in (spec §2). |
 | `sim` | `host-api` | A world implements the contract and knows nothing about brains. |
+| `minecraft` | `host-api` | The Rust side of the Minecraft world: place memory and candidates from what the TypeScript bot sees. Like `sim`, it knows nothing about brains. |
 | `llm` | `host-api` | A tool the brain calls through a trait, never directly. |
 | `baselines` | `host-api`, `llm` | Arms run in any world, like the brain. (Tests use `sim` as a dev-dependency.) |
 | `runner` | everything | The only place that wires parts together. |

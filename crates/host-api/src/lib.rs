@@ -176,6 +176,9 @@ pub struct Scenario {
     pub name: String,
 }
 
+/// Most external candidates a host offers per decision (spec §6: K = 20).
+pub const MAX_CANDIDATES: usize = 20;
+
 /// One run's world, shared by all agents (spec §2).
 pub trait World {
     fn reset(&mut self, seed: u64, scenario: &Scenario);

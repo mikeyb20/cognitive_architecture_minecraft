@@ -5,7 +5,7 @@
 
 use std::collections::{BTreeMap, VecDeque};
 
-use super::{Command, Parsed, mark_step, parse};
+use super::{Command, Parsed, Whereabouts, mark_step, parse};
 use crate::craft::drop_of;
 use crate::planner::steps_left_for;
 use crate::{Candidate, ChatMsg, Observation, SeenKind, Skill, Target};
@@ -252,10 +252,14 @@ impl CommandQueue {
     }
 
     /// Mark the candidates that serve the current task (spec §16, #41).
-    pub fn mark(&self, obs: &Observation, cands: &mut [Candidate]) {
+    /// `known` says where things are: the observation itself, or a host's
+    /// memory of places as well.
+    pub fn mark(&self, obs: &Observation, known: &impl Whereabouts, cands: &mut [Candidate]) {
         let Some(a) = &self.current else { return };
         match &a.task {
-            Task::Get { item, count } => mark_step(obs, cands, item, a.start + count),
+            Task::Get { item, count } => {
+                mark_step(&obs.inventory, known, cands, item, a.start + count);
+            }
             Task::Follow { player } | Task::Come { player } => {
                 let to_player = Some(Target::Player(player.clone()));
                 for c in cands.iter_mut() {

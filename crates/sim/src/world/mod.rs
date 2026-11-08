@@ -19,7 +19,7 @@ use crate::mob::{Mob, MobKind, chase_steps};
 use crate::rules::Rules;
 
 /// Most candidates offered per decision (spec §6: K = 20).
-pub const MAX_CANDIDATES: usize = 20;
+pub use host_api::MAX_CANDIDATES;
 /// Most block entries in one observation; entities are always listed.
 pub const MAX_VISIBLE_BLOCKS: usize = 48;
 pub use host_api::ontology::REGION;

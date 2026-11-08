@@ -2,7 +2,8 @@
 //! tests 1–8, played here against a fake world).
 
 use host_api::command::{
-    Command, CommandQueue, Parsed, QueueParams, Task, mark_step, normalize, parse, serves,
+    Command, CommandQueue, Parsed, QueueParams, Task, Whereabouts, mark_step, normalize, parse,
+    serves,
 };
 use host_api::planner::in_tech_tree;
 use host_api::{
@@ -346,7 +347,7 @@ fn marks_the_step_that_serves_the_task() {
     };
     let marks = |q: &CommandQueue, o: &Observation| {
         let mut c = fresh();
-        q.mark(o, &mut c);
+        q.mark(o, o, &mut c);
         c.iter().map(|c| c.commanded).collect::<Vec<_>>()
     };
     let mut q = CommandQueue::default();
@@ -376,11 +377,54 @@ fn marks_the_step_that_serves_the_task() {
     );
     // Direct helpers.
     let mut c = fresh();
-    mark_step(&obs(&[("oak_log", 2)], vec![]), &mut c, "oak_log", 2);
+    let held = obs(&[("oak_log", 2)], vec![]);
+    mark_step(&held.inventory, &held, &mut c, "oak_log", 2);
     assert!(c.iter().all(|c| !c.commanded), "held already");
     assert!(!serves(
         &o,
         &cand(Skill::Chop, Target::Player("alex".into())),
         "block:oak_log"
     ));
+}
+
+/// A host that remembers one spot of iron ore out of sight.
+struct Remembered;
+
+impl Whereabouts for Remembered {
+    fn is_at(&self, p: Pos, thing: &str) -> bool {
+        p == (Pos { x: 40, y: 12, z: 0 }) && thing == "block:iron_ore"
+    }
+}
+
+#[test]
+fn remembered_spots_searches_and_deepslate_serve_the_step() {
+    // Test 4: "mine more iron" goes to the stored spot, even out of sight.
+    let mut q = CommandQueue::default();
+    let deep = seen("block:deepslate_iron_ore", SeenKind::Block, 6, 6.0);
+    let o = obs(&[("stone_pickaxe", 1)], vec![deep]);
+    say(&mut q, "mine 3 iron", &o);
+    let pos = |x, y| Target::Pos(Pos { x, y, z: 0 });
+    let mut c = vec![
+        cand(Skill::Mine, pos(40, 12)),
+        cand(Skill::Mine, pos(6, 0)),
+        cand(Skill::Mine, Target::Thing(ThingId("block:iron_ore".into()))),
+        cand(Skill::Mine, Target::Thing(ThingId("block:stone".into()))),
+        cand(Skill::Mine, Target::Player("alex".into())),
+    ];
+    q.mark(&o, &Remembered, &mut c);
+    let marks: Vec<bool> = c.iter().map(|c| c.commanded).collect();
+    assert_eq!(marks, [true, false, true, false, false], "memory, not view");
+    for c in &mut c {
+        c.commanded = false;
+    }
+    q.mark(&o, &o, &mut c);
+    let marks: Vec<bool> = c.iter().map(|c| c.commanded).collect();
+    assert_eq!(
+        marks,
+        [false, true, true, false, false],
+        "deepslate ore in view"
+    );
+    let mut none = cand(Skill::Mine, pos(6, 0));
+    none.target = None;
+    assert!(!serves(&o, &none, "block:iron_ore"));
 }

@@ -74,7 +74,7 @@ impl ScriptedPlayer {
             });
         }
         if let Some(goal) = &self.active {
-            mark_step(obs, cands, goal, 1);
+            mark_step(&obs.inventory, obs, cands, goal, 1);
         }
     }
 }

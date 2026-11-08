@@ -20,8 +20,9 @@ declare -A allowed=(
   [cognitive-core]="host-api"
   [sim]="host-api"
   [llm]="host-api"
+  [minecraft]="host-api"
   [baselines]="host-api llm"
-  [runner]="host-api cognitive-core sim baselines llm"
+  [runner]="host-api cognitive-core sim baselines llm minecraft"
 )
 meta=$(cargo metadata --format-version 1 --no-deps)
 members=$(jq -r '.packages[].name' <<<"$meta")

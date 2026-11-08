@@ -28,6 +28,31 @@ pub fn drop_of(block: &str) -> &str {
         .map_or(block, |(_, item)| item)
 }
 
+/// Whether a seen block counts as the wanted one: the same name, or the
+/// `deepslate_` form of an ore (both memory keys, e.g. "block:iron_ore").
+pub fn same_block(seen: &str, wanted: &str) -> bool {
+    seen == wanted
+        || (seen.strip_prefix("block:deepslate_"))
+            .is_some_and(|s| wanted.strip_prefix("block:") == Some(s))
+}
+
+/// Recipes worth offering now (spec §21): craftable, not a station already
+/// owned, and not a pickaxe no better than the one held. In table order.
+pub fn worth_crafting(inv: &Inventory) -> impl Iterator<Item = &'static Recipe> + '_ {
+    let tier = pick_tier(inv);
+    RECIPES.iter().filter(move |r| {
+        let owned_station =
+            matches!(r.output, "crafting_table" | "furnace") && inv.count(r.output) > 0;
+        let worse_pick = match r.output {
+            "wooden_pickaxe" => tier >= 1,
+            "stone_pickaxe" => tier >= 2,
+            "iron_pickaxe" => tier >= 3,
+            _ => false,
+        };
+        !owned_station && !worse_pick && can_craft(inv, r)
+    })
+}
+
 /// A recipe: inputs, output, and whether it needs a crafting table or furnace.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Recipe {
@@ -194,6 +219,22 @@ mod tests {
         assert_eq!(drop_of("deepslate_diamond_ore"), "diamond");
         assert_eq!(drop_of("oak_log"), "oak_log", "most blocks drop themselves");
         assert_eq!(drop_of("raw_iron"), "raw_iron");
+    }
+
+    #[test]
+    fn deepslate_ores_count_as_their_plain_form() {
+        assert!(same_block("block:iron_ore", "block:iron_ore"));
+        assert!(same_block("block:deepslate_iron_ore", "block:iron_ore"));
+        assert!(
+            !same_block("block:iron_ore", "block:deepslate_iron_ore"),
+            "one way"
+        );
+        assert!(!same_block("block:deepslate_coal_ore", "block:iron_ore"));
+        assert!(
+            !same_block("block:deepslate_iron_ore", "iron_ore"),
+            "keys only"
+        );
+        assert!(!same_block("item:stick", "block:stick"));
     }
 
     #[test]
