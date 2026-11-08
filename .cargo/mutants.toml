@@ -37,4 +37,7 @@ exclude_re = [
     "replace \\+ with \\* in Brain::recall",
     # `ScriptedPlayer::idle()` is defined as `Self::default()`.
     "replace ScriptedPlayer::idle -> Self with Default::default\\(\\)",
+    # Speed gate `rate < gate` vs `<=`: a measured wall-clock rate never
+    # equals the gate exactly.
+    "replace < with <= in speed",
 ]
