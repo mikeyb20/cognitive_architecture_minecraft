@@ -69,6 +69,8 @@ fn meter_counts_by_hand() {
     m.push(&pushed);
     let mut kicked = row("Plan", 0.4, 0.0, 0.2, 0.5);
     kicked.stuck_kick = true;
+    kicked.retrieval_hit = true;
+    kicked.mem_items = 12;
     m.push(&kicked);
     let inv = vec![
         ("wooden_pickaxe".to_string(), 1),
@@ -87,12 +89,20 @@ fn meter_counts_by_hand() {
     );
     assert_eq!((r.stuck_kicks, r.reflexes, r.new_things), (1, 2, 7));
     assert_eq!(
+        (r.memory, r.recall),
+        (12.0, 0.2),
+        "memory at the last row; one recall in five"
+    );
+    assert_eq!(
         r.tech, 2,
         "two held pickaxes; a zero-count furnace is not held"
     );
     assert!(r.survived && r.ticks == 2400);
     let empty = Meter::default().finish(&result(false, vec![]));
-    assert_eq!((empty.decisions, empty.active, empty.mean_c), (0, 0.0, 0.0));
+    assert_eq!(
+        (empty.decisions, empty.active, empty.mean_c, empty.recall),
+        (0, 0.0, 0.0, 0.0)
+    );
 }
 
 #[test]
@@ -104,6 +114,8 @@ fn summary_averages_over_seeds() {
         stuck_kicks: 2,
         tech: 1,
         new_things: 10,
+        memory: 30.0,
+        recall: 0.25,
         ..RunMetrics::default()
     };
     let b = RunMetrics {
@@ -113,13 +125,22 @@ fn summary_averages_over_seeds() {
         stuck_kicks: 1,
         tech: 2,
         new_things: 20,
+        memory: 50.0,
+        recall: 0.75,
         ..RunMetrics::default()
     };
     let s = summarise(&[a, b]);
     assert_eq!(s.runs, 2);
     assert_eq!(
-        (s.survival, s.stuck_kicks, s.tech, s.new_things),
-        (0.5, 1.5, 1.5, 15.0)
+        (
+            s.survival,
+            s.stuck_kicks,
+            s.tech,
+            s.new_things,
+            s.memory,
+            s.recall
+        ),
+        (0.5, 1.5, 1.5, 15.0, 40.0, 0.5)
     );
     assert!((s.active - 0.3).abs() < 1e-6 && (s.mean_c - 0.3).abs() < 1e-6);
     assert_eq!(summarise(&[]), Summary::default());
@@ -150,6 +171,8 @@ fn tables_have_one_line_per_row() {
             summary: Summary {
                 survival: 0.5,
                 stuck_kicks: 1.25,
+                memory: 41.6,
+                recall: 0.125,
                 ..Summary::default()
             },
         },
@@ -169,6 +192,11 @@ fn tables_have_one_line_per_row() {
     assert_eq!(lines.len(), 3);
     assert!(lines[0].starts_with("oq,variant,scenario,survival"));
     assert!(lines[1].starts_with("OQ18,EXP3 γ=0.1,harsh,0.50,"));
+    assert!(
+        lines[1].ends_with(",42,0.12"),
+        "memory whole, recall to two places: {}",
+        lines[1]
+    );
     assert!(
         lines[1].contains(",1.2,"),
         "stuck kicks to one decimal: {}",

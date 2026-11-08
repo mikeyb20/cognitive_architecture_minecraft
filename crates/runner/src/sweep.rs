@@ -185,6 +185,12 @@ pub struct RunMetrics {
     pub new_things: usize,
     /// Tech-tree goals held at the end (spec §21), 0..4.
     pub tech: u32,
+    /// Items in memory at the end (spec §25 `mem_items`; plan §5.2 flat
+    /// memory's bloat).
+    pub memory: f32,
+    /// Share of decisions that recalled a fact linked to a cue (spec §25
+    /// `retrieval_hit`; plan §5.2 flat memory's recall).
+    pub recall: f32,
 }
 
 /// Conflict above which a decision counts as near-freeze (01 §1.5).
@@ -201,6 +207,8 @@ pub struct Meter {
     v: f64,
     freeze: u32,
     stuck: u32,
+    recalled: u32,
+    memory: usize,
 }
 
 impl Meter {
@@ -214,6 +222,8 @@ impl Meter {
         self.v += f64::from(r.v);
         self.freeze += u32::from(acted && r.conflict > FREEZE_CONFLICT);
         self.stuck += u32::from(r.stuck_kick);
+        self.recalled += u32::from(r.retrieval_hit);
+        self.memory = r.mem_items;
     }
 
     pub fn finish(&self, r: &BrainResult) -> RunMetrics {
@@ -233,6 +243,8 @@ impl Meter {
             reflexes: r.reflexes,
             new_things: r.new_things,
             tech: tech_held(&r.inventory),
+            memory: self.memory as f32,
+            recall: self.recalled as f32 / n,
         }
     }
 }
@@ -267,6 +279,8 @@ pub struct Summary {
     pub reflexes: f32,
     pub new_things: f32,
     pub tech: f32,
+    pub memory: f32,
+    pub recall: f32,
 }
 
 pub fn summarise(runs: &[RunMetrics]) -> Summary {
@@ -285,6 +299,8 @@ pub fn summarise(runs: &[RunMetrics]) -> Summary {
         reflexes: avg(&|r| r.reflexes as f32),
         new_things: avg(&|r| r.new_things as f32),
         tech: avg(&|r| r.tech as f32),
+        memory: avg(&|r| r.memory),
+        recall: avg(&|r| r.recall),
     }
 }
 
@@ -321,20 +337,22 @@ pub fn run_sweep(s: &Sweep, scenarios: &[&str], seeds: u64, threads: usize) -> V
         .collect()
 }
 
-const HEADER: [&str; 13] = [
+const HEADER: [&str; 15] = [
     "variant", "scenario", "survival", "active", "self", "C", "D", "V", "freeze", "stuck",
-    "reflexes", "new", "tech",
+    "reflexes", "new", "tech", "memory", "recall",
 ];
 
-fn cells(r: &Row) -> [String; 13] {
+fn cells(r: &Row) -> [String; 15] {
     let s = &r.summary;
-    let f2 = |x: f32| {
+    // A dash for a variable the arm does not have.
+    let f = |x: f32, places: usize| {
         if x.is_nan() {
             "–".to_string()
         } else {
-            format!("{x:.2}")
+            format!("{x:.places$}")
         }
     };
+    let f2 = |x: f32| f(x, 2);
     [
         r.variant.clone(),
         r.scenario.clone(),
@@ -349,13 +367,15 @@ fn cells(r: &Row) -> [String; 13] {
         format!("{:.1}", s.reflexes),
         format!("{:.0}", s.new_things),
         f2(s.tech),
+        f(s.memory, 0),
+        f2(s.recall),
     ]
 }
 
 /// The legend and the results table, one row per variant and scenario.
 pub fn table(rows: &[Row], seeds: u64) -> String {
     let mut t = format!(
-        "{seeds} seeds per cell. survival = share alive at the end; active = share of decisions that started something; self = started without a command or danger push; C, D, V = means over decisions; freeze = share of actions with conflict > {FREEZE_CONFLICT}; stuck = stuck kicks per run; new = novelty units found; tech = tech-tree goals held (0–4). A dash means the arm has no such variable.\n\n"
+        "{seeds} seeds per cell. survival = share alive at the end; active = share of decisions that started something; self = started without a command or danger push; C, D, V = means over decisions; freeze = share of actions with conflict > {FREEZE_CONFLICT}; stuck = stuck kicks per run; new = novelty units found; tech = tech-tree goals held (0–4); memory = items in memory at the end; recall = share of decisions that recalled a linked fact. A dash means the arm has no such variable.\n\n"
     );
     t += &format!("| {} |\n", HEADER.join(" | "));
     t += &format!("|{}\n", "---|".repeat(HEADER.len()));

@@ -40,6 +40,16 @@ fn the_shipped_experiments_parse() {
 }
 
 #[test]
+fn flat_memory_is_one_setting() {
+    let text = std::fs::read_to_string("../../configs/experiments/ablations.toml").unwrap();
+    let e = parse(&text).unwrap();
+    let arm = e.arms.iter().find(|a| a.label == "flat memory").unwrap();
+    let mut want = BrainConfig::default();
+    want.memory.flat = true;
+    assert_eq!(config_for(&e, arm, 0).unwrap(), want);
+}
+
+#[test]
 fn defaults_and_arm_settings() {
     let e = parse(SMALL).unwrap();
     assert_eq!((e.archetype.as_str(), e.per_agent), ("default", false));
@@ -113,6 +123,7 @@ fn baseline_metrics_by_hand() {
     assert_eq!((m.survived, m.ticks, m.decisions), (true, 2400, 8));
     assert_eq!((m.active, m.self_started), (0.75, 0.75));
     assert!(m.mean_c.is_nan() && m.mean_d.is_nan() && m.mean_v.is_nan() && m.freeze.is_nan());
+    assert!(m.memory.is_nan() && m.recall.is_nan(), "no brain memory");
     assert_eq!(
         (m.stuck_kicks, m.reflexes, m.new_things, m.tech),
         (0, 1, 4, 1)
@@ -154,6 +165,16 @@ fn runs_replay_and_tabulate() {
     assert!(
         md.contains(" | – | – | – | – | "),
         "dashes for A's missing variables: {md}"
+    );
+    let a_row = md.lines().find(|l| l.starts_with("| A |")).unwrap();
+    assert!(
+        a_row.ends_with(" | – | – |"),
+        "no memory or recall: {a_row}"
+    );
+    let c_row = md.lines().find(|l| l.starts_with("| C slow |")).unwrap();
+    assert!(
+        !c_row.contains('–'),
+        "the brain has every variable: {c_row}"
     );
     let csv = csv_rows("experiment", &e.id, &rows);
     assert!(csv.starts_with("experiment,variant,scenario,survival"));

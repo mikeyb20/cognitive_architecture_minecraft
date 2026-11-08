@@ -154,7 +154,8 @@ impl Driver for PolicyDriver {
     }
 }
 
-/// Metrics for an arm without a brain: C, D, V and freeze do not exist.
+/// Metrics for an arm without a brain: C, D, V, freeze and the brain's
+/// memory do not exist.
 pub fn baseline_metrics(r: &BrainResult) -> RunMetrics {
     let acted = r.decisions.saturating_sub(r.idle) as f32 / r.decisions.max(1) as f32;
     RunMetrics {
@@ -171,6 +172,8 @@ pub fn baseline_metrics(r: &BrainResult) -> RunMetrics {
         reflexes: r.reflexes,
         new_things: r.new_things,
         tech: tech_held(&r.inventory),
+        memory: f32::NAN,
+        recall: f32::NAN,
     }
 }
 

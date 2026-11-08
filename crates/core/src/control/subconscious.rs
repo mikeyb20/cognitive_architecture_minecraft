@@ -123,6 +123,7 @@ impl Subconscious {
             e.item.priority = e.item.priority.clamp(0.0, 1.0);
             (e.useful, e.unresolved, e.item.v_enc, e.item.priority)
         };
+        let prio = mem.params.priority(prio);
         if reinforces(useful) {
             mem.access(id, now);
             r.reinforced += 1;
@@ -217,6 +218,21 @@ mod tests {
         let r = at([0.7, 0.0, 0.0]);
         assert!((r.nudge - 0.05 * 0.7).abs() < 1e-6);
         assert!(reinforces(0.51) && !reinforces(0.5));
+    }
+
+    #[test]
+    fn flat_memory_keeps_weak_items_and_flags_on_equal_priority() {
+        let mut m = mem_with(&[("calm", Tier::Sensory, 0.0), ("sharp", Tier::Sensory, 0.9)]);
+        m.params.flat = true;
+        m.entry_mut(0).unresolved = true;
+        let mut s = Subconscious::new(SubconsciousParams::default());
+        let r = s.run(&mut m, 2.0, 1_000_000);
+        // σ stays 0.5. Significance 0.4·unresolved + 0.3·|V| + 0.3·0.5:
+        // 0.55 for calm (flagged; its own P ≈ 0.1 would give 0.43) and 0.42.
+        assert_eq!((r.processed, r.pruned, m.len()), (2, 0, 2));
+        assert_eq!(r.flagged, vec![0]);
+        m.params.flat = false;
+        assert_eq!(s.run(&mut m, 2.0, 1_000_000).pruned, 2, "decay prunes both");
     }
 
     #[test]

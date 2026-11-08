@@ -10,7 +10,7 @@ use cognitive_core::control::kick::KickParams;
 use cognitive_core::control::oracle::Oracle;
 use cognitive_core::control::permeability::PermeabilityParams;
 use cognitive_core::control::subconscious::SubconsciousParams;
-use cognitive_core::memory::MemoryParams;
+use cognitive_core::memory::{FLAT_PRIORITY, FLAT_TIER, MemoryParams};
 use cognitive_core::modes::{Lens, LensParams, Mode, ModeNetwork};
 
 #[test]
@@ -70,6 +70,12 @@ fn memory_defaults_match_spec_17() {
     assert_eq!((m.episodic.lambda, m.episodic.base), (1e-4, 0.6));
     assert_eq!((m.sensory.lambda, m.sensory.base), (1e-2, 0.2));
     assert_eq!(m.c_r, 0.05);
+    // Flat memory is an ablation (plan §5.2), off by default.
+    assert!(!m.flat);
+    assert_eq!(
+        (FLAT_TIER.lambda, FLAT_TIER.base, FLAT_PRIORITY),
+        (0.0, 1.0, 0.5)
+    );
 }
 
 #[test]

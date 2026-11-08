@@ -1,5 +1,5 @@
 # Plan §5.2 ablations that are one config change each (spec §24 C−X).
-# Flat memory and fixed-trigger thinking need code and are not here yet.
+# Fixed-trigger thinking needs code and is not here yet.
 # The table's columns stand in for each ablation's primary metric; the
 # expected text names the column to read.
 id = "ABLATIONS"
@@ -83,3 +83,9 @@ label = "frozen lenses"
 arm = "c"
 config = { lens_frozen = [true, true, true, true] }
 expected = "Modes don't adapt (00 §7.7): worse after context changes, most visible on harsh and commanded."
+
+[[arms]]
+label = "flat memory"
+arm = "c"
+config = { memory = { flat = true } }
+expected = "Memory bloat: the memory column is higher in every scenario, because nothing decays and nothing is pruned. Plan §5.2 also expects worse recall of important items; the recall column counts any linked fact recalled, so it shows whether recall changes, not its precision."
