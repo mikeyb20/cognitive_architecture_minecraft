@@ -207,6 +207,18 @@ fn a_hostile_on_top_of_the_agent_flees_east() {
     assert_eq!(c[1].target, pos(5, 64, 5));
 }
 
+#[test]
+fn a_hostile_due_north_is_fled_due_south() {
+    let me = at(5, 64, 5);
+    let o = obs(
+        me,
+        &[],
+        vec![seen("entity:zombie", HOSTILE, me, at(5, 64, 1))],
+    );
+    let c = candidates(&o, &Places::default(), &McParams::default());
+    assert_eq!(row(&c[0]), (Skill::Flee, pos(5, 64, 21), TaskType::Travel));
+}
+
 mod props {
     use super::*;
     use proptest::prelude::*;
