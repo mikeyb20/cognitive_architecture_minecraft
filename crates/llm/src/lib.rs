@@ -44,6 +44,10 @@ pub struct LlmParams {
     /// Most tool calls per hour on T-strong: about $5/h on the default model
     /// at the same sizes (proposed until the pilot).
     pub strong_calls_per_hour: u32,
+    /// Cap on each reply, thinking included (proposed until the pilot).
+    pub max_reply_tokens: u32,
+    /// Seconds per world tick, for the hourly cap (Minecraft: 20 ticks/s).
+    pub seconds_per_tick: f64,
 }
 
 impl Default for LlmParams {
@@ -52,6 +56,8 @@ impl Default for LlmParams {
             max_input_tokens: 1000,
             cheap_calls_per_hour: 3600,
             strong_calls_per_hour: 1000,
+            max_reply_tokens: 1000,
+            seconds_per_tick: 0.05,
         }
     }
 }
@@ -64,6 +70,11 @@ impl LlmParams {
             Tier::Cheap => Some(self.cheap_calls_per_hour),
             Tier::Strong => Some(self.strong_calls_per_hour),
         }
+    }
+
+    /// World time in seconds at `tick`, for the budget guard.
+    pub fn seconds_at(&self, tick: u64) -> f64 {
+        tick as f64 * self.seconds_per_tick
     }
 }
 

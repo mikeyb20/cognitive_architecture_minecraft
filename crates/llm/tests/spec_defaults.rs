@@ -12,6 +12,9 @@ fn llm_defaults() {
     );
     assert_eq!(p.cheap_calls_per_hour, 3600, "≈$0.90/h on Haiku 5.5");
     assert_eq!(p.strong_calls_per_hour, 1000, "≈$5/h on Sonnet 5.5");
+    assert_eq!(p.max_reply_tokens, 1000);
+    assert_eq!(p.seconds_per_tick, 0.05, "Minecraft runs 20 ticks a second");
+    assert_eq!(p.seconds_at(72_000), 3600.0);
     let (c, s) = (AnthropicConfig::cheap(), AnthropicConfig::strong());
     assert_eq!(
         (c.model.as_str(), c.effort.as_str(), c.fallbacks),

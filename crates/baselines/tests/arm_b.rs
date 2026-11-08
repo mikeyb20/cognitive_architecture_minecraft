@@ -345,9 +345,9 @@ fn the_hourly_cap_runs_on_world_time() {
     let cfg = ArmBConfig {
         llm: llm::LlmParams {
             cheap_calls_per_hour: 1,
+            seconds_per_tick: 0.5,
             ..Default::default()
         },
-        seconds_per_tick: 0.5,
         ..Default::default()
     };
     let mut a = arm(

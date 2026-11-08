@@ -26,11 +26,8 @@ pub struct ArmBConfig {
     pub novelty: Option<f32>,
     /// Spend tier; sets the hourly call cap.
     pub tier: Tier,
+    /// Input and reply caps, calls per hour, world time.
     pub llm: LlmParams,
-    /// Cap on each reply, thinking included.
-    pub max_reply_tokens: u32,
-    /// Seconds per world tick, for the hourly cap (Minecraft: 20 ticks/s).
-    pub seconds_per_tick: f64,
 }
 
 impl Default for ArmBConfig {
@@ -40,8 +37,6 @@ impl Default for ArmBConfig {
             novelty: None,
             tier: Tier::Cheap,
             llm: LlmParams::default(),
-            max_reply_tokens: 1000,
-            seconds_per_tick: 0.05,
         }
     }
 }
@@ -102,14 +97,13 @@ impl<P: Provider> ArmB<P> {
         Prompt {
             user: user_prompt(obs, &lines, system.chars().count(), cap),
             system,
-            max_tokens: self.config.max_reply_tokens,
+            max_tokens: self.config.llm.max_reply_tokens,
         }
     }
 
     /// The LLM's pick, or `None` when it was not asked or gave no usable id.
     fn ask(&mut self, obs: &Observation, c: &[Candidate]) -> Option<usize> {
-        let now = obs.tick as f64 * self.config.seconds_per_tick;
-        if !self.guard.try_spend(now) {
+        if !self.guard.try_spend(self.config.llm.seconds_at(obs.tick)) {
             return None;
         }
         let reply = self.llm.complete(&self.prompt(obs, c)).ok()?;
