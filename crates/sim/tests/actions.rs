@@ -79,6 +79,9 @@ fn blocked_actions_cost_a_few_ticks() {
         act(Skill::Place, None),
         act(Skill::Chat, None),
         act(Skill::FollowPlayer, None),
+        // Skills the sim lacks stay blocked even with a place to go.
+        at(Skill::Place, 26, 24),
+        at(Skill::FollowPlayer, 26, 24),
         act(Skill::Chop, None),
         at(Skill::Chop, 25, 24),
         act(Skill::Attack, None),
