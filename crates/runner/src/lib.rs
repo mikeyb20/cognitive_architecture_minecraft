@@ -7,6 +7,7 @@ pub mod brain;
 pub(crate) mod par;
 pub mod sweep;
 pub mod theory;
+pub mod think;
 
 use baselines::Policy;
 use host_api::reflex::{ReflexThresholds, emergency_reflex};
