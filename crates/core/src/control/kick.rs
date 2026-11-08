@@ -63,7 +63,8 @@ impl StuckDetector {
     /// Record one tick: Oracle weights, C, and an id for the chosen action type.
     pub fn record(&mut self, w: [f32; 4], c: f32, action_type: u32) {
         self.history.push_back((w, c, action_type));
-        while self.history.len() > self.window {
+        // One push per call, so at most one pop keeps the window at N.
+        if self.history.len() > self.window {
             self.history.pop_front();
         }
     }
