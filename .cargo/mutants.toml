@@ -30,4 +30,9 @@ exclude_re = [
     # Sim random draw `rng < p` vs `<= p`: differs only when a uniform f32
     # draw equals p exactly (probability ~2^-24 per draw).
     "replace < with <= in SimWorld::chance",
+    # Brain random draw `rng < p` vs `<= p`: same as above.
+    "replace < with <= in <impl RandomBool for R>::random_bool_f32",
+    # TM co-activation links `top[i + 1..]` vs `top[i * 1..]`: the extra pair
+    # is (a, a), and `MemoryStore::link` ignores self-links.
+    "replace \\+ with \\* in Brain::recall",
 ]
