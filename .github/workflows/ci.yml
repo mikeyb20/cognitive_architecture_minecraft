@@ -56,7 +56,8 @@ jobs:
         shard: [0, 1, 2, 3]
     env:
       # Base the mutated diff is taken against. Normally the PR's base branch.
-      MUTANTS_BASE: origin/${{ github.base_ref }}
+      # TEMPORARY (revert before merge): mutate all of step 3 (PR #3).
+      MUTANTS_BASE: 9feedf5
     steps:
       - uses: actions/checkout@v4
         with:
