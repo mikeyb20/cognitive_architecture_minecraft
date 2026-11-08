@@ -25,7 +25,7 @@ Rust brain + Rust sim world + TypeScript Mineflayer adapter for agents built on 
 - New rule or formula: a property test (ranges, invariants) and an exact-value test against hand-worked numbers.
 - New default: pin it in `spec_defaults.rs`.
 - Behaviour change in the sim or brain: update golden traces deliberately and say why in the PR.
-- Coverage stays ≥ 95% of lines; mutation testing must kill every mutant on changed lines. A mutant that cannot change behaviour goes in `.cargo/mutants.toml` with its reason; anything else needs a test.
+- Coverage stays ≥ 95% of lines; mutation testing must kill every mutant on changed lines. A mutant that cannot change behaviour goes in `.cargo/mutants.toml` with its reason; anything else needs a test. The bot uses Stryker (`npx stryker run --mutate <files>`); there, rewrite code so no equivalent mutant exists.
 - Test through public APIs so refactors don't break tests that should pass.
 
 ## Before you open a PR
@@ -35,7 +35,7 @@ cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 scripts/check-architecture.sh
-(cd bot && npm ci && npm run typecheck)
+(cd bot && npm ci && npm run typecheck && npm test)
 ```
 
 - One concern per PR: a feature or a refactor, not both. Aim for under ~400 changed non-test lines.

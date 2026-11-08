@@ -27,6 +27,8 @@ Dependencies point one way. A crate may use only the crates below it.
 
 `scripts/check-architecture.sh` fails CI on any edge not in this table. Adding a crate means adding a row here and in the script, so its place is a decision, not an accident.
 
+Inside the bot, only `bot/src/mineflayer/` talks to Mineflayer. It copies what it reads into plain data (for example `perceive/observation.ts`'s `Snapshot`) and calls the library; every decision about that data lives in plain modules that are unit-tested, held to the coverage floors and mutation-tested like the Rust. The glue is checked by the live acceptance tests instead, so keep it thin.
+
 The TypeScript bot does not copy these types by hand: `bot/src/generated/` is written from `host-api` by ts-rs (`cargo test -p host-api --features ts`), and CI fails if the committed copy is stale. To change the contract, change the Rust type and regenerate.
 
 **Why it matters:** the day `cognitive-core` imports `sim`, the brain can no longer move to Minecraft without a rewrite. The same check keeps the TypeScript bot replaceable (spec §31.8).

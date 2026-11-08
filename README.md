@@ -28,7 +28,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p runner
 scripts/check-architecture.sh   # layers, purity, file size budget
 
-cd bot && npm ci && npm run typecheck
+cd bot && npm ci && npm run typecheck && npm test
 ```
 
 ## Testing
@@ -40,7 +40,7 @@ Every rule in the definitions has a test, checked three ways:
 
 CI enforces two more checks on top of the tests:
 - **Coverage:** at least 95% of lines must run under test (`cargo llvm-cov`).
-- **Mutation testing:** on every pull request, `cargo mutants` deliberately breaks the changed code and fails if any break goes unnoticed. To run it on the whole brain locally: `cargo mutants -p cognitive-core`.
+- **Mutation testing:** on every pull request, `cargo mutants` deliberately breaks the changed code and fails if any break goes unnoticed. To run it on the whole brain locally: `cargo mutants -p cognitive-core`. The bot's TypeScript gets the same check from Stryker: `cd bot && npx stryker run`.
 
 ## Architecture
 

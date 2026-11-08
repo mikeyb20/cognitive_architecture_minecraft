@@ -98,13 +98,15 @@ jobs:
           cargo mutants --in-diff pr.diff --no-shuffle -j 2 --timeout 120 --shard ${{ matrix.shard }}/4
 
   bot:
-    name: bot (tsc)
+    name: bot (tsc, tests, coverage, mutation)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: bot
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -112,3 +114,15 @@ jobs:
           cache-dependency-path: bot/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      # Unit tests with line, branch and function coverage floors. The thin
+      # Mineflayer glue in src/mineflayer/ needs a live server and is covered
+      # by the acceptance tests instead (spec §27 step 6).
+      - run: npm test
+      # Mutation testing on the TypeScript files this PR changed, as for Rust.
+      - name: stryker (changed files)
+        if: github.event_name == 'pull_request'
+        run: |
+          files=$(git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}...HEAD -- src \
+            | sed 's|^bot/||' | grep -E '\.ts$' | grep -vE '\.test\.ts$|^src/generated/|^src/mineflayer/' | paste -sd, -)
+          if [ -z "$files" ]; then echo "No mutable TypeScript changed."; exit 0; fi
+          npx stryker run --mutate "$files"
