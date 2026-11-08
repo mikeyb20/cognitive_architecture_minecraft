@@ -35,4 +35,6 @@ exclude_re = [
     # TM co-activation links `top[i + 1..]` vs `top[i * 1..]`: the extra pair
     # is (a, a), and `MemoryStore::link` ignores self-links.
     "replace \\+ with \\* in Brain::recall",
+    # `ScriptedPlayer::idle()` is defined as `Self::default()`.
+    "replace ScriptedPlayer::idle -> Self with Default::default\\(\\)",
 ]

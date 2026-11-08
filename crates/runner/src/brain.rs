@@ -169,6 +169,27 @@ pub fn run_with(
     r
 }
 
+/// World ticks the default brain runs on `open_day` over seeds 0..n (the
+/// spec §27 speed gate times this).
+pub fn speed_ticks(n: u64) -> u64 {
+    (0..n)
+        .map(|seed| {
+            run_brain(
+                setup("open_day", seed),
+                BrainConfig::default(),
+                seed,
+                |_| {},
+            )
+            .ticks
+        })
+        .sum()
+}
+
+/// Ticks per second (spec §27).
+pub fn rate(ticks: u64, secs: f64) -> f64 {
+    ticks as f64 / secs
+}
+
 /// Build a scenario or panic with the known names (CLI and tests).
 pub fn setup(name: &str, seed: u64) -> Setup {
     scenario::build(name, Rules::default(), seed)

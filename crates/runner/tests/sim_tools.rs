@@ -145,7 +145,7 @@ fn brain_command_reports_and_logs() {
         text.contains("seed 0:") && text.contains("seed 1:"),
         "{text}"
     );
-    assert!(text.contains("brain first_night: "), "{text}");
+    assert!(text.contains("brain first_night: 2/2 survived"), "{text}");
     let body = std::fs::read_to_string(&log).unwrap();
     let headers = body
         .lines()
@@ -158,10 +158,23 @@ fn brain_command_reports_and_logs() {
 }
 
 #[test]
-fn speed_command_reports_the_rate() {
-    let (_, text) = runner(&["speed", "1"]);
+fn speed_command_reports_the_rate_and_applies_the_gate() {
+    let (ok, text) = runner(&["speed", "1", "--gate", "0"]);
+    assert!(ok, "{text}");
+    let ticks = runner::brain::speed_ticks(1);
     assert!(
-        text.contains("brain speed: ") && text.contains("ticks/s"),
+        text.contains(&format!("brain speed: {ticks} world ticks")) && text.contains("ticks/s"),
         "{text}"
     );
+    let (ok, _) = runner(&["speed", "1", "--gate", "1e15"]);
+    assert!(!ok, "far below the gate");
+}
+
+#[test]
+fn speed_sums_ticks_over_seeds() {
+    use runner::brain::{rate, run_brain, setup, speed_ticks};
+    let one = |s| run_brain(setup("open_day", s), Default::default(), s, |_| {}).ticks;
+    assert_eq!(speed_ticks(2), one(0) + one(1));
+    assert_eq!(speed_ticks(0), 0);
+    assert_eq!(rate(5000, 2.0), 2500.0);
 }
