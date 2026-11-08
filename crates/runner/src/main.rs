@@ -6,6 +6,9 @@
 //!   optionally writing one JSONL row per decision (spec §25).
 //! - `runner speed [N]`: world ticks per second for the brain (step 4 gate:
 //!   at least 5,000); exits non-zero below the gate.
+//! - `runner sweep <OQ|all> [--seeds N] [--scenarios a,b] [--out DIR]`: an
+//!   open-question sweep (step 5); prints a Markdown table and, with
+//!   `--out`, writes `<OQ>.md` and `<OQ>.csv` there.
 
 use baselines::ArmA;
 use std::io::Write;
@@ -27,6 +30,7 @@ fn main() {
         Some("first-night") => first_night(n(1, 100)),
         Some("brain") => brain(&args),
         Some("speed") => speed(n(1, 20)),
+        Some("sweep") => sweep(&args),
         _ => {}
     }
 }
@@ -105,5 +109,41 @@ fn speed(n: u64) {
     );
     if rate < SPEED_GATE {
         std::process::exit(1);
+    }
+}
+
+fn flag<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
+    args.iter()
+        .position(|a| a == name)
+        .and_then(|i| args.get(i + 1))
+        .map(String::as_str)
+}
+
+fn sweep(args: &[String]) {
+    use runner::sweep::{all_scenarios, csv, ids, markdown, run_sweep, sweep};
+    let which = args.get(1).map_or("all", String::as_str);
+    let seeds: u64 = flag(args, "--seeds")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(10);
+    let scenarios: Vec<&str> = match flag(args, "--scenarios") {
+        Some(list) => list.split(',').collect(),
+        None => all_scenarios(),
+    };
+    let threads = std::thread::available_parallelism().map_or(1, usize::from);
+    let todo: Vec<&str> = if which == "all" { ids() } else { vec![which] };
+    for id in todo {
+        let Some(s) = sweep(id) else {
+            eprintln!("unknown sweep {id}; known: {:?}", ids());
+            std::process::exit(2);
+        };
+        let rows = run_sweep(&s, &scenarios, seeds, threads);
+        let md = markdown(&s, &rows, seeds);
+        println!("{md}");
+        if let Some(dir) = flag(args, "--out") {
+            std::fs::create_dir_all(dir).expect("cannot create the output folder");
+            let p = std::path::Path::new(dir);
+            std::fs::write(p.join(format!("{}.md", s.id)), &md).expect("write failed");
+            std::fs::write(p.join(format!("{}.csv", s.id)), csv(&s, &rows)).expect("write failed");
+        }
     }
 }
