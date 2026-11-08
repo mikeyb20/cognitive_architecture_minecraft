@@ -16,7 +16,8 @@ use crate::FULL;
 use crate::brain::{BrainResult, setup};
 use crate::drive::{Driver, run_scenario};
 use crate::mc::McArm;
-use crate::sweep::{Meter, Row, RunMetrics, summarise, tech_held};
+use crate::metrics::{Meter, RunMetrics, summarise, tech_held};
+use crate::sweep::Row;
 
 /// Which arm picks the actions (spec §24).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]

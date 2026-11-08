@@ -8,6 +8,7 @@ pub mod brain;
 pub(crate) mod drive;
 pub mod experiment;
 pub mod mc;
+pub mod metrics;
 pub(crate) mod par;
 pub mod sweep;
 pub mod theory;

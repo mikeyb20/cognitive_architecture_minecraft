@@ -7,7 +7,7 @@ use cognitive_core::modes::Mode;
 use sim::scenario::DAY;
 
 use crate::brain::BrainResult;
-use crate::sweep::tech_held;
+use crate::metrics::tech_held;
 
 /// Reads one run for one theory test.
 pub trait Probe {
