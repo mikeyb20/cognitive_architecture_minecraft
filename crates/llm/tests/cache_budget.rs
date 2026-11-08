@@ -196,3 +196,38 @@ fn a_boxed_provider_passes_calls_through() {
     assert_eq!(b.id(), "script/m");
     assert_eq!(b.complete(&prompt("p")).unwrap().text, "z");
 }
+
+#[test]
+fn stats_add_up_by_hand() {
+    let mut a = llm::LlmStats {
+        calls: 2,
+        cached: 1,
+        fallbacks: 3,
+        unparsed: 4,
+        input_tokens: 50,
+        output_tokens: 6,
+        cost_usd: 0.25,
+    };
+    let b = llm::LlmStats {
+        calls: 1,
+        cached: 2,
+        fallbacks: 3,
+        unparsed: 4,
+        input_tokens: 5,
+        output_tokens: 7,
+        cost_usd: 0.5,
+    };
+    a.add(&b);
+    assert_eq!(
+        a,
+        llm::LlmStats {
+            calls: 3,
+            cached: 3,
+            fallbacks: 6,
+            unparsed: 8,
+            input_tokens: 55,
+            output_tokens: 13,
+            cost_usd: 0.75,
+        }
+    );
+}

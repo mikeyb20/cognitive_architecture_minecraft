@@ -174,12 +174,35 @@ fn theory(args: &[String]) {
     }
 }
 
-fn experiment(args: &[String]) {
-    use runner::experiment::{header, markdown, parse, run};
-    let fail = |msg: String| -> ! {
-        eprintln!("{msg}");
-        std::process::exit(2);
+/// Print a usage or input error and exit with status 2.
+fn fail(msg: String) -> ! {
+    eprintln!("{msg}");
+    std::process::exit(2);
+}
+
+/// The LLM flags shared by `mc` and `run`: `--tier`, `--cache FILE`,
+/// `--replay`, and `OLLAMA_BASE_URL` / `ANTHROPIC_API_KEY` from the
+/// environment. Returns the tier and a provider maker.
+fn llm_setup(
+    args: &[String],
+) -> (
+    llm::Tier,
+    impl Fn() -> Result<Box<dyn llm::Provider>, String> + Sync,
+) {
+    let level = runner::mc::tier(flag(args, "--tier").unwrap_or("local"));
+    let level = level.unwrap_or_else(|| fail("--tier is local, cheap or strong".into()));
+    let cache: Option<(std::path::PathBuf, bool)> =
+        flag(args, "--cache").map(|f| (f.into(), args.iter().any(|a| a == "--replay")));
+    let make = move || {
+        let env = |k: &str| std::env::var(k).ok();
+        let (url, key) = (env("OLLAMA_BASE_URL"), env("ANTHROPIC_API_KEY"));
+        runner::mc::provider(level, url, key, cache.clone())
     };
+    (level, make)
+}
+
+fn experiment(args: &[String]) {
+    use runner::experiment::{Llm, header, markdown, parse, run};
     let path = flag(args, "--experiment").unwrap_or_else(|| {
         fail("usage: runner run --experiment FILE [--seeds N] [--out DIR]".into())
     });
@@ -194,32 +217,21 @@ fn experiment(args: &[String]) {
         let p = std::path::Path::new(dir).join(format!("{}.header.json", e.id));
         std::fs::write(p, header(&e).to_string()).expect("write failed");
     }
-    let rows = run(&e, threads());
-    let csv = runner::sweep::csv_rows("experiment", &e.id, &rows);
-    publish(args, &e.id, &markdown(&e, &rows), &csv);
+    let (tier, make) = llm_setup(args);
+    let llm = Llm { tier, make: &make };
+    let res = run(&e, threads(), Some(&llm)).unwrap_or_else(|err| fail(err));
+    let csv = runner::sweep::csv_rows("experiment", &e.id, &res.rows);
+    publish(args, &e.id, &markdown(&e, &res), &csv);
 }
 
 fn mc(args: &[String]) {
-    use runner::mc::{Link, McArm, McHost, arm, provider, row, run, tier};
-    let fail = |msg: String| -> ! {
-        eprintln!("{msg}");
-        std::process::exit(2);
-    };
+    use runner::mc::{Link, McArm, McHost, arm, row, run};
     let which = args.get(1).and_then(|a| McArm::parse(a));
     let which = which.unwrap_or_else(|| fail("usage: runner mc <a|b|bn> [flags]".into()));
-    let level = tier(flag(args, "--tier").unwrap_or("local"));
-    let level = level.unwrap_or_else(|| fail("--tier is local, cheap or strong".into()));
-    let cache = flag(args, "--cache").map(|f| (f.into(), args.iter().any(|a| a == "--replay")));
-    let llm = which.needs_llm().then(|| {
-        let env = |k: &str| std::env::var(k).ok();
-        provider(
-            level,
-            env("OLLAMA_BASE_URL"),
-            env("ANTHROPIC_API_KEY"),
-            cache,
-        )
-        .unwrap_or_else(|e| fail(e))
-    });
+    let (level, make) = llm_setup(args);
+    let llm = which
+        .needs_llm()
+        .then(|| make().unwrap_or_else(|e| fail(e)));
     let mut policy = arm(which, level, llm).unwrap_or_else(|e| fail(e));
     let addr = flag(args, "--addr").unwrap_or("127.0.0.1:7878");
     let link = Link::tcp(addr).unwrap_or_else(|e| fail(format!("no bot at {addr}: {e}")));

@@ -29,4 +29,15 @@ impl LlmStats {
             self.cost_usd += r.cost_usd;
         }
     }
+
+    /// Add another run's use to this one (totals per arm, plan §5.5).
+    pub fn add(&mut self, o: &LlmStats) {
+        self.calls += o.calls;
+        self.cached += o.cached;
+        self.fallbacks += o.fallbacks;
+        self.unparsed += o.unparsed;
+        self.input_tokens += o.input_tokens;
+        self.output_tokens += o.output_tokens;
+        self.cost_usd += o.cost_usd;
+    }
 }

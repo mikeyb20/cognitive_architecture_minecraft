@@ -3,9 +3,12 @@
 //! CLI.
 
 use cognitive_core::agent::BrainConfig;
+use llm::{LlmError, Prompt, Provider, Reply, Tier};
 use runner::archetype::{drawn, means};
 use runner::brain::BrainResult;
-use runner::experiment::{ArmKind, baseline_metrics, config_for, header, markdown, parse, run};
+use runner::experiment::{
+    ArmKind, Llm, baseline_metrics, config_for, header, markdown, parse, run,
+};
 use runner::sweep::csv_rows;
 use std::process::Command;
 
@@ -29,7 +32,7 @@ expected = "flat C"
 
 #[test]
 fn the_shipped_experiments_parse() {
-    for f in ["baselines", "ablations"] {
+    for f in ["baselines", "baselines-llm", "ablations"] {
         let text = std::fs::read_to_string(format!("../../configs/experiments/{f}.toml")).unwrap();
         let e = parse(&text).unwrap_or_else(|err| panic!("{f}: {err}"));
         assert!(e.arms.iter().all(|a| !a.expected.is_empty()), "{f}");
@@ -78,7 +81,10 @@ fn mistakes_are_errors() {
     assert_eq!(bad("kick_enabled", "kick_on"), "unknown setting kick_on");
     assert!(bad("kick_enabled = false", "kick_enabled = 3").starts_with("C slow: "));
     let a_cfg = SMALL.replace("arm = \"a\"", "arm = \"a\"\nconfig = { tm_k = 0 }");
-    assert_eq!(parse(&a_cfg).unwrap_err(), "A: arm a has no brain settings");
+    assert_eq!(
+        parse(&a_cfg).unwrap_err(),
+        "A: only arm c has brain settings"
+    );
     assert!(parse(&SMALL.replace("arm = \"a\"", "arm = \"z\"")).is_err());
     assert!(parse(&SMALL.replace("seeds = 2", "seedz = 2")).is_err());
     let bad_arch = SMALL.replace("seeds = 2", "seeds = 2\narchetype = \"nobody\"");
@@ -122,8 +128,10 @@ fn baseline_metrics_by_hand() {
 #[test]
 fn runs_replay_and_tabulate() {
     let e = parse(SMALL).unwrap();
-    let rows = run(&e, 1);
-    let again = run(&e, 3);
+    let res = run(&e, 1, None).unwrap();
+    let rows = res.rows.clone();
+    assert!(res.llm.is_empty(), "no arm called an LLM");
+    let again = run(&e, 3, None).unwrap().rows;
     assert_eq!(
         format!("{rows:?}"),
         format!("{again:?}"),
@@ -140,7 +148,7 @@ fn runs_replay_and_tabulate() {
         rows[0].summary.survival, 1.0,
         "arm A survives the first night"
     );
-    let md = markdown(&e, &rows);
+    let md = markdown(&e, &res);
     assert!(md.starts_with("## SMALL: Does it run?\n\nExpected before the run (plan §5.5):\n\n- **A**: survives\n- **C slow**: flat C\n\n2 seeds per cell."), "{md}");
     assert!(md.contains("| A | first_night | 1.00 |"), "{md}");
     assert!(
@@ -211,4 +219,117 @@ fn the_run_command_writes_header_table_and_csv() {
     std::fs::write(&file, "id = 3").unwrap();
     assert!(fails(&["run", "--experiment", file.to_str().unwrap()]).contains("small.toml: "));
     std::fs::remove_dir_all(dir).unwrap();
+}
+
+/// Always answers "0"; counts as one 10-in, 1-out call.
+struct Zero;
+
+impl Provider for Zero {
+    fn id(&self) -> String {
+        "zero/m".into()
+    }
+    fn complete(&mut self, _: &Prompt) -> Result<Reply, LlmError> {
+        Ok(Reply {
+            text: "0".into(),
+            input_tokens: 10,
+            output_tokens: 1,
+            cost_usd: 0.001,
+            cached: false,
+        })
+    }
+}
+
+const LLM_ARMS: &str = r#"
+id = "LLM"
+question = "Do the LLM arms run?"
+scenarios = ["first_night"]
+seeds = 2
+
+[[arms]]
+label = "B"
+arm = "b"
+expected = "picks option 0"
+
+[[arms]]
+label = "B+N"
+arm = "bn"
+expected = "picks option 0 of the ranked list"
+
+[[arms]]
+label = "A"
+arm = "a"
+expected = "no LLM"
+"#;
+
+#[test]
+fn llm_arms_run_with_a_provider_per_job() {
+    let e = parse(LLM_ARMS).unwrap();
+    assert_eq!((e.arms[0].arm, e.arms[1].arm), (ArmKind::B, ArmKind::BN));
+    // Runs with an LLM go one at a time, whatever the thread count.
+    let threads = std::sync::Mutex::new(std::collections::HashSet::new());
+    let make = || -> Result<Box<dyn Provider>, String> {
+        threads.lock().unwrap().insert(std::thread::current().id());
+        Ok(Box::new(Zero))
+    };
+    let llm = Llm {
+        tier: Tier::Cheap,
+        make: &make,
+    };
+    let res = run(&e, 4, Some(&llm)).unwrap();
+    assert_eq!(threads.lock().unwrap().len(), 1);
+    assert_eq!(res.rows.len(), 3);
+    let labels: Vec<&str> = res.llm.iter().map(|(l, _)| l.as_str()).collect();
+    assert_eq!(labels, ["B", "B+N"], "one total per arm; A used no LLM");
+    let (label, b) = &res.llm[0];
+    assert_eq!(label, "B");
+    assert!(b.calls > 0 && b.fallbacks == 0);
+    assert_eq!(
+        (b.input_tokens, b.output_tokens),
+        (10 * u64::from(b.calls), u64::from(b.calls))
+    );
+    assert!((b.cost_usd - 0.001 * f64::from(b.calls)).abs() < 1e-9);
+    let md = markdown(&e, &res);
+    let line = format!(
+        "LLM use, B: {} calls (0 cached, 0 fallbacks, 0 unusable), {} input and {} output tokens, ${:.4}.",
+        b.calls, b.input_tokens, b.output_tokens, b.cost_usd
+    );
+    assert!(md.contains(&line), "{md}");
+    // The cheap tier caps calls per hour of world time (3,600).
+    assert!(b.calls <= 3600);
+}
+
+#[test]
+fn llm_arms_need_an_llm() {
+    let e = parse(LLM_ARMS).unwrap();
+    assert_eq!(
+        run(&e, 1, None).unwrap_err(),
+        "B: arms B and B+N need an LLM"
+    );
+    let broken = || -> Result<Box<dyn Provider>, String> { Err("no key".into()) };
+    let llm = Llm {
+        tier: Tier::Strong,
+        make: &broken,
+    };
+    assert_eq!(run(&e, 1, Some(&llm)).unwrap_err(), "B: no key");
+    // A provider that fails every call: arm B falls back to the cheapest option.
+    struct Down;
+    impl Provider for Down {
+        fn id(&self) -> String {
+            "down/m".into()
+        }
+        fn complete(&mut self, _: &Prompt) -> Result<Reply, LlmError> {
+            Err(LlmError::Transport("down".into()))
+        }
+    }
+    let down = || -> Result<Box<dyn Provider>, String> { Ok(Box::new(Down)) };
+    let llm = Llm {
+        tier: Tier::Local,
+        make: &down,
+    };
+    let res = run(&e, 1, Some(&llm)).unwrap();
+    assert!(
+        res.llm.iter().all(|(_, s)| s.calls == 0 && s.fallbacks > 0),
+        "{:?}",
+        res.llm
+    );
 }

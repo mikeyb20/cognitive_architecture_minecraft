@@ -1,5 +1,5 @@
-# Plan §5.1 baselines in the sim (spec §24, §26). Arms B and B+N need an
-# LLM tier and join when the runner can attach one to sim runs.
+# Plan §5.1 baselines in the sim (spec §24, §26), without an LLM. The LLM
+# arms B and B+N are in baselines-llm.toml.
 id = "BASELINES"
 question = "What does the architecture add over a behaviour tree? (plan §5.1)"
 scenarios = ["first_night", "open_day", "commanded", "harsh", "long_horizon"]

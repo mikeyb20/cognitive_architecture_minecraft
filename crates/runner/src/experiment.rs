@@ -2,17 +2,20 @@
 //! file in `configs/experiments`, with each arm's expected direction
 //! written down before the run (plan §5.5).
 //!
-//! Arm `a` is the behaviour tree; arm `c` is the brain, with optional
-//! config overrides for the ablations (spec §24 C−X: one flag each).
+//! Arm `a` is the behaviour tree; `b` and `bn` are the LLM loop without and
+//! with the count bonus; arm `c` is the brain, with optional config
+//! overrides for the ablations (spec §24 C−X: one flag each).
 
-use baselines::{ArmA, Policy};
+use baselines::Policy;
 use cognitive_core::agent::{BrainConfig, Decision, TickLog};
 use host_api::{Candidate, Observation, Outcome};
+use llm::{LlmStats, Provider, Tier};
 use serde::Deserialize;
 
 use crate::FULL;
 use crate::brain::{BrainResult, setup};
 use crate::drive::{Driver, run_scenario};
+use crate::mc::McArm;
 use crate::sweep::{Meter, Row, RunMetrics, summarise, tech_held};
 
 /// Which arm picks the actions (spec §24).
@@ -21,8 +24,31 @@ use crate::sweep::{Meter, Row, RunMetrics, summarise, tech_held};
 pub enum ArmKind {
     /// The behaviour tree.
     A,
+    /// The LLM loop (#30).
+    B,
+    /// The LLM loop with the count bonus.
+    BN,
     /// The brain.
     C,
+}
+
+impl ArmKind {
+    /// The baseline arm, or `None` for the brain.
+    fn baseline(self) -> Option<McArm> {
+        match self {
+            Self::A => Some(McArm::A),
+            Self::B => Some(McArm::B),
+            Self::BN => Some(McArm::BN),
+            Self::C => None,
+        }
+    }
+}
+
+/// The LLM for arms B and B+N: its tier, and a maker run once per job so
+/// every run starts with its own provider.
+pub struct Llm<'a> {
+    pub tier: Tier,
+    pub make: &'a (dyn Fn() -> Result<Box<dyn Provider>, String> + Sync),
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -71,8 +97,8 @@ pub fn parse(text: &str) -> Result<Experiment, String> {
         }
     }
     for arm in &e.arms {
-        if arm.arm == ArmKind::A && !arm.config.is_empty() {
-            return Err(format!("{}: arm a has no brain settings", arm.label));
+        if arm.arm != ArmKind::C && !arm.config.is_empty() {
+            return Err(format!("{}: only arm c has brain settings", arm.label));
         }
         config_for(&e, arm, 0)?;
     }
@@ -111,11 +137,11 @@ pub fn config_for(e: &Experiment, arm: &ArmSpec, seed: u64) -> Result<BrainConfi
 }
 
 /// A baseline arm as a scenario driver: full effort, no log rows.
-struct PolicyDriver<P> {
-    policy: P,
+struct PolicyDriver {
+    policy: Box<dyn Policy>,
 }
 
-impl<P: Policy> Driver for PolicyDriver<P> {
+impl Driver for PolicyDriver {
     fn decide(&mut self, obs: &Observation, cands: &[Candidate]) -> Decision {
         self.policy
             .choose(obs, cands)
@@ -148,28 +174,50 @@ pub fn baseline_metrics(r: &BrainResult) -> RunMetrics {
     }
 }
 
-/// One arm on one scenario and seed.
-pub fn run_arm(e: &Experiment, arm: &ArmSpec, scenario: &str, seed: u64) -> RunMetrics {
+/// One arm on one scenario and seed, and its LLM use.
+pub fn run_arm(
+    e: &Experiment,
+    arm: &ArmSpec,
+    scenario: &str,
+    seed: u64,
+    llm: Option<&Llm>,
+) -> Result<(RunMetrics, LlmStats), String> {
     let s = setup(scenario, seed);
-    match arm.arm {
-        ArmKind::A => {
-            let mut d = PolicyDriver {
-                policy: ArmA::default(),
-            };
-            let no_rows = &mut |_: &TickLog| unreachable!("arm A keeps no log rows");
-            baseline_metrics(&run_scenario(s, &mut d, None, seed, no_rows))
-        }
-        ArmKind::C => {
-            let config = config_for(e, arm, seed).expect("checked by parse");
-            let mut m = Meter::default();
-            let r = crate::brain::run_brain(s, config, seed, |row| m.push(row));
-            m.finish(&r)
-        }
-    }
+    let Some(which) = arm.arm.baseline() else {
+        let config = config_for(e, arm, seed)?;
+        let mut m = Meter::default();
+        let r = crate::brain::run_brain(s, config, seed, |row| m.push(row));
+        return Ok((m.finish(&r), LlmStats::default()));
+    };
+    let (tier, provider) = match (which.needs_llm(), llm) {
+        (true, Some(l)) => (l.tier, Some((l.make)()?)),
+        (_, l) => (l.map_or(Tier::Local, |l| l.tier), None),
+    };
+    let mut d = PolicyDriver {
+        policy: crate::mc::arm(which, tier, provider)?,
+    };
+    let no_rows = &mut |_: &TickLog| unreachable!("baseline arms keep no log rows");
+    let r = run_scenario(s, &mut d, None, seed, no_rows);
+    let used = d.policy.llm_stats().cloned().unwrap_or_default();
+    Ok((baseline_metrics(&r), used))
 }
 
-/// Every arm × scenario × seed, `threads` at a time, in a fixed order.
-pub fn run(e: &Experiment, threads: usize) -> Vec<Row> {
+/// The results table and each arm's total LLM use (plan §5.5).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Results {
+    pub rows: Vec<Row>,
+    pub llm: Vec<(String, LlmStats)>,
+}
+
+/// Every arm × scenario × seed, in a fixed order. Runs go `threads` at a
+/// time, or one at a time when an arm calls an LLM (one provider, one
+/// cache file).
+pub fn run(e: &Experiment, threads: usize, llm: Option<&Llm>) -> Result<Results, String> {
+    let calls_llm = e
+        .arms
+        .iter()
+        .any(|a| a.arm.baseline().is_some_and(McArm::needs_llm));
+    let threads = if calls_llm { 1 } else { threads };
     let jobs: Vec<(usize, &str, u64)> = (0..e.arms.len())
         .flat_map(|ai| {
             e.scenarios
@@ -177,18 +225,40 @@ pub fn run(e: &Experiment, threads: usize) -> Vec<Row> {
                 .flat_map(move |sc| (0..e.seeds).map(move |seed| (ai, sc.as_str(), seed)))
         })
         .collect();
+    // `par_map` needs a default value, so an error rides along as a string.
     let out = crate::par::par_map(&jobs, threads, |&(ai, sc, seed)| {
-        run_arm(e, &e.arms[ai], sc, seed)
+        match run_arm(e, &e.arms[ai], sc, seed, llm) {
+            Ok((m, used)) => (m, used, None),
+            Err(err) => (
+                RunMetrics::default(),
+                LlmStats::default(),
+                Some(format!("{}: {err}", e.arms[ai].label)),
+            ),
+        }
     });
+    if let Some(err) = out.iter().find_map(|o| o.2.clone()) {
+        return Err(err);
+    }
     let per = (e.seeds as usize).max(1);
-    out.chunks(per)
+    let rows = out
+        .chunks(per)
         .zip(jobs.chunks(per))
         .map(|(runs, js)| Row {
             variant: e.arms[js[0].0].label.clone(),
             scenario: js[0].1.to_string(),
-            summary: summarise(runs),
+            summary: summarise(&runs.iter().map(|r| r.0).collect::<Vec<_>>()),
         })
-        .collect()
+        .collect();
+    let mut llm_use: Vec<(String, LlmStats)> = Vec::new();
+    for ((_, used, _), (ai, _, _)) in out.iter().zip(&jobs) {
+        let label = &e.arms[*ai].label;
+        match llm_use.iter_mut().find(|(l, _)| l == label) {
+            Some((_, total)) => total.add(used),
+            None => llm_use.push((label.clone(), used.clone())),
+        }
+    }
+    llm_use.retain(|(_, s)| s.calls + s.fallbacks > 0);
+    Ok(Results { rows, llm: llm_use })
 }
 
 /// The run header (spec §25, §26): versions, the experiment and every
@@ -214,8 +284,8 @@ pub fn header(e: &Experiment) -> serde_json::Value {
     })
 }
 
-/// The expected directions, then the results table.
-pub fn markdown(e: &Experiment, rows: &[Row]) -> String {
+/// The expected directions, the results table, then LLM use per arm.
+pub fn markdown(e: &Experiment, res: &Results) -> String {
     let mut t = format!(
         "## {}: {}\n\nExpected before the run (plan §5.5):\n\n",
         e.id, e.question
@@ -224,5 +294,12 @@ pub fn markdown(e: &Experiment, rows: &[Row]) -> String {
         t += &format!("- **{}**: {}\n", a.label, a.expected);
     }
     t += "\n";
-    t + &crate::sweep::table(rows, e.seeds)
+    t += &crate::sweep::table(&res.rows, e.seeds);
+    for (label, u) in &res.llm {
+        t += &format!(
+            "\nLLM use, {label}: {} calls ({} cached, {} fallbacks, {} unusable), {} input and {} output tokens, ${:.4}.\n",
+            u.calls, u.cached, u.fallbacks, u.unparsed, u.input_tokens, u.output_tokens, u.cost_usd
+        );
+    }
+    t
 }
