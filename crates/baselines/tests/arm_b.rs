@@ -427,3 +427,22 @@ mod props {
         }
     }
 }
+
+#[test]
+fn b_plus_n_beta_is_pinned() {
+    assert_eq!(
+        baselines::arm_b::DEFAULT_BETA,
+        1.0,
+        "proposed until the pilot"
+    );
+}
+
+#[test]
+fn only_llm_arms_report_llm_use() {
+    use baselines::ArmA;
+    assert!(ArmA::default().llm_stats().is_none());
+    let mut a = arm(ArmBConfig::default(), vec![says("0", false)]);
+    a.choose(&obs(), &cands());
+    assert_eq!(a.llm_stats(), Some(&a.stats));
+    assert_eq!(a.llm_stats().map(|s| s.calls), Some(1));
+}

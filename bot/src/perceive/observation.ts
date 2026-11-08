@@ -4,7 +4,7 @@
 // forms as the sim: "block:<name>", "entity:<name>", "player:<name>".
 
 import { type Vec3Like, distance as dist } from "../geom.js";
-import type { ChatMsg, Observation, Pos, Seen } from "../host.js";
+import type { ChatMsg, Limits, Observation, Pos, Seen } from "../host.js";
 
 /** Blocks the bot reports (spec §5 things): ores, food, stations, danger. */
 const NOTABLE = new Set([
@@ -69,14 +69,7 @@ export interface Snapshot {
 }
 
 /** How much the host shows the brain; set by the runner at connect. */
-export interface Limits {
-  maxVisibleBlocks: number;
-  /**
-   * Nearest blocks kept per name before the overall cap, so stone all
-   * around underground cannot hide the one ore in view.
-   */
-  maxPerKind: number;
-}
+export type { Limits };
 
 export function blockPos(v: Vec3Like): Pos {
   return { x: Math.floor(v.x), y: Math.floor(v.y), z: Math.floor(v.z) };

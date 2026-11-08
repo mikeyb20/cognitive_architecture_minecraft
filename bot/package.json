@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "tsc -p .",
+    "start": "tsc -p . && node dist/mineflayer/main.js",
     "typecheck": "tsc -p . --noEmit",
     "test": "npm run clean && tsc -p . && node --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=95 --test-coverage-exclude='dist/**/*.test.js' --test-coverage-exclude='dist/mineflayer/**' --test-coverage-exclude='dist/**/*.test-util.js' 'dist/**/*.test.js'",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""

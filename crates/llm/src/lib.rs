@@ -131,3 +131,13 @@ pub trait Provider {
     /// Send one prompt and wait for the answer.
     fn complete(&mut self, prompt: &Prompt) -> Result<Reply, LlmError>;
 }
+
+/// A boxed provider is a provider, so the runner can pick one at run time.
+impl<P: Provider + ?Sized> Provider for Box<P> {
+    fn id(&self) -> String {
+        (**self).id()
+    }
+    fn complete(&mut self, prompt: &Prompt) -> Result<Reply, LlmError> {
+        (**self).complete(prompt)
+    }
+}

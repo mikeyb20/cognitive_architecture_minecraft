@@ -17,6 +17,9 @@ use llm::{BudgetGuard, LlmParams, LlmStats, Prompt, Provider, Tier};
 use crate::Policy;
 use prompt::{candidate_line, chosen_id, user_prompt};
 
+/// B+N's β (spec §24 gives no value; proposed until the pilot).
+pub const DEFAULT_BETA: f32 = 1.0;
+
 /// Arm B's settings (proposed until the pilot).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ArmBConfig {
@@ -139,5 +142,9 @@ impl<P: Provider> Policy for ArmB<P> {
             self.counts.visit(&c[pick]);
         }
         Some(pick)
+    }
+
+    fn llm_stats(&self) -> Option<&LlmStats> {
+        Some(&self.stats)
     }
 }

@@ -14,4 +14,9 @@ use host_api::{Candidate, Observation};
 /// A decision layer: picks one of the host's candidates by index.
 pub trait Policy {
     fn choose(&mut self, obs: &Observation, candidates: &[Candidate]) -> Option<usize>;
+
+    /// LLM use so far, for arms that call one (spec §25).
+    fn llm_stats(&self) -> Option<&llm::LlmStats> {
+        None
+    }
 }

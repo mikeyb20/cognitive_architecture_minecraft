@@ -3,13 +3,10 @@
 // job is only to stop a long skill the moment an emergency starts, so that
 // decision comes at once instead of after the skill ends (v0.2 R7).
 
+import type { Thresholds } from "../host.js";
 import { type ActionLock, Priority } from "./lock.js";
 
-/** The runner sends these at connect (host-api `ReflexThresholds`), 0..1. */
-export interface Thresholds {
-  criticalHealth: number;
-  starvingFood: number;
-}
+export type { Thresholds };
 
 export interface BodyState {
   /** 0..1 */

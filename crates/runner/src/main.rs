@@ -11,6 +11,10 @@
 //!   `--out`, writes `<OQ>.md` and `<OQ>.csv` there.
 //! - `runner theory <ID|all> [--seeds N] [--out DIR]`: a theory test (spec
 //!   §29, step 5d), printed and written the same way.
+//! - `runner mc <a|b|bn> [--tier local|cheap|strong] [--addr HOST:PORT]
+//!   [--decisions N] [--log FILE] [--cache FILE [--replay]]`: run an arm in
+//!   Minecraft through the bot (`npm start` in bot/ first). Reads
+//!   `ANTHROPIC_API_KEY` and `OLLAMA_BASE_URL` from the environment.
 
 use baselines::ArmA;
 use std::io::Write;
@@ -37,6 +41,7 @@ fn main() {
         }
         Some("sweep") => sweep(&args),
         Some("theory") => theory(&args),
+        Some("mc") => mc(&args),
         _ => {}
     }
 }
@@ -163,5 +168,55 @@ fn theory(args: &[String]) {
         };
         let rows = run_claim(&c, n, threads());
         publish(args, c.id, &markdown(&c, &rows, n), &csv(&c, &rows));
+    }
+}
+
+fn mc(args: &[String]) {
+    use runner::mc::{Link, McArm, McHost, arm, provider, row, run, tier};
+    let fail = |msg: String| -> ! {
+        eprintln!("{msg}");
+        std::process::exit(2);
+    };
+    let which = args.get(1).and_then(|a| McArm::parse(a));
+    let which = which.unwrap_or_else(|| fail("usage: runner mc <a|b|bn> [flags]".into()));
+    let level = tier(flag(args, "--tier").unwrap_or("local"));
+    let level = level.unwrap_or_else(|| fail("--tier is local, cheap or strong".into()));
+    let cache = flag(args, "--cache").map(|f| (f.into(), args.iter().any(|a| a == "--replay")));
+    let llm = which.needs_llm().then(|| {
+        let env = |k: &str| std::env::var(k).ok();
+        provider(
+            level,
+            env("OLLAMA_BASE_URL"),
+            env("ANTHROPIC_API_KEY"),
+            cache,
+        )
+        .unwrap_or_else(|e| fail(e))
+    });
+    let mut policy = arm(which, level, llm).unwrap_or_else(|e| fail(e));
+    let addr = flag(args, "--addr").unwrap_or("127.0.0.1:7878");
+    let link = Link::tcp(addr).unwrap_or_else(|e| fail(format!("no bot at {addr}: {e}")));
+    let config = host_api::link::BotConfig::default();
+    let params = minecraft::McParams::default();
+    let mut host = McHost::connect(link, config, params)
+        .unwrap_or_else(|e| fail(format!("the bot did not say hello: {e:?}")));
+    let mut out = flag(args, "--log").map(|p| {
+        std::io::BufWriter::new(std::fs::File::create(p).expect("cannot create the log file"))
+    });
+    let n = flag(args, "--decisions").and_then(|d| d.parse().ok());
+    let thresholds = host_api::reflex::ReflexThresholds::default();
+    let made = run(
+        &mut host,
+        policy.as_mut(),
+        n.unwrap_or(u32::MAX),
+        thresholds,
+        |s| {
+            if let Some(f) = out.as_mut() {
+                writeln!(f, "{}", row(s)).expect("log write failed");
+            }
+        },
+    );
+    println!("{made} decisions; link error: {:?}", host.error);
+    if let Some(stats) = policy.llm_stats() {
+        println!("LLM: {stats:?}");
     }
 }

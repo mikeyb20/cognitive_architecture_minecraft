@@ -2,44 +2,15 @@
 // skill result (kept from v0.2 R6.1) as the shared Outcome. Each skill is a
 // short plan over Body calls; all the Minecraft detail lives in the glue.
 
-import type { Candidate, Intensity, Outcome, Pos, Target } from "../host.js";
+import type { Candidate, Intensity, Outcome, Pos, RecipeHint, SkillConfig, Target } from "../host.js";
 import type { Body } from "./body.js";
 
-/** Tuning the runner sends at connect (proposed until the pilot). */
-export interface SkillConfig {
-  /** How far to look for a searched block. */
-  searchRadius: number;
-  /** Height to dig down to when searching for ore (iron is common near 16). */
-  oreDepth: number;
-  /** Stay this close when following a player. */
-  followRange: number;
-  /** How long one follow or come action lasts. */
-  followMs: number;
-  /** How long one rest without a bed lasts. */
-  restMs: number;
-  /** How far one search step walks when nothing is in range. */
-  searchStep: number;
-}
-
-export const DEFAULT_SKILLS: SkillConfig = {
-  searchRadius: 64,
-  oreDepth: 16,
-  followRange: 3,
-  followMs: 5000,
-  restMs: 5000,
-  searchStep: 24,
-};
-
-/** For crafts: what the tech tree says the recipe needs (sent by the runner). */
-export interface RecipeHint {
-  station: string | null;
-  inputs: Array<[string, number]>;
-}
-
+/** One `execute` from the runner (host-api `LinkRequest::Execute`). */
 export interface Request {
   action: Candidate;
   intensity: Intensity;
-  recipe?: RecipeHint;
+  /** For crafts: what the tech tree says the recipe needs. */
+  recipe: RecipeHint | null;
 }
 
 interface Done {
@@ -114,8 +85,8 @@ async function station(body: Body, name: string, signal: AbortSignal): Promise<P
   return (await body.place(name, spot, signal)) ? spot : null;
 }
 
-async function craft(body: Body, out: string, hint: RecipeHint | undefined, signal: AbortSignal): Promise<Done> {
-  if (hint === undefined || hint.station === null) {
+async function craft(body: Body, out: string, hint: RecipeHint | null, signal: AbortSignal): Promise<Done> {
+  if (hint === null || hint.station === null) {
     return done(await body.craft(out, null, signal));
   }
   const need = hint.station;
@@ -212,14 +183,15 @@ export function gained(before: ReadonlyMap<string, number>, after: ReadonlyMap<s
  * Run one action and report it (v0.2 R6.1 standard result). `held` is
  * every item name the agent has ever held; first-time items are reported
  * as new things ("item:<name>") and added to it. An interrupted action
- * (the signal aborted) is never a success.
+ * (the signal aborted) is never a success. `cfg` comes from the runner
+ * at connect (host-api `SkillConfig`).
  */
 export async function run(
   body: Body,
   req: Request,
   held: Set<string>,
   signal: AbortSignal,
-  cfg: SkillConfig = DEFAULT_SKILLS,
+  cfg: SkillConfig,
 ): Promise<Outcome> {
   const start = body.age();
   const before = new Map(body.inventory());

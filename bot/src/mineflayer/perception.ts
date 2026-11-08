@@ -5,7 +5,8 @@ import type { Bot } from "mineflayer";
 import { Vec3 } from "vec3";
 
 import type { ChatMsg } from "../host.js";
-import { type SeenEntity, type Snapshot, notable } from "../perceive/observation.js";
+import type { BodyState } from "../control/survival.js";
+import { MAX_FOOD, MAX_HEALTH, type SeenEntity, type Snapshot, notable } from "../perceive/observation.js";
 import { enclosed } from "../perceive/shelter.js";
 
 /** Most block positions asked of Mineflayer per scan. */
@@ -40,17 +41,33 @@ export class Perception {
       }));
   }
 
+  #sheltered(): boolean {
+    const feet = this.bot.entity.position.floored();
+    const solid = (dx: number, dy: number, dz: number) =>
+      this.bot.blockAt(feet.plus(new Vec3(dx, dy, dz)))?.boundingBox === "block";
+    return enclosed(solid);
+  }
+
+  /** What the survival interrupt checks; reads nothing it would consume. */
+  body(isFood: (item: string) => boolean): BodyState {
+    const bot = this.bot;
+    return {
+      health: bot.health / MAX_HEALTH,
+      food: bot.food / MAX_FOOD,
+      sheltered: this.#sheltered(),
+      hostileNear: this.#entities().some((e) => e.kind === "hostile"),
+      hasFood: bot.inventory.items().some((i) => isFood(i.name)),
+    };
+  }
+
   snapshot(): Snapshot {
     const bot = this.bot;
-    const feet = bot.entity.position.floored();
     const blocks = bot
       .findBlocks({ matching: this.#ids, maxDistance: this.viewRadius, count: SCAN_COUNT })
       .flatMap((p) => {
         const b = bot.blockAt(p);
         return b === null ? [] : [{ name: b.name, pos: p }];
       });
-    const solid = (dx: number, dy: number, dz: number) =>
-      bot.blockAt(feet.plus(new Vec3(dx, dy, dz)))?.boundingBox === "block";
     const damage = Math.max(0, this.#lastHealth - bot.health);
     this.#lastHealth = bot.health;
     const chat = this.#chat;
@@ -67,7 +84,7 @@ export class Perception {
       chat,
       damage,
       sleeping: bot.isSleeping,
-      sheltered: enclosed(solid),
+      sheltered: this.#sheltered(),
     };
   }
 }

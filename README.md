@@ -2,7 +2,7 @@
 
 Minecraft agents whose decision-making runs on the **Curiosity Architecture**: a cognitive model in which a single curiosity magnitude `C` drives how much an agent does, four modes (Learning, Exploring, Performing, Optimizing) shape what it does, and an Oracle learns how to weight them.
 
-> **Status:** early build. Step 1 of 9 (repository skeleton and CI). Nothing runs in Minecraft yet.
+> **Status:** early build. Steps 1–6 of 9: brain, sim world, baselines and the Minecraft link are built; live Minecraft runs are next.
 
 ## Layout
 
@@ -30,6 +30,22 @@ scripts/check-architecture.sh   # layers, purity, file size budget
 
 cd bot && npm ci && npm run typecheck && npm test
 ```
+
+## Run in Minecraft
+
+Needs a Minecraft Java 1.21.11 server you can join (a LAN world works). Two terminals:
+
+```sh
+# 1. The bot joins the server and waits for the runner on 127.0.0.1:7878.
+#    MC_HOST, MC_PORT, MC_USER and LINK_PORT override the defaults.
+cd bot && npm ci && MC_HOST=localhost MC_PORT=25565 npm start
+
+# 2. The runner drives it: arm a (behaviour tree), b (LLM loop) or bn (LLM + novelty).
+set -a; . ./.env; set +a; mkdir -p runs   # keys stay in your local .env
+cargo run -p runner -- mc b --tier local --decisions 200 --log runs/mc-b.jsonl
+```
+
+`--tier local` uses Ollama (`OLLAMA_BASE_URL`); `cheap` and `strong` need `ANTHROPIC_API_KEY`. Add `--cache runs/llm.jsonl` to record LLM replies and `--replay` to rerun from them without calls.
 
 ## Testing
 

@@ -189,3 +189,10 @@ fn tiers_prices_and_prompt_size() {
     };
     assert_eq!(q.estimated_tokens(), 2, "five characters round up");
 }
+
+#[test]
+fn a_boxed_provider_passes_calls_through() {
+    let mut b: Box<dyn Provider> = Box::new(script(vec![Ok(reply("z"))]));
+    assert_eq!(b.id(), "script/m");
+    assert_eq!(b.complete(&prompt("p")).unwrap().text, "z");
+}
