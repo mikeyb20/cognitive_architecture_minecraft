@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 pub mod ontology;
+pub mod reflex;
 
 pub use ontology::{Skill, TaskType};
 
@@ -93,6 +94,24 @@ pub struct Observation {
     pub damage_taken: f32,
     /// In bed or otherwise safely resting.
     pub resting: bool,
+    /// Enclosed so hostile mobs cannot reach the agent.
+    pub sheltered: bool,
+}
+
+impl Observation {
+    /// Night is the second half of the day (spec §21).
+    pub fn is_night(&self) -> bool {
+        self.day_phase >= 0.5
+    }
+
+    /// Distance to the nearest hostile entity, if any is visible.
+    pub fn nearest_hostile(&self) -> Option<f32> {
+        self.visible
+            .iter()
+            .filter(|s| matches!(s.kind, SeenKind::Entity { hostile: true }))
+            .map(|s| s.distance)
+            .min_by(f32::total_cmp)
+    }
 }
 
 /// An external action the host offers (spec §2, §6). Internal actions are
@@ -188,6 +207,7 @@ mod tests {
             chat: vec![],
             damage_taken: 0.0,
             resting: false,
+            sheltered: false,
         };
         let json = serde_json::to_string(&obs).unwrap();
         let back: Observation = serde_json::from_str(&json).unwrap();

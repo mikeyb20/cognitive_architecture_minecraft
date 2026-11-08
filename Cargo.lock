@@ -13,6 +13,7 @@ name = "baselines"
 version = "0.1.0"
 dependencies = [
  "host-api",
+ "sim",
 ]
 
 [[package]]
@@ -261,6 +262,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 name = "runner"
 version = "0.1.0"
 dependencies = [
+ "baselines",
  "cognitive-core",
  "host-api",
  "sim",
@@ -339,6 +341,9 @@ name = "sim"
 version = "0.1.0"
 dependencies = [
  "host-api",
+ "proptest",
+ "rand",
+ "rand_chacha",
 ]
 
 [[package]]
