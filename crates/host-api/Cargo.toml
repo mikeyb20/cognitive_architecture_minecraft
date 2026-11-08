@@ -1,0 +1,17 @@
+[package]
+name = "host-api"
+description = "World and Host traits plus the shared ontology. The brain sees only these types (spec §2)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+serde_json = "1"

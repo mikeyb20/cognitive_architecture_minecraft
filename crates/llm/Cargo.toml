@@ -1,0 +1,14 @@
+[package]
+name = "llm"
+description = "Provider-agnostic LLM client with tiers and a replay cache, used as a tool by internal actions (spec §23, #37, #40)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+
+
+[lints]
+workspace = true

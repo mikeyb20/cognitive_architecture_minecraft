@@ -1,0 +1,29 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/host-api",
+    "crates/core",
+    "crates/sim",
+    "crates/baselines",
+    "crates/llm",
+    "crates/runner",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/mikeyb20/cognitive_architecture_minecraft"
+rust-version = "1.85"
+
+[workspace.dependencies]
+host-api = { path = "crates/host-api" }
+cognitive-core = { path = "crates/core" }
+sim = { path = "crates/sim" }
+serde = { version = "1", features = ["derive"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
