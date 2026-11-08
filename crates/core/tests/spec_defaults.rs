@@ -2,10 +2,11 @@
 //! silent change to a default breaks a test. If a default changes on purpose,
 //! change the spec (and log the decision) and then this file.
 
-use cognitive_core::activation::{AffectParams, CuriosityParams, PowerActivation};
+use cognitive_core::activation::{AffectParams, CuriosityParams, PowerActivation, SignalWeights};
 use cognitive_core::control::kick::KickParams;
 use cognitive_core::control::oracle::Oracle;
 use cognitive_core::control::permeability::PermeabilityParams;
+use cognitive_core::control::subconscious::SubconsciousParams;
 use cognitive_core::memory::MemoryParams;
 use cognitive_core::modes::{Lens, LensParams, Mode, ModeNetwork};
 
@@ -88,6 +89,38 @@ fn lens_rates_and_randomness_match_spec_7() {
     assert!(lr(Mode::Learning) > lr(Mode::Exploring));
     assert!(lr(Mode::Exploring) > lr(Mode::Optimizing));
     assert!(lr(Mode::Optimizing) > lr(Mode::Performing));
+}
+
+#[test]
+fn signal_weights_match_spec_5() {
+    let k = SignalWeights::default();
+    assert_eq!(
+        (
+            k.novelty,
+            k.learning_progress,
+            k.energy,
+            k.threat,
+            k.habituation,
+            k.social
+        ),
+        (0.40, 0.30, -0.40, -0.40, -0.30, 0.20)
+    );
+}
+
+#[test]
+fn subconscious_defaults_match_spec_17() {
+    let p = SubconsciousParams::default();
+    assert_eq!(
+        (
+            p.b_base,
+            p.sigma_min,
+            p.flag_threshold,
+            p.nudge_threshold,
+            p.nudge
+        ),
+        (4.0, 0.05, 0.5, 0.6, 0.05)
+    );
+    assert_eq!((p.mix, p.rescore_rate), ([0.4, 0.3, 0.3], 0.05));
 }
 
 #[test]

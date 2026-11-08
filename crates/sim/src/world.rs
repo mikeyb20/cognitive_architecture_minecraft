@@ -22,8 +22,7 @@ use crate::rules::Rules;
 pub const MAX_CANDIDATES: usize = 20;
 /// Most block entries in one observation; entities are always listed.
 pub const MAX_VISIBLE_BLOCKS: usize = 48;
-/// Side of a novelty region in tiles (spec §21: 8×8).
-pub const REGION: i32 = 8;
+pub use host_api::ontology::REGION;
 /// Furthest a path search looks from the agent, in tiles.
 pub const PATH_RADIUS: i32 = 20;
 
@@ -195,7 +194,7 @@ impl SimWorld {
         let i = self.region_index(p);
         self.region_visits[i] += 1;
         if self.region_visits[i] == 1 {
-            self.notice(&format!("region:{},{}", p.x / REGION, p.z / REGION));
+            self.notice(&host_api::ontology::region_of(p).0);
         }
         self.scan();
     }

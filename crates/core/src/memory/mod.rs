@@ -1,6 +1,11 @@
 //! 01 §5 Memory: items, tiers, strength σ, priority P and habituation h
-//! (spec §17). The store, association index and subconscious jobs arrive with
-//! the brain loop in build step 4.
+//! (spec §17), the store with its association index, and the skill table.
+
+pub mod skills;
+pub mod store;
+
+pub use skills::{ActionKey, InternalAction, SkillTable};
+pub use store::{MemoryStore, Source};
 
 use serde::{Deserialize, Serialize};
 

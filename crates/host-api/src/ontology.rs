@@ -54,9 +54,32 @@ impl TaskType {
     }
 }
 
+/// Side of a novelty region in tiles (spec §21: 8×8). Both worlds name
+/// regions the same way, so region memories carry over (X17).
+pub const REGION: i32 = 8;
+
+/// The novelty unit for the 8×8 region containing `pos` (spec §5, §21).
+pub fn region_of(pos: crate::Pos) -> crate::ThingId {
+    crate::ThingId(format!(
+        "region:{},{}",
+        pos.x.div_euclid(REGION),
+        pos.z.div_euclid(REGION)
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn regions_are_8_by_8_and_floor_negative_coordinates() {
+        let r = |x, z| region_of(crate::Pos { x, y: 0, z }).0;
+        assert_eq!(r(0, 0), "region:0,0");
+        assert_eq!(r(7, 15), "region:0,1");
+        assert_eq!(r(8, 16), "region:1,2");
+        assert_eq!(r(-1, -8), "region:-1,-1");
+        assert_eq!(r(-9, 0), "region:-2,0");
+    }
 
     #[test]
     fn task_type_indices_are_dense() {

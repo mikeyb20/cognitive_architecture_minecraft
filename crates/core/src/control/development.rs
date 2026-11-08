@@ -32,6 +32,11 @@ impl Development {
         self.total += 1;
     }
 
+    /// Executed actions so far (input to age, spec §15).
+    pub fn experiences(&self) -> u64 {
+        self.total
+    }
+
     /// A memory became useful (retrieved within 20 ticks before a tick with R > 0).
     pub fn record_useful(&mut self) {
         self.useful = (self.useful + 1).min(self.total);
@@ -83,6 +88,15 @@ impl Development {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn experiences_count_records() {
+        let mut d = Development::new(0.0);
+        assert_eq!(d.experiences(), 0);
+        d.record_experience();
+        d.record_experience();
+        assert_eq!(d.experiences(), 2);
+    }
 
     #[test]
     fn schedules_are_monotonic_in_rho() {
