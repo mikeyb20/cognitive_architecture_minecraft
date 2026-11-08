@@ -44,9 +44,19 @@ jobs:
       - run: cargo llvm-cov --workspace --fail-under-lines 95 --summary-only
 
   mutants:
-    name: mutation test (changed code)
+    name: mutation test (changed code, batch ${{ matrix.shard }}/4)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      # Four batches run side by side, so one lost runner loses a quarter of
+      # the run and the other batches still report.
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      # Base the mutated diff is taken against. Normally the PR's base branch.
+      MUTANTS_BASE: origin/${{ github.base_ref }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,11 +66,19 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
+      - run: git diff ${{ env.MUTANTS_BASE }}...HEAD > pr.diff
       # Breaks the lines this PR changed on purpose; fails if any change
       # survives every test. Equivalent mutants are listed in
-      # .cargo/mutants.toml with reasons.
-      - run: git diff origin/${{ github.base_ref }}...HEAD > pr.diff
-      - run: cargo mutants --in-diff pr.diff --no-shuffle -j 2 --timeout 120
+      # .cargo/mutants.toml with reasons. Memory and disk are printed once a
+      # minute alongside, so if the runner is lost the log shows what the
+      # machine looked like just before.
+      - name: cargo mutants
+        run: |
+          while true; do
+            echo "[resources] $(date -u +%T) $(free -m | awk '/Mem/{print "mem_used_mb=" $3, "mem_avail_mb=" $7}') $(df -m / | awk 'NR==2{print "disk_free_mb=" $4}')"
+            sleep 60
+          done &
+          cargo mutants --in-diff pr.diff --no-shuffle -j 2 --timeout 120 --shard ${{ matrix.shard }}/4
 
   bot:
     name: bot (tsc)
