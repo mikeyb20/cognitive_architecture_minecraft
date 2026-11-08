@@ -51,7 +51,7 @@ fn all_close(got: &[f64], want: &[f64]) {
 #[test]
 fn every_claim_is_registered_once_with_known_scenarios() {
     let want = [
-        "T-IND", "KICK", "T-MODE", "SUBC", "EFFORT", "HARSH", "BETA-U",
+        "T-IND", "KICK", "T-MODE", "SUBC", "EFFORT", "HARSH", "BETA-U", "P1-P2",
     ];
     assert_eq!(ids(), want);
     for id in want {

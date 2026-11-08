@@ -44,7 +44,12 @@ pub fn means(name: &str) -> Result<BrainConfig, String> {
 /// the brain's own random stream (both are seeded ChaCha8).
 pub const DRAW_SALT: u64 = 0x9E37_79B9_7F4A_7C15;
 
-/// Agent `seed` of an archetype: its means drawn with the spec §19 spread.
+/// Agent `seed` drawn around `mean` with the spec §19 spread.
+pub fn drawn(mean: &BrainConfig, seed: u64) -> BrainConfig {
+    draw(mean, Spread::default(), seed ^ DRAW_SALT)
+}
+
+/// Agent `seed` of an archetype.
 pub fn agent(name: &str, seed: u64) -> Result<BrainConfig, String> {
-    Ok(draw(&means(name)?, Spread::default(), seed ^ DRAW_SALT))
+    Ok(drawn(&means(name)?, seed))
 }

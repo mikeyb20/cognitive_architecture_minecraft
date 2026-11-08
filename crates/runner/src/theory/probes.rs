@@ -268,3 +268,47 @@ impl Probe for Urgency {
         ]
     }
 }
+
+/// P1/P2 behaviour profile (plan §5.3): share of decisions per kind, share
+/// driven by a player's command, mean effort on actions, and new things
+/// found per day. Behaviour only, no parameters.
+#[derive(Debug, Default)]
+pub struct Traits {
+    n: u32,
+    counts: [u32; 6],
+    commanded: u32,
+    effort: Mean,
+}
+
+/// The kinds the traits profile counts, in column order.
+pub const TRAIT_KINDS: [Kind; 6] = [
+    Kind::Travel,
+    Kind::Gather,
+    Kind::Craft,
+    Kind::Survive,
+    Kind::Think,
+    Kind::Idle,
+];
+
+impl Probe for Traits {
+    fn push(&mut self, row: &TickLog) {
+        self.n += 1;
+        let k = kind(&row.chosen);
+        if let Some(i) = TRAIT_KINDS.iter().position(|p| *p == k) {
+            self.counts[i] += 1;
+        }
+        self.commanded += u32::from(row.external_drive);
+        if !matches!(k, Kind::Idle | Kind::Think) {
+            self.effort.add(row.effort);
+        }
+    }
+    fn finish(&self, r: &BrainResult) -> Vec<f64> {
+        let n = f64::from(self.n.max(1));
+        let mut out: Vec<f64> = self.counts.iter().map(|c| f64::from(*c) / n).collect();
+        out.push(f64::from(self.commanded) / n);
+        out.push(self.effort.get());
+        let days = (r.ticks as f64 / DAY as f64).max(1.0 / DAY as f64);
+        out.push(r.new_things as f64 / days);
+        out
+    }
+}

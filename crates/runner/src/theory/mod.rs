@@ -4,7 +4,7 @@
 //!
 //! The lifetime claims (T-DEV, tenacity vs age, T-CP, kick absorption,
 //! aging) need agents that live for many days, so they wait until survival
-//! past day 2 is fixed. P1–P3 wait for the archetypes (step 7).
+//! past day 2 is fixed. P1 and P2 run the archetypes (step 7); P3 (lens swap) is later.
 
 pub mod probes;
 pub mod report;
@@ -14,8 +14,8 @@ use cognitive_core::modes::Mode;
 
 use crate::brain::{run_brain, setup};
 use crate::sweep::{Variant, v, with};
-use probes::{Behaviour, Insight, ModeSuccess, Perform, Probe, Streaks, Urgency, Windows};
-pub use report::{csv, independence, markdown, mode_accuracy};
+use probes::{Behaviour, Insight, ModeSuccess, Perform, Probe, Streaks, Traits, Urgency, Windows};
+pub use report::{csv, independence, markdown, mode_accuracy, personality_lines};
 
 /// One claim and how it is tested.
 pub struct Claim {
@@ -29,12 +29,24 @@ pub struct Claim {
     pub columns: &'static [&'static str],
     pub variants: Vec<Variant>,
     pub probe: fn() -> Box<dyn Probe>,
+    /// Variants are archetype means: each seed draws its own agent around
+    /// them (spec §19) instead of running the means as they are.
+    pub per_agent: bool,
     /// A line computed across cells, if the claim has one.
     pub post: Option<fn(&[Cell]) -> String>,
 }
 
 /// The claims by id (spec §29). A new claim is one function and one line.
-const CLAIMS: [fn() -> Claim; 7] = [t_ind, kick, t_mode, subconscious, effort, harsh, beta_u];
+const CLAIMS: [fn() -> Claim; 8] = [
+    t_ind,
+    kick,
+    t_mode,
+    subconscious,
+    effort,
+    harsh,
+    beta_u,
+    personality,
+];
 
 /// The claim ids, in order.
 pub fn ids() -> Vec<&'static str> {
@@ -76,6 +88,7 @@ fn t_ind() -> Claim {
         columns: &["s_L", "s_E", "s_P", "s_O"],
         variants,
         probe: || Box::new(ModeSuccess::default()),
+        per_agent: false,
         post: Some(independence),
     }
 }
@@ -92,6 +105,7 @@ fn kick() -> Claim {
             v("kick off", with(|c| c.kick_enabled = false)),
         ],
         probe: || Box::new(Streaks::default()),
+        per_agent: false,
         post: None,
     }
 }
@@ -108,6 +122,7 @@ fn t_mode() -> Claim {
         columns: &["travel", "gather", "craft", "think", "idle", "effort"],
         variants,
         probe: || Box::new(Behaviour::default()),
+        per_agent: false,
         post: Some(mode_accuracy),
     }
 }
@@ -124,6 +139,7 @@ fn subconscious() -> Claim {
             v("subconscious off", with(|c| c.subconscious.b_base = 0.0)),
         ],
         probe: || Box::new(Insight::default()),
+        per_agent: false,
         post: None,
     }
 }
@@ -143,6 +159,7 @@ fn effort() -> Claim {
         columns: &["C", "effort", "s_P", "tech"],
         variants,
         probe: || Box::new(Perform::default()),
+        per_agent: false,
         post: None,
     }
 }
@@ -156,6 +173,7 @@ fn harsh() -> Claim {
         columns: &["C_during", "C_after", "D_during", "D_after"],
         variants: vec![v("default", BrainConfig::default())],
         probe: || Box::new(Windows::default()),
+        per_agent: false,
         post: None,
     }
 }
@@ -175,7 +193,38 @@ fn beta_u() -> Claim {
         columns: &["C", "U", "w_E", "travel"],
         variants,
         probe: || Box::new(Urgency::default()),
+        per_agent: false,
         post: None,
+    }
+}
+
+fn personality() -> Claim {
+    let variants = crate::archetype::ARCHETYPES
+        .map(|a| {
+            let mean = crate::archetype::means(a).expect("built-in archetype");
+            v(a, mean)
+        })
+        .to_vec();
+    Claim {
+        id: "P1-P2",
+        claim: "Archetypes are distinct, agents are individuals (00 §7.10; plan §5.3; #44)",
+        reading: "One row per archetype; each seed is a different agent drawn around the archetype's means. Columns are shares of decisions (travel, gather, craft, survive, think, idle), the share driven by a player's command, mean effort on actions, and new things found per day. P1 below: how often a nearest-centroid classifier tells the archetype from these numbers alone (chance 0.25). P2: spread within an archetype over spread between archetypes; it should be above 0 and below 1.",
+        scenarios: &["open_day", "commanded", "harsh"],
+        columns: &[
+            "travel",
+            "gather",
+            "craft",
+            "survive",
+            "think",
+            "idle",
+            "commanded",
+            "effort",
+            "new/day",
+        ],
+        variants,
+        probe: || Box::new(Traits::default()),
+        per_agent: true,
+        post: Some(personality_lines),
     }
 }
 
@@ -212,7 +261,12 @@ impl Cell {
 /// One run read by the claim's probe, with survival in front.
 pub fn run_probe(c: &Claim, variant: usize, scenario: &str, seed: u64) -> Vec<f64> {
     let mut p = (c.probe)();
-    let config = c.variants[variant].config.clone();
+    let mean = &c.variants[variant].config;
+    let config = if c.per_agent {
+        crate::archetype::drawn(mean, seed)
+    } else {
+        mean.clone()
+    };
     let r = run_brain(setup(scenario, seed), config, seed, |row| p.push(row));
     let mut out = vec![f64::from(u8::from(r.survived))];
     out.extend(p.finish(&r));

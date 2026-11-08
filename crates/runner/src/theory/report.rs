@@ -159,3 +159,75 @@ pub fn loo_accuracy(points: &[(usize, Vec<f64>)]) -> f64 {
     }
     right as f64 / points.len() as f64
 }
+
+/// Scale each column to mean 0 and sd 1 across points, so no column wins
+/// the distance by its units. Constant columns become 0.
+pub fn standardise(points: &mut [(usize, Vec<f64>)]) {
+    let n = points.len() as f64;
+    let cols = points.first().map_or(0, |p| p.1.len());
+    for i in 0..cols {
+        let mean = points.iter().map(|p| p.1[i]).sum::<f64>() / n;
+        let var = points.iter().map(|p| (p.1[i] - mean).powi(2)).sum::<f64>() / n;
+        let sd = var.sqrt();
+        for p in points.iter_mut() {
+            p.1[i] = if sd > 0.0 { (p.1[i] - mean) / sd } else { 0.0 };
+        }
+    }
+}
+
+fn centroid(xs: &[&Vec<f64>]) -> Vec<f64> {
+    let n = xs.len() as f64;
+    let cols = xs.first().map_or(0, |x| x.len());
+    (0..cols)
+        .map(|i| xs.iter().map(|x| x[i]).sum::<f64>() / n)
+        .collect()
+}
+
+fn dist2(a: &[f64], b: &[f64]) -> f64 {
+    a.iter().zip(b).map(|(x, y)| (x - y).powi(2)).sum()
+}
+
+/// P2 (plan §5.3): (within, between). Within = mean squared distance of a
+/// point to its class centroid; between = mean squared distance of a
+/// point's class centroid to the overall centroid.
+pub fn spread(points: &[(usize, Vec<f64>)]) -> (f64, f64) {
+    let n = points.len() as f64;
+    let all: Vec<&Vec<f64>> = points.iter().map(|p| &p.1).collect();
+    let grand = centroid(&all);
+    let (mut within, mut between) = (0.0, 0.0);
+    for (class, x) in points {
+        let mine: Vec<&Vec<f64>> = points
+            .iter()
+            .filter(|p| p.0 == *class)
+            .map(|p| &p.1)
+            .collect();
+        let c = centroid(&mine);
+        within += dist2(x, &c);
+        between += dist2(&c, &grand);
+    }
+    (within / n, between / n)
+}
+
+/// P1 and P2 per scenario (plan §5.3): leave-one-out nearest-centroid
+/// accuracy on standardised behaviour, and within/between spread.
+pub fn personality_lines(rows: &[Cell]) -> String {
+    let (mut p1, mut p2) = (Vec::new(), Vec::new());
+    for sc in scenarios(rows) {
+        let mut runs: Vec<(usize, Vec<f64>)> = Vec::new();
+        for (class, r) in rows.iter().filter(|r| r.scenario == sc).enumerate() {
+            for x in &r.runs {
+                let f = x[1..].iter().map(|v| if v.is_nan() { 0.0 } else { *v });
+                runs.push((class, f.collect()));
+            }
+        }
+        standardise(&mut runs);
+        p1.push(format!("{sc} {}", num(loo_accuracy(&runs))));
+        let (w, b) = spread(&runs);
+        p2.push(format!("{sc} {}", num(w / b)));
+    }
+    format!(
+        "P1 nearest-centroid accuracy (leave one out, standardised; chance 0.25): {}\n\nP2 within/between spread (individual if above 0, distinct if below 1): {}",
+        p1.join(", "),
+        p2.join(", ")
+    )
+}
