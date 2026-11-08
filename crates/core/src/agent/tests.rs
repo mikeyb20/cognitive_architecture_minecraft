@@ -540,5 +540,15 @@ fn recall_links_only_live_items_in_thought_momentum() {
     b.mem.prune(dead);
     b.sense(&test_obs());
     assert!(b.mem.linked(a, c));
-    assert!(!b.mem.linked(a, dead) && !b.mem.linked(c, dead));
+    // `linked` hides dead items, so look at the raw link lists.
+    let raw = |id: usize| {
+        b.mem
+            .entry(id)
+            .links
+            .iter()
+            .map(|l| l.0)
+            .collect::<Vec<_>>()
+    };
+    assert!(!raw(a).contains(&dead) && !raw(c).contains(&dead));
+    assert!(raw(dead).is_empty());
 }
