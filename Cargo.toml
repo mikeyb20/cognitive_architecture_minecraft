@@ -21,6 +21,9 @@ host-api = { path = "crates/host-api" }
 cognitive-core = { path = "crates/core" }
 sim = { path = "crates/sim" }
 serde = { version = "1", features = ["derive"] }
+rand = { version = "0.9", default-features = false }
+rand_chacha = "0.9"
+proptest = "1"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
