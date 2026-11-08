@@ -6,7 +6,7 @@
     "testFiles": ["dist/**/*.test.js"]
   },
   "buildCommand": "tsc -p .",
-  "mutate": ["src/**/*.ts", "!src/**/*.test.ts", "!src/generated/**", "!src/mineflayer/**"],
+  "mutate": ["src/**/*.ts", "!src/**/*.test.ts", "!src/**/*.test-util.ts", "!src/generated/**", "!src/mineflayer/**"],
   "coverageAnalysis": "perTest",
   "thresholds": { "high": 100, "low": 100, "break": 100 },
   "reporters": ["clear-text", "progress"],

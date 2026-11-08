@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc -p .",
     "typecheck": "tsc -p . --noEmit",
-    "test": "npm run clean && tsc -p . && node --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=95 --test-coverage-exclude='dist/**/*.test.js' --test-coverage-exclude='dist/mineflayer/**' 'dist/**/*.test.js'",
+    "test": "npm run clean && tsc -p . && node --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=95 --test-coverage-exclude='dist/**/*.test.js' --test-coverage-exclude='dist/mineflayer/**' --test-coverage-exclude='dist/**/*.test-util.js' 'dist/**/*.test.js'",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "devDependencies": {
@@ -23,9 +23,11 @@
   "dependencies": {
     "mineflayer": "4.39.0",
     "mineflayer-armor-manager": "2.0.1",
-    "mineflayer-auto-eat": "5.0.3",
     "mineflayer-collectblock": "1.6.0",
     "mineflayer-pathfinder": "2.4.5",
-    "mineflayer-pvp": "1.3.2"
+    "mineflayer-pvp": "1.3.2",
+    "prismarine-block": "1.23.0",
+    "prismarine-entity": "2.6.0",
+    "vec3": "0.1.10"
   }
 }

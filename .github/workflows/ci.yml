@@ -123,6 +123,6 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           files=$(git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}...HEAD -- src \
-            | sed 's|^bot/||' | grep -E '\.ts$' | grep -vE '\.test\.ts$|^src/generated/|^src/mineflayer/' | paste -sd, -)
+            | sed 's|^bot/||' | grep -E '\.ts$' | grep -vE '\.test(-util)?\.ts$|^src/generated/|^src/mineflayer/' | paste -sd, -)
           if [ -z "$files" ]; then echo "No mutable TypeScript changed."; exit 0; fi
           npx stryker run --mutate "$files"

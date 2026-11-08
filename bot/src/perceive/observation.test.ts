@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { type Snapshot, blockPos, toObservation } from "./observation.js";
+import { type Snapshot, blockPos, notable, toObservation } from "./observation.js";
 
 function snap(over: Partial<Snapshot> = {}): Snapshot {
   return {
@@ -21,7 +21,7 @@ function snap(over: Partial<Snapshot> = {}): Snapshot {
   };
 }
 
-const limits = { maxVisibleBlocks: 2 };
+const limits = { maxVisibleBlocks: 2, maxPerKind: 2 };
 
 test("scales body bars and the clock to 0..1", () => {
   const o = toObservation(snap({ damage: 3 }), limits, 4);
@@ -95,4 +95,50 @@ test("everything seen, nearest first, with the sim's thing ids", () => {
   assert.deepEqual(o.chat, [{ from: "alex", text: "hi" }]);
   assert.ok(o.resting && o.sheltered);
   assert.deepEqual(blockPos({ x: -0.1, y: 1.9, z: 2 }), { x: -1, y: 1, z: 2 });
+});
+
+test("a few of each kind, so common blocks cannot hide rare ones", () => {
+  const stone = [1, 2, 3, 4].map((x) => ({ name: "stone", pos: { x, y: 0, z: 0 } }));
+  const o = toObservation(
+    snap({
+      position: { x: 0, y: 0, z: 0 },
+      blocks: [...stone, { name: "iron_ore", pos: { x: 6, y: 0, z: 0 } }],
+    }),
+    { maxVisibleBlocks: 3, maxPerKind: 2 },
+  );
+  assert.deepEqual(
+    o.visible.map((s) => [s.thing, s.distance]),
+    [
+      ["block:stone", 1],
+      ["block:stone", 2],
+      ["block:iron_ore", 6],
+    ],
+  );
+});
+
+test("the blocks the bot reports", () => {
+  for (const n of [
+    "stone",
+    "iron_ore",
+    "deepslate_iron_ore",
+    "coal_ore",
+    "deepslate_coal_ore",
+    "gold_ore",
+    "deepslate_gold_ore",
+    "diamond_ore",
+    "deepslate_diamond_ore",
+    "wheat",
+    "crafting_table",
+    "furnace",
+    "water",
+    "lava",
+    "oak_log",
+    "birch_log",
+    "red_bed",
+  ]) {
+    assert.ok(notable(n), n);
+  }
+  for (const n of ["dirt", "grass_block", "air", "log_pile", "bedrock", "oak_planks"]) {
+    assert.ok(!notable(n), n);
+  }
 });

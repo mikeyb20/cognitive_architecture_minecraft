@@ -6,6 +6,29 @@
 import { type Vec3Like, distance as dist } from "../geom.js";
 import type { ChatMsg, Observation, Pos, Seen } from "../host.js";
 
+/** Blocks the bot reports (spec §5 things): ores, food, stations, danger. */
+const NOTABLE = new Set([
+  "stone",
+  "iron_ore",
+  "deepslate_iron_ore",
+  "coal_ore",
+  "deepslate_coal_ore",
+  "gold_ore",
+  "deepslate_gold_ore",
+  "diamond_ore",
+  "deepslate_diamond_ore",
+  "wheat",
+  "crafting_table",
+  "furnace",
+  "water",
+  "lava",
+]);
+
+/** Whether the bot reports this block: the set above, any log, any bed. */
+export function notable(name: string): boolean {
+  return NOTABLE.has(name) || name.endsWith("_log") || name.endsWith("_bed");
+}
+
 /** Minecraft's own scales. */
 export const DAY_TICKS = 24000;
 export const MAX_HEALTH = 20;
@@ -48,6 +71,11 @@ export interface Snapshot {
 /** How much the host shows the brain; set by the runner at connect. */
 export interface Limits {
   maxVisibleBlocks: number;
+  /**
+   * Nearest blocks kept per name before the overall cap, so stone all
+   * around underground cannot hide the one ore in view.
+   */
+  maxPerKind: number;
 }
 
 export function blockPos(v: Vec3Like): Pos {
@@ -69,6 +97,7 @@ function inventory(stacks: Snapshot["inventory"]): Array<[string, number]> {
 
 export function toObservation(s: Snapshot, limits: Limits, agent = 0): Observation {
   const me = s.position;
+  const perKind = new Map<string, number>();
   const blocks: Seen[] = s.blocks
     .map((b) => ({
       thing: `block:${b.name}`,
@@ -77,6 +106,11 @@ export function toObservation(s: Snapshot, limits: Limits, agent = 0): Observati
       distance: dist(me, b.pos),
     }))
     .sort((a, b) => a.distance - b.distance)
+    .filter((b) => {
+      const n = (perKind.get(b.thing) ?? 0) + 1;
+      perKind.set(b.thing, n);
+      return n <= limits.maxPerKind;
+    })
     .slice(0, limits.maxVisibleBlocks);
   const entities: Seen[] = s.entities.map((e) => ({
     thing: e.kind === "player" ? `player:${e.name}` : `entity:${e.name}`,
