@@ -1,0 +1,24 @@
+# Rust
+/target/
+
+# Node
+node_modules/
+bot/dist/
+
+# Secrets: LLM API keys live only in your local .env, never in the repo
+.env
+.env.*
+!.env.example
+
+# Run outputs and models
+/runs/
+*.parquet
+*.jsonl
+*.gguf
+*.safetensors
+analysis/.ipynb_checkpoints/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

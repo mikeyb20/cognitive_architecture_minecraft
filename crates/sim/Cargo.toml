@@ -1,0 +1,14 @@
+[package]
+name = "sim"
+description = "Fast Rust gridworld implementing World + Host, Minecraft rules in miniature (spec §21, #32, #34)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+host-api.workspace = true
+
+[lints]
+workspace = true

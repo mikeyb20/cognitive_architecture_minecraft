@@ -1,0 +1,16 @@
+[package]
+name = "runner"
+description = "CLI: scenarios x arms x seeds -> logs (spec §26)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+host-api.workspace = true
+cognitive-core.workspace = true
+sim.workspace = true
+
+[lints]
+workspace = true
