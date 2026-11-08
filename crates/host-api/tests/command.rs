@@ -260,7 +260,14 @@ fn cancel_and_stop() {
 fn follow_stay_and_come() {
     // Test 8: follow until "!stay"; "!come" walks over once.
     let mut q = CommandQueue::default();
-    let far = obs(&[], vec![seen("player:alex", SeenKind::Player, 9, 9.0)]);
+    // Another player standing close must not count as alex.
+    let far = obs(
+        &[],
+        vec![
+            seen("player:sam", SeenKind::Player, 1, 1.0),
+            seen("player:alex", SeenKind::Player, 9, 9.0),
+        ],
+    );
     assert_eq!(say(&mut q, "!stay", &far), "I'm not following anyone.");
     assert_eq!(say(&mut q, "!follow", &far), "On it: following alex.");
     for _ in 0..100 {
