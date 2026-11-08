@@ -1,0 +1,23 @@
+# cargo-mutants config. Mutation testing breaks the code on purpose (flips
+# operators, changes comparisons) and checks that some test fails each time.
+#
+# The exclusions below are "equivalent mutants": changes that cannot alter
+# behaviour, so no test can ever catch them. Each is listed with the reason.
+# Do not add an exclusion for a mutant that changes behaviour: write a test.
+exclude_re = [
+    # `delta > 0` vs `>= 0`: scaling a zero delta by (1 − D) is still zero.
+    "replace > with >= in Curiosity::apply",
+    # `choke_shift > 0` vs `>= 0`: a zero shift moves zero weight.
+    "replace > with >= in Oracle::weights",
+    # `adv < 0` vs `<= 0`: when adv = 0 the step is zero either way.
+    "replace < with <= in Oracle::update",
+    # `rng < p` vs `<= p`: differs only when the draw equals p exactly
+    # (probability ~2^-24 per draw).
+    "replace < with <= in kick_extremes",
+    # Stuck thresholds (0.05, 0.05, 0.5 bits): `<` vs `<=` differs only when a
+    # float lands exactly on the threshold, which these sums never produce.
+    "replace < with <= in StuckDetector::is_stuck",
+    # Pruning activations `> 1e-6` vs `>= 1e-6`: an item at exactly 1e-6 is
+    # below anything that could reach the top-k.
+    "replace > with >= in ThoughtMomentum::tick",
+]

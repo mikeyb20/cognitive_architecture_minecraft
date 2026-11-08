@@ -1,2 +1,10 @@
-//! 01 §1 Activation: curiosity C, suppression D, valence V, activation g(C),
-//! and the zero-movement states drift, shutdown and freeze (spec §5, §12, §16).
+//! 01 §1 Activation: curiosity C, suppression D, valence V and the activation
+//! function g(C) (spec §5, §12, §16).
+
+mod curiosity;
+mod g;
+mod valence;
+
+pub use curiosity::{Curiosity, CuriosityParams};
+pub use g::{Activation, LogActivation, PowerActivation, external_drive_effort};
+pub use valence::{Affect, AffectParams, ValenceInputs};

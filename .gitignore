@@ -22,3 +22,5 @@ analysis/.ipynb_checkpoints/
 .idea/
 .vscode/
 .DS_Store
+mutants.out*/
+pr.diff
