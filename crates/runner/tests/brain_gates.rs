@@ -137,6 +137,16 @@ fn golden_trace_is_stable() {
     assert!(sums_close(sums, GOLDEN_SUMS, 1e-3), "{sums:?}");
 }
 
+/// A commanded run with a reflex, pinned whole: counts, reflexes and new
+/// things. Change only on a deliberate behaviour change.
+#[test]
+fn golden_commanded_run_counts_reflexes_and_new_things() {
+    let (_, r) = run("commanded", 0, Brain::new(BrainConfig::default(), 0));
+    let got = (r.decisions, r.idle, r.thoughts, r.reflexes, r.new_things);
+    assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");
+}
+
+const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (1187, 1093, 43, 1, 41);
 const GOLDEN_COUNTS: (u32, u32, u32) = (641, 584, 26);
 const GOLDEN_HASH: u64 = 3_702_787_714_657_621_692;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).

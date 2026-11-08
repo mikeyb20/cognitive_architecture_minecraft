@@ -168,6 +168,12 @@ mod tests {
         assert!(o.chat.is_empty() && c.iter().all(|c| !c.commanded));
         assert_eq!(o.visible.len(), 2, "the player stands nearby");
         assert_eq!(o.visible[1].kind, SeenKind::Player);
+        let beside = Pos {
+            x: 5 + PLAYER_DISTANCE,
+            y: 0,
+            z: 5,
+        };
+        assert_eq!((o.visible[1].pos, o.visible[1].distance), (beside, 3.0));
         let mut o = obs(10);
         let mut c = cands();
         p.apply(&mut o, &mut c);
