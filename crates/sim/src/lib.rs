@@ -10,6 +10,7 @@ pub mod planner;
 pub mod player;
 pub mod rules;
 pub mod scenario;
+mod skills;
 pub mod world;
 
 pub use host_api;

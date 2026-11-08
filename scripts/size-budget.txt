@@ -1,5 +1,3 @@
 # Files allowed over the hard size limit, with a cap. Format: path cap reason
 # Caps only go down. Lower a cap when the file shrinks; delete the line when
 # the file is back under the limit. Never raise a cap: split the file instead.
-crates/sim/src/world.rs 1021 debt D2: one match arm per skill in exec_inner and candidate_actions
-crates/sim/tests/world.rs 1434 debt D2: tests mirror world.rs; split per skill with it

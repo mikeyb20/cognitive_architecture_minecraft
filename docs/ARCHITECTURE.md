@@ -45,7 +45,7 @@ Most sprawl comes from one central function that every new feature edits: a `mat
 |---|---|---|
 | Open questions with candidate answers (OQ8, OQ18, ...) | a trait in `core`, one impl per candidate, picked by config (spec §31.2) | in place for `g(C)` (`Activation`) |
 | Modes (sub-networks) | `ModeNetwork` trait in `core::modes` | in place |
-| Skills | one handler per skill, implementing a trait, registered in a table | **not yet**, see D2 |
+| Skills | one handler per skill group, implementing `Handler` in `sim::skills`, registered in the `HANDLERS` table (table order is candidate order) | in place |
 | Worlds (sim, Minecraft) | `World` + `Host` traits | in place |
 | Arms (A, B, B+N, brain) | `Policy` trait | in place |
 | Thinking tools (plan, progress, own goals) | `ThinkTools` trait in `core::agent::think`; the sim's code tools implement it (`runner::brain::SimTools`) | in place; LLM tiers implement it in step 6 |
@@ -118,7 +118,6 @@ Known shortcuts, each with the point by which it must be paid.
 | ID | Debt | Pay before | Plan |
 |---|---|---|---|
 | D1 | `baselines` (Arm A) uses `sim::planner`, so Arm A cannot run in Minecraft. | Step 6 (Minecraft adapter) | Move the planner onto `Observation` data in `host-api` terms, or into `baselines`, then drop the `sim` edge. |
-| D2 | `sim::world` has one function arm per skill in `exec_inner` and `candidate_actions` (both over 100 lines); `sim/tests/world.rs` mirrors it. Every new skill edits both. | Step 6, before more skills arrive | A `SkillHandler` trait with `candidates()` and `execute()`, one file per skill under `sim/src/skills/`, registered in a table. Split the tests the same way. |
 | D3 | The ontology will be needed in TypeScript; hand-copied names will drift. | Step 6 | Generate TS types from the Rust ontology (napi-rs typings or `ts-rs`), checked in CI. |
 | D4 | Public items lack doc comments (about 300). | Rolling | Enable `missing_docs` on `host-api` first (the contract), then crate by crate. |
-| D5 | The sim offers no `Flee` candidate when the only hostile is diagonal or the way away is blocked (`point_toward` in `sim::world`), so a threatened agent sometimes cannot flee. Not fixed in step 4 because `world.rs` is at its size cap. | With D2 (step 6) | Move fleeing into its own skill handler and pick the best open neighbour away from all hostiles. |
+| D5 | The sim offers no `Flee` candidate when the only hostile is diagonal or the way away is blocked (`point_toward`, used by `sim::skills::threats`), so a threatened agent sometimes cannot flee. A behaviour change, so it gets its own PR after the D2 refactor. | Step 6 | In `sim::skills::threats`, pick the best open neighbour away from all hostiles. |
