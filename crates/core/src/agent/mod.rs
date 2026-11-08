@@ -9,6 +9,7 @@
 
 mod choose;
 pub mod config;
+pub mod digest;
 mod learn;
 pub mod log;
 mod perceive;

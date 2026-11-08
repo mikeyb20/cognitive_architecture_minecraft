@@ -5,6 +5,7 @@
 //! the loop runs, and the golden trace pins what the brain did on each tick.
 
 use cognitive_core::activation::CuriosityParams;
+use cognitive_core::agent::digest::{float_sums, sums_close, trace_digest};
 use cognitive_core::agent::{Brain, BrainConfig, Decision, Goal, Horizon, ThinkTools, TickLog};
 use cognitive_core::direction::PlanStep;
 use cognitive_core::modes::Mode;
@@ -396,63 +397,6 @@ fn low_commanded(seed: u64) -> Brain {
     b
 }
 
-/// FNV-1a over what the brain did on each row: the discrete fields (tick,
-/// choice, goal, plan, memory counts, credited mode, ...). Floats are left
-/// out because `exp`, `ln` and `cos` can differ in the last bit between
-/// machines; `float_sums` checks them to a tolerance instead.
-fn trace_hash(rows: &[TickLog]) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for r in rows {
-        let line = format!(
-            "{}|{}|{}|{:?}|{:?}|{}|{}|{}|{}|{}|{}|{:?}|{}|{}|{}|{}|{}|{}|{}",
-            r.tick,
-            r.dt,
-            r.chosen,
-            r.goal,
-            r.plan_step,
-            r.n_choices,
-            r.kicks,
-            r.stuck_kick,
-            r.mem_items,
-            r.formed,
-            r.pruned,
-            r.tm,
-            r.prev_action,
-            r.credited,
-            r.external_drive,
-            r.retrieved,
-            r.stage,
-            r.creative,
-            r.new_items,
-        );
-        for b in line.bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x0000_0100_0000_01b3);
-        }
-    }
-    h
-}
-
-/// Σ C, Σ D, Σ V, Σ R and Σ w_P over a trace, for a tolerance check.
-fn float_sums(rows: &[TickLog]) -> [f64; 5] {
-    let mut s = [0.0; 5];
-    for r in rows {
-        for (acc, v) in s.iter_mut().zip([r.c, r.d, r.v, r.r, r.w[2]]) {
-            *acc += f64::from(v);
-        }
-    }
-    s
-}
-
-fn assert_close(got: [f64; 5], want: [f64; 5]) {
-    for (g, w) in got.iter().zip(want) {
-        assert!(
-            (g - w).abs() <= 1e-3 * w.abs().max(1.0),
-            "{got:?} vs {want:?}"
-        );
-    }
-}
-
 fn in_range(v: f32, lo: f32, hi: f32) -> bool {
     v.is_finite() && (lo..=hi).contains(&v)
 }
@@ -535,7 +479,7 @@ fn same_seed_same_trace_and_the_trace_is_pinned() {
     let (_, na) = run(Brain::new(busy(), 11), 2 * DAY, &mut a);
     let mut b = vec![];
     let (_, nb) = run(Brain::new(busy(), 11), 2 * DAY, &mut b);
-    assert_eq!(trace_hash(&a), trace_hash(&b));
+    assert_eq!(trace_digest(&a), trace_digest(&b));
     assert_eq!(na, nb);
     let mut d = vec![];
     run(Brain::new(BrainConfig::default(), 11), DAY, &mut d);
@@ -552,17 +496,18 @@ fn same_seed_same_trace_and_the_trace_is_pinned() {
         "{na:?}"
     );
     assert_eq!(
-        (trace_hash(&a), trace_hash(&d), trace_hash(&e)),
+        (trace_digest(&a), trace_digest(&d), trace_digest(&e)),
         GOLDEN_HASHES,
         "{:?}",
-        (trace_hash(&a), trace_hash(&d), trace_hash(&e))
+        (trace_digest(&a), trace_digest(&d), trace_digest(&e))
     );
     for (rows, want) in [
         (&a, GOLDEN_SUMS[0]),
         (&d, GOLDEN_SUMS[1]),
         (&e, GOLDEN_SUMS[2]),
     ] {
-        assert_close(float_sums(rows), want);
+        let got = float_sums(rows);
+        assert!(sums_close(got, want, 1e-3), "{got:?} vs {want:?}");
     }
 }
 
