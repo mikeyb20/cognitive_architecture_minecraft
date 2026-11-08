@@ -396,16 +396,61 @@ fn low_commanded(seed: u64) -> Brain {
     b
 }
 
-/// FNV-1a over the Debug form of each row (floats print exactly).
+/// FNV-1a over what the brain did on each row: the discrete fields (tick,
+/// choice, goal, plan, memory counts, credited mode, ...). Floats are left
+/// out because `exp`, `ln` and `cos` can differ in the last bit between
+/// machines; `float_sums` checks them to a tolerance instead.
 fn trace_hash(rows: &[TickLog]) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for r in rows {
-        for b in format!("{r:?}").bytes() {
+        let line = format!(
+            "{}|{}|{}|{:?}|{:?}|{}|{}|{}|{}|{}|{}|{:?}|{}|{}|{}|{}|{}|{}|{}",
+            r.tick,
+            r.dt,
+            r.chosen,
+            r.goal,
+            r.plan_step,
+            r.n_choices,
+            r.kicks,
+            r.stuck_kick,
+            r.mem_items,
+            r.formed,
+            r.pruned,
+            r.tm,
+            r.prev_action,
+            r.credited,
+            r.external_drive,
+            r.retrieved,
+            r.stage,
+            r.creative,
+            r.new_items,
+        );
+        for b in line.bytes() {
             h ^= u64::from(b);
             h = h.wrapping_mul(0x0000_0100_0000_01b3);
         }
     }
     h
+}
+
+/// Σ C, Σ D, Σ V, Σ R and Σ w_P over a trace, for a tolerance check.
+fn float_sums(rows: &[TickLog]) -> [f64; 5] {
+    let mut s = [0.0; 5];
+    for r in rows {
+        for (acc, v) in s.iter_mut().zip([r.c, r.d, r.v, r.r, r.w[2]]) {
+            *acc += f64::from(v);
+        }
+    }
+    s
+}
+
+fn assert_close(got: [f64; 5], want: [f64; 5]) {
+    for (g, w) in got.iter().zip(want) {
+        assert!(
+            (g - w).abs() <= 1e-3 * w.abs().max(1.0),
+            "{got:?} vs {want:?}"
+        );
+    }
 }
 
 fn in_range(v: f32, lo: f32, hi: f32) -> bool {
@@ -512,13 +557,27 @@ fn same_seed_same_trace_and_the_trace_is_pinned() {
         "{:?}",
         (trace_hash(&a), trace_hash(&d), trace_hash(&e))
     );
+    for (rows, want) in [
+        (&a, GOLDEN_SUMS[0]),
+        (&d, GOLDEN_SUMS[1]),
+        (&e, GOLDEN_SUMS[2]),
+    ] {
+        assert_close(float_sums(rows), want);
+    }
 }
 
-const GOLDEN_COUNTS: (u32, u32, u32, u32) = (502, 3, 47, 1);
+/// Float sums per golden run (busy, default, low-commanded).
+const GOLDEN_SUMS: [[f64; 5]; 3] = [
+    [242.4022, 0.0, 158.0622, 237.5047, 294.2703],
+    [210.3362, 0.0, 51.7783, 94.9521, 984.6509],
+    [98.5611, 0.0, 8.8014, 38.3409, 844.8468],
+];
+
+const GOLDEN_COUNTS: (u32, u32, u32, u32) = (336, 0, 20, 1);
 const GOLDEN_HASHES: (u64, u64, u64) = (
-    5_420_142_108_229_117_713,
-    1_372_804_183_501_621_649,
-    18_040_118_584_450_102_610,
+    2_672_765_271_370_490_839,
+    13_805_104_005_382_746_148,
+    4_154_220_247_819_864_329,
 );
 
 #[test]

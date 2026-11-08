@@ -175,6 +175,15 @@ mod tests {
         Pos { x, y: 0, z }
     }
 
+    #[test]
+    fn route_keys_name_skill_and_target() {
+        assert_eq!(
+            route_key(Skill::Chop, "block:oak_log"),
+            "Chop:block:oak_log"
+        );
+        assert_ne!(route_key(Skill::Mine, "x"), route_key(Skill::Chop, "x"));
+    }
+
     fn obs() -> Observation {
         Observation {
             agent: AgentId(0),
