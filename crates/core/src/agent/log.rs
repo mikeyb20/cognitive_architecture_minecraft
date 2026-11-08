@@ -61,6 +61,10 @@ pub struct TickLog {
     pub effort: f32,
     pub focus: f32,
     pub external_drive: bool,
+    /// Felt hunger this tick and the chosen action's effort-floor push
+    /// (01 §1.6).
+    pub hunger: f32,
+    pub need_push: f32,
     // outcome of the previous decision
     pub prev_action: String,
     pub success: [f32; 4],

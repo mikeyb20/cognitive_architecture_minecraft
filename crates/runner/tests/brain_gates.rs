@@ -4,7 +4,7 @@
 
 use cognitive_core::activation::{CuriosityParams, SignalWeights};
 use cognitive_core::agent::digest::{float_sums, sums_close, trace_digest};
-use cognitive_core::agent::{Brain, BrainConfig, TickLog};
+use cognitive_core::agent::{Brain, BrainConfig, NeedParams, TickLog};
 use runner::brain::{BrainResult, run_with, setup};
 
 fn no_signals() -> SignalWeights {
@@ -18,7 +18,8 @@ fn no_signals() -> SignalWeights {
     }
 }
 
-/// Drift (01 §1.5): C ≈ 0 with nothing to raise it, V ≈ 0, no D.
+/// Drift (01 §1.5): C ≈ 0 with nothing to raise it, V ≈ 0, no D. Only
+/// commands push it; hunger's push (01 §1.6) is checked on its own below.
 fn drift_config() -> BrainConfig {
     BrainConfig {
         curiosity: CuriosityParams {
@@ -27,6 +28,10 @@ fn drift_config() -> BrainConfig {
         },
         k: no_signals(),
         kick_enabled: false,
+        needs: NeedParams {
+            on: false,
+            ..NeedParams::default()
+        },
         ..BrainConfig::default()
     }
 }
@@ -62,6 +67,27 @@ fn drift_goes_where_commands_push_it() {
     let (rows, _) = run("first_night", 0, Brain::new(drift_config(), 0));
     let day: Vec<&TickLog> = rows.iter().filter(|r| r.tick < 1200).collect();
     assert!(day.len() > 1000 && day.iter().all(|r| r.chosen == "idle"));
+}
+
+#[test]
+fn hunger_pushes_a_drifting_agent_like_a_command() {
+    // 01 §1.6: a felt need is an outside-like force, so a drifting agent
+    // (C ≈ 0) still goes where hunger pushes it, and starts nothing itself.
+    let fed = BrainConfig {
+        needs: NeedParams::default(),
+        ..drift_config()
+    };
+    let (rows, r) = run("commanded", 0, Brain::new(fed, 0));
+    let (_, unfed) = run("commanded", 0, Brain::new(drift_config(), 0));
+    assert_eq!(self_generated(&rows), 0, "still no self-generated movement");
+    let by_need = |r: &&TickLog| r.chosen != "idle" && r.need_push > 0.0 && r.need_push < 1.0;
+    assert!(rows.iter().filter(by_need).count() > 20, "hunger pushes");
+    assert!(
+        rows.iter().any(|r| r.chosen.starts_with("Eat")),
+        "and it eats"
+    );
+    assert!(r.ticks > unfed.ticks, "{} vs {}", r.ticks, unfed.ticks);
+    assert!(rows.iter().all(|r| r.hunger == 0.0 || r.food < 0.75));
 }
 
 #[test]
@@ -146,7 +172,7 @@ fn golden_commanded_run_counts_reflexes_and_new_things() {
     assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");
 }
 
-const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (1187, 1093, 43, 1, 41);
+const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (1316, 1196, 66, 0, 54);
 const GOLDEN_COUNTS: (u32, u32, u32) = (641, 584, 26);
 const GOLDEN_HASH: u64 = 3_702_787_714_657_621_692;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).

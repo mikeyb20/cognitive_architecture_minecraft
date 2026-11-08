@@ -1,7 +1,7 @@
 //! Arm C: the full brain in the sim (build step 4). Wires the brain to the
 //! sim's code tools, the scripted player and the shared emergency reflexes.
 
-use cognitive_core::agent::{Brain, BrainConfig, Decision, Horizon, ThinkTools, TickLog};
+use cognitive_core::agent::{Brain, BrainConfig, Decision, Horizon, Need, ThinkTools, TickLog};
 use cognitive_core::direction::PlanStep;
 use host_api::{Candidate, Outcome};
 use host_api::{Observation, Skill, TaskType};
@@ -39,21 +39,11 @@ impl ThinkTools for SimTools {
             });
         }
         if obs.food < HUNGRY {
-            if let Some(f) = FOODS.iter().find(|f| obs.inventory.count(f) > 0) {
-                return Some(step(Skill::Eat, &format!("item:{f}"), TaskType::Farming));
-            }
-            if obs.visible.iter().any(|v| v.thing.0 == "entity:pig") {
-                return Some(step(Skill::Attack, "entity:pig", TaskType::Farming));
-            }
-            if let Some(s) = planner::next_step(&obs.inventory, "bread") {
-                let (skill, thing, task) = planner::in_ontology(s);
-                return Some(PlanStep { skill, thing, task });
+            if let Some(s) = food_step(obs) {
+                return Some(s);
             }
         }
-        planner::next_step(&obs.inventory, goal).map(|s| {
-            let (skill, thing, task) = planner::in_ontology(s);
-            PlanStep { skill, thing, task }
-        })
+        planned(&obs.inventory, goal)
     }
 
     fn progress(&mut self, goal: &str, obs: &Observation) -> f32 {
@@ -63,6 +53,38 @@ impl ThinkTools for SimTools {
     fn propose_goal(&mut self, obs: &Observation) -> Option<String> {
         planner::next_goal(&obs.inventory).map(str::to_string)
     }
+
+    /// The teacher for felt hunger (01 §1.6): the planner's food step.
+    fn teach(&mut self, need: Need, obs: &Observation) -> Option<PlanStep> {
+        match need {
+            Need::Hunger => food_step(obs),
+        }
+    }
+}
+
+/// The planner's next step toward `goal`, in ontology names.
+fn planned(inv: &host_api::Inventory, goal: &str) -> Option<PlanStep> {
+    planner::next_step(inv, goal).map(|s| {
+        let (skill, thing, task) = planner::in_ontology(s);
+        PlanStep { skill, thing, task }
+    })
+}
+
+/// The step that gets food: eat what is held, else hunt a visible pig,
+/// else work toward bread.
+pub fn food_step(obs: &Observation) -> Option<PlanStep> {
+    let step = |skill, thing: String| PlanStep {
+        skill,
+        thing,
+        task: TaskType::Farming,
+    };
+    if let Some(f) = FOODS.iter().find(|f| obs.inventory.count(f) > 0) {
+        return Some(step(Skill::Eat, format!("item:{f}")));
+    }
+    if obs.visible.iter().any(|v| v.thing.0 == "entity:pig") {
+        return Some(step(Skill::Attack, "entity:pig".into()));
+    }
+    planned(&obs.inventory, "bread")
 }
 
 /// What one brain run produced.

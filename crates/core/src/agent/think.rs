@@ -17,6 +17,11 @@ pub trait ThinkTools {
     fn progress(&mut self, goal: &str, obs: &Observation) -> f32;
     /// An own goal when idle (01 §4.6, via `imagine`).
     fn propose_goal(&mut self, obs: &Observation) -> Option<String>;
+    /// A teacher's hint: the step that meets a felt need (01 §1.6). No
+    /// teacher by default.
+    fn teach(&mut self, _need: super::Need, _obs: &Observation) -> Option<PlanStep> {
+        None
+    }
 }
 
 /// No tools at all: plans and goals never come.

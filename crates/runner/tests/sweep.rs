@@ -213,7 +213,8 @@ fn sweeps_replay_whatever_the_thread_count() {
     let scen = ["first_night"];
     let one = run_sweep(&s, &scen, 2, 1);
     let three = run_sweep(&s, &scen, 2, 3);
-    assert_eq!(one, three);
+    // Debug text, because a NaN plan lag never equals itself.
+    assert_eq!(format!("{one:?}"), format!("{three:?}"));
     assert_eq!(one.len(), s.variants.len() * scen.len());
     assert_eq!(one[0].variant, s.variants[0].label);
     assert!(

@@ -12,6 +12,7 @@ pub mod config;
 pub mod digest;
 mod learn;
 pub mod log;
+pub mod needs;
 mod perceive;
 mod personality;
 pub mod think;
@@ -22,6 +23,7 @@ mod tests;
 
 pub use config::{BrainConfig, BudgetPolicy, Horizon, LensPrior};
 pub use log::TickLog;
+pub use needs::{Need, NeedParams};
 pub use personality::{Spread, draw, jitter};
 pub use think::{NoTools, ThinkTools};
 pub use triggers::FixedThinking;
@@ -145,6 +147,8 @@ pub(crate) struct Pending {
     /// Filled immediately for internal actions.
     pub internal: Option<think::ThoughtResult>,
     pub outcome: Option<Outcome>,
+    /// The hunger bar when the action started (01 §1.6 relief).
+    pub food_before: f32,
 }
 
 pub struct Brain {
@@ -174,6 +178,8 @@ pub struct Brain {
     pub(crate) plan_inv: Option<Inventory>,
     pub(crate) plan_tick: u64,
     pub(crate) routine_bonus: [f32; 7],
+    /// What relieved hunger before (01 §1.6).
+    pub(crate) relief: needs::ReliefTable,
     pub(crate) r_hist: VecDeque<f32>,
     pub(crate) damage: VecDeque<(u64, f32)>,
     pub(crate) c_long: f32,
@@ -251,6 +257,7 @@ impl Brain {
             plan_inv: None,
             plan_tick: 0,
             routine_bonus: [0.0; 7],
+            relief: needs::ReliefTable::default(),
             r_hist: VecDeque::new(),
             damage: VecDeque::new(),
             c_long: config.curiosity.base,

@@ -53,6 +53,12 @@ fn the_code_ablations_are_one_setting_each() {
         config_for(&e, arm("fixed-trigger thinking"), 0).unwrap(),
         want
     );
+    let mut want = BrainConfig::default();
+    want.needs.on = false;
+    assert_eq!(config_for(&e, arm("no felt need"), 0).unwrap(), want);
+    let mut want = BrainConfig::default();
+    want.needs.fades = false;
+    assert_eq!(config_for(&e, arm("teacher stays"), 0).unwrap(), want);
 }
 
 #[test]

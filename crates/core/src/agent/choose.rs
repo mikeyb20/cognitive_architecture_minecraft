@@ -1,6 +1,7 @@
 //! Spec §4 lines 9–15: candidates plus internal actions, lens scores, the
 //! Oracle with kick, urgency and choking, aggregation, choice and intensity.
 
+use super::needs::Felt;
 use super::perceive::Sensed;
 use super::think::ThinkTools;
 use super::{Brain, Choice, Decision, Pending, ctx};
@@ -24,7 +25,9 @@ pub(crate) struct Scored {
     pub phi: Features,
     pub m: [f32; 4],
     pub kicked: [f32; 4],
-    pub commanded: bool,
+    /// Effort-floor share in [0, 1]: 1 for a command or danger, a felt
+    /// need's push otherwise (01 §1.6), 0 for none.
+    pub push: f32,
 }
 
 impl Brain {
@@ -106,7 +109,13 @@ impl Brain {
         }
     }
 
-    fn score_all(&self, obs: &Observation, cands: &[Candidate], stakes: f32) -> Vec<Scored> {
+    fn score_all(
+        &self,
+        obs: &Observation,
+        cands: &[Candidate],
+        stakes: f32,
+        felt: &Felt,
+    ) -> Vec<Scored> {
         let tm = self.tm.top();
         let fi = FeatureInputs {
             obs,
@@ -123,27 +132,32 @@ impl Brain {
         let mut out: Vec<Scored> = Vec::with_capacity(cands.len() + 5);
         let threatened = self.config.threat_drive && self.signals.threat > 0.0;
         for (i, c) in cands.iter().enumerate() {
-            let pushed = c.commanded || (threatened && c.skill == Skill::Flee);
-            out.push(self.scored(Choice::External(i), fi.external(c), pushed));
+            let forced = c.commanded || (threatened && c.skill == Skill::Flee);
+            let push = if forced {
+                1.0
+            } else {
+                self.need_push(obs, c, felt)
+            };
+            out.push(self.scored(Choice::External(i), fi.external(c), push));
         }
         let chosen = InternalAction::ALL
             .into_iter()
             .filter(|&a| !self.config.fixed_thinking.triggered(a));
         for a in chosen {
-            let commanded = a == InternalAction::Plan && cmd_goal;
-            out.push(self.scored(Choice::Internal(a), fi.internal(a, &ext), commanded));
+            let push = f32::from(u8::from(a == InternalAction::Plan && cmd_goal));
+            out.push(self.scored(Choice::Internal(a), fi.internal(a, &ext), push));
         }
         out
     }
 
-    fn scored(&self, choice: Choice, phi: Features, commanded: bool) -> Scored {
+    fn scored(&self, choice: Choice, phi: Features, push: f32) -> Scored {
         let m = std::array::from_fn(|i| self.lenses[i].score(&phi));
         Scored {
             choice,
             phi,
             m,
             kicked: m,
-            commanded,
+            push,
         }
     }
 
@@ -157,7 +171,9 @@ impl Brain {
     ) -> Decision {
         let pin = self.perm_inputs(obs);
         let x = self.context(s, pin.stakes);
-        let mut all = self.score_all(obs, cands, pin.stakes);
+        let felt = self.feel(obs, tools);
+        self.log.hunger = felt.hunger;
+        let mut all = self.score_all(obs, cands, pin.stakes, &felt);
         // 11 Oracle: kick first (00 §3.5.4), then weights.
         let p_kick = self.dev.kick_rate(self.config.kick.p_base);
         let mut kicks = 0;
@@ -194,16 +210,17 @@ impl Brain {
         // 12–13 score and choose.
         let scores: Vec<f32> = all.iter().map(|sc| score(&w, &sc.kicked)).collect();
         let g = self.g();
-        let e_cmd = external_drive_effort(g, self.config.eps_ext, self.d());
+        // A command, danger or felt need sets an effort floor (#41; 01 §1.6).
+        let (eps, d) = (self.config.eps_ext, self.d());
+        let effort_of = |sc: &Scored| external_drive_effort(g, eps * sc.push, d);
         let u: f32 = self.rng.random();
-        let self_starts = (3.0 * g + u).floor() as u32;
-        let cmd_starts = (3.0 * e_cmd + u).floor() as u32;
-        let allowed: Vec<usize> = if self_starts >= 1 {
+        let starts = |e: f32| (3.0 * e + u).floor() >= 1.0;
+        let allowed: Vec<usize> = if starts(g) {
             (0..all.len()).collect()
-        } else if cmd_starts >= 1 {
-            (0..all.len()).filter(|&i| all[i].commanded).collect()
         } else {
-            Vec::new()
+            (0..all.len())
+                .filter(|&i| all[i].push > 0.0 && starts(effort_of(&all[i])))
+                .collect()
         };
         let tau = self.lenses[dominant].temperature() * self.config.tau_scale;
         let pick = self.sample(&allowed, &scores, tau);
@@ -227,12 +244,12 @@ impl Brain {
         };
         // 14 intensity.
         let sc = &all[k];
-        let effort = if sc.commanded { e_cmd } else { g };
+        let effort = effort_of(sc);
         let p_leads = leads(&w, Mode::Performing);
         let it = Intensity {
             effort,
             focus: self.perm.focus(p_leads),
-            external_drive: sc.commanded && e_cmd > g,
+            external_drive: effort > g,
         };
         let picked = Picked {
             w,
@@ -325,10 +342,12 @@ impl Brain {
             tags,
             internal: None,
             outcome: None,
+            food_before: obs.food,
         };
         self.log.effort = it.effort;
         self.log.focus = it.focus;
         self.log.external_drive = it.external_drive;
+        self.log.need_push = sc.push;
         let decision = match sc.choice {
             Choice::External(i) => Decision::Act(i, it),
             Choice::Internal(a) => {

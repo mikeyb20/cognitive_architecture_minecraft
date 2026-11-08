@@ -4,7 +4,7 @@
 //! says no, the call fails, or the replies stay unusable after two replans.
 //! Every fallback is counted. Progress is always the code count.
 
-use cognitive_core::agent::ThinkTools;
+use cognitive_core::agent::{Need, ThinkTools};
 use cognitive_core::direction::PlanStep;
 use host_api::craft::RECIPES;
 use host_api::planner::in_tech_tree;
@@ -176,6 +176,12 @@ impl<P: Provider> ThinkTools for LlmTools<P> {
 
     fn progress(&mut self, goal: &str, obs: &Observation) -> f32 {
         self.code.progress(goal, obs)
+    }
+
+    /// The teacher stays code: the LLM is a tool for chosen thinking (#40),
+    /// and hints are asked for every hungry tick (01 §1.6).
+    fn teach(&mut self, need: Need, obs: &Observation) -> Option<PlanStep> {
+        self.code.teach(need, obs)
     }
 
     fn propose_goal(&mut self, obs: &Observation) -> Option<String> {

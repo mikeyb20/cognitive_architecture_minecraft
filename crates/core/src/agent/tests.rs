@@ -30,6 +30,7 @@ fn pending(choice: Choice) -> Pending {
         tags: 0,
         internal: None,
         outcome: None,
+        food_before: 0.0,
     }
 }
 
@@ -227,7 +228,7 @@ fn scored(risk: f32, m_o: f32) -> Scored {
         phi,
         m: [0.0, 0.0, 0.0, m_o],
         kicked: [0.0; 4],
-        commanded: false,
+        push: 0.0,
     }
 }
 

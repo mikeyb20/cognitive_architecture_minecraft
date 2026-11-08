@@ -8,8 +8,8 @@ pub struct Rules {
     pub map_size: i32,
     /// Ticks per day (spec §21: 2,400). Night is phase 0.5–1.0.
     pub day_ticks: u64,
-    /// Food lost per tick. Spec §21 proposed 1/600; the sim uses 1/2400 (one
-    /// full bar per day) because 1/600 needs ~13 meals a day. Flagged in PR #3.
+    /// Food lost per tick: 1/2400, one full bar per day (spec §21, decision
+    /// #50; 1/600 was proposed first and needs ~13 meals a day).
     pub food_decay: f32,
     /// Health lost per tick while food is 0.
     pub starve_damage: f32,

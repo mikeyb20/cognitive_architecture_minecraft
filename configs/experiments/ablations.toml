@@ -94,3 +94,15 @@ label = "fixed-trigger thinking"
 arm = "c"
 config = { fixed_thinking = { on = true } }
 expected = "Thinking stops tracking C and context (00 §2.2, §3.4). The think column is higher where little changes (open_day), since calls run on the timer whether or not anything is new. Plan lag falls to about 0, because a new goal triggers a plan at once; the late plans plan §5.2 expects show instead as stale steps between timer ticks, so fewer tech goals on commanded."
+
+[[arms]]
+label = "no felt need"
+arm = "c"
+config = { needs = { on = false } }
+expected = "01 §1.6 (#47): without felt hunger a low-C agent has no push toward food, so it eats less, starves sooner and is less active once C falls (lower survival and active share, most visible on open_day and long_horizon)."
+
+[[arms]]
+label = "teacher stays"
+arm = "c"
+config = { needs = { fades = false } }
+expected = "01 §1.6: the teacher's hints keep full strength as ρ rises. Survival is at least as good as the default, but the agent relies on the hint, not on what it learned relieved hunger; the gap grows with ρ, so it shows on long_horizon."

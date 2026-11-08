@@ -35,6 +35,7 @@ impl Brain {
                     blocked: true,
                     ..Outcome::default()
                 });
+                self.learn_relief(&p, &out, obs);
                 self.write_external(&p, &out, obs)
             }
             Choice::Internal(a) => {
