@@ -215,11 +215,12 @@ impl Brain {
         let effort_of = |sc: &Scored| external_drive_effort(g, eps * sc.push, d);
         let u: f32 = self.rng.random();
         let starts = |e: f32| (3.0 * e + u).floor() >= 1.0;
+        // With no push the floor is g itself, so only pushed steps pass here.
         let allowed: Vec<usize> = if starts(g) {
             (0..all.len()).collect()
         } else {
             (0..all.len())
-                .filter(|&i| all[i].push > 0.0 && starts(effort_of(&all[i])))
+                .filter(|&i| starts(effort_of(&all[i])))
                 .collect()
         };
         let tau = self.lenses[dominant].temperature() * self.config.tau_scale;
