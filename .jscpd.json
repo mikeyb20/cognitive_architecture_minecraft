@@ -1,0 +1,10 @@
+{
+  "threshold": 3,
+  "minTokens": 70,
+  "format": ["rust", "typescript"],
+  "path": ["crates", "bot/src", "bindings"],
+  "ignore": ["**/target/**", "**/node_modules/**", "**/dist/**"],
+  "reporters": ["console"],
+  "absolute": false,
+  "gitignore": true
+}

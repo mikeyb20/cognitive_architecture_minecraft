@@ -18,3 +18,9 @@ proptest.workspace = true
 
 [lints]
 workspace = true
+
+# host-api is the brain's only allowed workspace dependency, but nothing uses
+# it until build step 4 wires the brain to World/Host. Remove this ignore in
+# that step, so cargo-machete checks it again.
+[package.metadata.cargo-machete]
+ignored = ["host-api"]

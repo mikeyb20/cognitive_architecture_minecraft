@@ -526,6 +526,10 @@ impl SimWorld {
         self.reachable_near(reach, p)
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "debt D2: one arm per skill; split into per-skill handlers before step 6"
+    )]
     fn exec_inner(&mut self, a: &Candidate, it: Intensity) -> (bool, f32, bool) {
         let target_pos = match &a.target {
             Some(Target::Pos(p)) => Some(*p),
@@ -802,6 +806,10 @@ impl Host for SimWorld {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "debt D2: one block per skill; split into per-skill handlers before step 6"
+    )]
     fn candidate_actions(&mut self, _obs: &Observation) -> Vec<Candidate> {
         let mut out: Vec<Candidate> = Vec::new();
         let mut add =
