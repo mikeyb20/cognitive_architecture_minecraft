@@ -42,6 +42,12 @@ fn close(a: f64, b: f64) -> bool {
     (a - b).abs() < 1e-6
 }
 
+/// Same length and every value within 1e-6.
+fn all_close(got: &[f64], want: &[f64]) {
+    assert_eq!(got.len(), want.len(), "{got:?}");
+    assert!(got.iter().zip(want).all(|(g, w)| close(*g, *w)), "{got:?}");
+}
+
 #[test]
 fn every_claim_is_registered_once_with_known_scenarios() {
     let want = [
@@ -199,8 +205,7 @@ fn behaviour_profile_by_hand() {
     feed("Eat:bread", 0.8);
     let got = p.finish(&result(&[]));
     let sixth = 1.0 / 6.0;
-    let want = [sixth, sixth, sixth, sixth, sixth, 0.5];
-    assert!(got.iter().zip(want).all(|(g, w)| close(*g, w)), "{got:?}");
+    all_close(&got, &[sixth, sixth, sixth, sixth, sixth, 0.5]);
     let none = Behaviour::default().finish(&result(&[]));
     assert_eq!(none[..5], [0.0; 5]);
 }
@@ -242,8 +247,7 @@ fn insight_perform_windows_and_urgency_by_hand() {
         w.push(&r);
     }
     let got = w.finish(&result(&[]));
-    let want = [0.3, 0.6, 0.4, 0.2];
-    assert!(got.iter().zip(want).all(|(g, w)| close(*g, w)), "{got:?}");
+    all_close(&got, &[0.3, 0.6, 0.4, 0.2]);
     assert!(
         Windows::default()
             .finish(&result(&[]))
@@ -252,15 +256,18 @@ fn insight_perform_windows_and_urgency_by_hand() {
     );
 
     let mut u = Urgency::default();
-    for (label, c, uu, we) in [("Explore:1,1", 0.2, 0.1, 0.4), ("idle", 0.4, 0.3, 0.2)] {
+    for (label, c, uu, we) in [
+        ("Explore:1,1", 0.2, 0.1, 0.4),
+        ("idle", 0.4, 0.3, 0.2),
+        ("Plan", 0.3, 0.2, 0.3),
+    ] {
         let mut r = row(label);
         (r.c, r.u) = (c, uu);
         r.w[Mode::Exploring.index()] = we;
         u.push(&r);
     }
     let got = u.finish(&result(&[]));
-    let want = [0.3, 0.2, 0.3, 0.5];
-    assert!(got.iter().zip(want).all(|(g, w)| close(*g, w)), "{got:?}");
+    all_close(&got, &[0.3, 0.2, 0.3, 1.0 / 3.0]);
 }
 
 fn cell(variant: &str, scenario: &str, runs: Vec<Vec<f64>>) -> Cell {
@@ -306,27 +313,38 @@ fn nearest_centroid_by_hand() {
     ];
     assert_eq!(loo_accuracy(&mixed), 0.5);
     assert!(loo_accuracy(&pts[..1]).is_nan());
+    assert_eq!(loo_accuracy(&pts[1..3]), 0.0, "two points is enough");
+    // Centroids are means: with two others in class 0 the mean (not the
+    // sum) is what sits near 0.2 and 0.4. The lone class-1 point has no
+    // class-1 centroid without itself, so it is misread.
+    let means = vec![
+        (0, vec![0.2]),
+        (0, vec![0.4]),
+        (0, vec![0.4]),
+        (1, vec![0.9]),
+    ];
+    assert_eq!(loo_accuracy(&means), 0.75);
 }
 
 #[test]
 fn cross_cell_lines_by_hand() {
-    let base = vec![vec![1.0, 0.5, 0.5, 0.5, 0.5]];
+    let base = vec![vec![1.0, 0.5, 0.5, 0.5, 0.25]];
     let rows = vec![
         cell("all frozen", "open_day", base),
         cell(
             "only Learning learns",
             "open_day",
-            vec![vec![1.0, 0.9, 0.55, 0.5, 0.45]],
+            vec![vec![1.0, 0.9, 0.55, 0.5, 0.2]],
         ),
         cell(
             "only Exploring learns",
             "open_day",
-            vec![vec![1.0, 0.5, 0.0, 0.5, 0.5]],
+            vec![vec![1.0, 0.5, 0.0, 0.5, 0.25]],
         ),
     ];
     let line = independence(&rows);
     assert!(
-        line.contains("open_day: Learning 10.0%, Exploring 0.0%"),
+        line.contains("open_day: Learning 20.0%, Exploring 0.0%"),
         "{line}"
     );
     let zero = vec![
@@ -394,7 +412,7 @@ fn claims_replay_and_tabulate() {
 fn theory_command_writes_tables() {
     let dir = std::env::temp_dir().join(format!("theory-cli-{}", std::process::id()));
     let out = Command::new(env!("CARGO_BIN_EXE_runner"))
-        .args(["theory", "harsh", "--seeds", "1"])
+        .args(["theory", "harsh", "--seeds", "2"])
         .args(["--out", dir.to_str().unwrap()])
         .output()
         .unwrap();
@@ -403,7 +421,7 @@ fn theory_command_writes_tables() {
     assert!(
         std::fs::read_to_string(dir.join("HARSH.md"))
             .unwrap()
-            .contains("1 seeds")
+            .contains("2 seeds")
     );
     let c = std::fs::read_to_string(dir.join("HARSH.csv")).unwrap();
     assert_eq!(c.lines().count(), 3);
