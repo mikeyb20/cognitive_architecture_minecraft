@@ -379,3 +379,15 @@ pub fn csv(s: &Sweep, rows: &[Row]) -> String {
 pub fn all_scenarios() -> Vec<&'static str> {
     NAMES.to_vec()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A unit test so it fails before the CLI tests run every sweep.
+    #[test]
+    fn select_names_all_or_one() {
+        assert_eq!(select("all"), ids());
+        assert_eq!(select("OQ8"), vec!["OQ8"]);
+    }
+}

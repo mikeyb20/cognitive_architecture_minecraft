@@ -5,7 +5,7 @@ use cognitive_core::agent::{BrainConfig, TickLog};
 use runner::brain::BrainResult;
 use runner::sweep::{
     FREEZE_CONFLICT, Meter, Row, RunMetrics, Summary, all_scenarios, csv, ids, markdown, run_one,
-    run_sweep, select, summarise, sweep,
+    run_sweep, summarise, sweep,
 };
 use std::process::Command;
 
@@ -229,6 +229,4 @@ fn one_run_is_measured_and_every_scenario_is_listed() {
     let r = run_one(&BrainConfig::default(), "first_night", 0);
     assert!(r.survived && r.decisions > 0 && r.ticks == 2400, "{r:?}");
     assert_eq!(all_scenarios(), sim::scenario::NAMES.to_vec());
-    assert_eq!(select("all"), ids());
-    assert_eq!(select("OQ8"), vec!["OQ8"]);
 }
