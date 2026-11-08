@@ -1,0 +1,8 @@
+# Limits for the maintainability lints enabled in Cargo.toml.
+# Over a limit: split the function. Where a split would hurt, add
+# #[expect(clippy::<lint>, reason = "...")] and log it as debt in
+# docs/ARCHITECTURE.md. `expect` fails once the function is fixed, so stale
+# exceptions cannot linger.
+too-many-lines-threshold = 100
+cognitive-complexity-threshold = 25
+too-many-arguments-threshold = 7

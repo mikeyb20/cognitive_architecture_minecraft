@@ -1,0 +1,49 @@
+name: architecture
+
+# Maintainability gates: layer rules, brain purity, file size budget,
+# copy-paste detection and unused dependencies. Rules and reasons are in
+# docs/ARCHITECTURE.md. Kept apart from ci.yml so the two can change
+# independently.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: architecture-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shape:
+    name: architecture (layers, purity, size)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: scripts/check-architecture.sh
+
+  duplication:
+    name: duplication (jscpd, <= 3%)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Pinned version. Fails if more than 3% of the code is copy-pasted
+      # blocks of 70+ tokens. Config: .jscpd.json.
+      - run: npx --yes jscpd@5.4.1 --config .jscpd.json
+
+  unused-deps:
+    name: unused dependencies (cargo-machete)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-machete
+      - run: cargo machete
