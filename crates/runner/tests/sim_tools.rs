@@ -178,13 +178,3 @@ fn speed_sums_ticks_over_seeds() {
     assert_eq!(speed_ticks(0), 0);
     assert_eq!(rate(5000, 2.0), 2500.0);
 }
-
-#[test]
-fn a_dead_agent_takes_no_decisions() {
-    let mut s = runner::brain::setup("first_night", 0);
-    s.max_ticks = 50;
-    s.world.body.death = Some(sim::Death::Starved);
-    let mut brain = Brain::new(BrainConfig::default(), 0);
-    let r = runner::brain::run_with(s, &mut brain, 0, &mut |_| {});
-    assert_eq!((r.decisions, r.ticks, r.survived), (0, 0, false), "{r:?}");
-}

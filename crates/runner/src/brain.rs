@@ -211,3 +211,20 @@ pub fn header(scenario: &str, seed: u64) -> String {
     })
     .to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A unit test so it runs before the long integration tests (mutation
+    // testing stops at the first failing test binary).
+    #[test]
+    fn a_dead_agent_takes_no_decisions() {
+        let mut s = setup("first_night", 0);
+        s.max_ticks = 50;
+        s.world.body.death = Some(Death::Starved);
+        let mut brain = Brain::new(BrainConfig::default(), 0);
+        let r = run_with(s, &mut brain, 0, &mut |_| {});
+        assert_eq!((r.decisions, r.ticks, r.survived), (0, 0, false), "{r:?}");
+    }
+}
