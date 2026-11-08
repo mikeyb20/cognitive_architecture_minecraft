@@ -11,6 +11,8 @@
 //!   `--out`, writes `<OQ>.md` and `<OQ>.csv` there.
 //! - `runner theory <ID|all> [--seeds N] [--out DIR]`: a theory test (spec
 //!   §29, step 5d), printed and written the same way.
+//! - `runner run --experiment FILE [--seeds N] [--out DIR]`: arms ×
+//!   scenarios × seeds from `configs/experiments` (spec §26, plan §5).
 //! - `runner mc <a|b|bn> [--tier local|cheap|strong] [--addr HOST:PORT]
 //!   [--decisions N] [--log FILE] [--cache FILE [--replay]]`: run an arm in
 //!   Minecraft through the bot (`npm start` in bot/ first). Reads
@@ -42,6 +44,7 @@ fn main() {
         Some("sweep") => sweep(&args),
         Some("theory") => theory(&args),
         Some("mc") => mc(&args),
+        Some("run") => experiment(&args),
         _ => {}
     }
 }
@@ -169,6 +172,31 @@ fn theory(args: &[String]) {
         let rows = run_claim(&c, n, threads());
         publish(args, c.id, &markdown(&c, &rows, n), &csv(&c, &rows));
     }
+}
+
+fn experiment(args: &[String]) {
+    use runner::experiment::{header, markdown, parse, run};
+    let fail = |msg: String| -> ! {
+        eprintln!("{msg}");
+        std::process::exit(2);
+    };
+    let path = flag(args, "--experiment").unwrap_or_else(|| {
+        fail("usage: runner run --experiment FILE [--seeds N] [--out DIR]".into())
+    });
+    let text = std::fs::read_to_string(path).unwrap_or_else(|e| fail(format!("{path}: {e}")));
+    let mut e = parse(&text).unwrap_or_else(|err| fail(format!("{path}: {err}")));
+    if let Some(n) = flag(args, "--seeds").and_then(|s| s.parse().ok()) {
+        e.seeds = n;
+    }
+    // The header, with every arm's expected direction, is written first.
+    if let Some(dir) = flag(args, "--out") {
+        std::fs::create_dir_all(dir).expect("cannot create the output folder");
+        let p = std::path::Path::new(dir).join(format!("{}.header.json", e.id));
+        std::fs::write(p, header(&e).to_string()).expect("write failed");
+    }
+    let rows = run(&e, threads());
+    let csv = runner::sweep::csv_rows("experiment", &e.id, &rows);
+    publish(args, &e.id, &markdown(&e, &rows), &csv);
 }
 
 fn mc(args: &[String]) {

@@ -424,6 +424,7 @@ dependencies = [
  "host-api",
  "llm",
  "minecraft",
+ "serde",
  "serde_json",
  "sim",
  "toml",

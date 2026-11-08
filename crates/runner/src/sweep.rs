@@ -328,7 +328,13 @@ const HEADER: [&str; 13] = [
 
 fn cells(r: &Row) -> [String; 13] {
     let s = &r.summary;
-    let f2 = |x: f32| format!("{x:.2}");
+    let f2 = |x: f32| {
+        if x.is_nan() {
+            "–".to_string()
+        } else {
+            format!("{x:.2}")
+        }
+    };
     [
         r.variant.clone(),
         r.scenario.clone(),
@@ -346,11 +352,10 @@ fn cells(r: &Row) -> [String; 13] {
     ]
 }
 
-/// The sweep as a Markdown table with a short heading.
-pub fn markdown(s: &Sweep, rows: &[Row], seeds: u64) -> String {
+/// The legend and the results table, one row per variant and scenario.
+pub fn table(rows: &[Row], seeds: u64) -> String {
     let mut t = format!(
-        "## {}: {}\n\n{} seeds per cell. survival = share alive at the end; active = share of decisions that started something; self = started without a command or danger push; C, D, V = means over decisions; freeze = share of actions with conflict > {FREEZE_CONFLICT}; stuck = stuck kicks per run; new = novelty units found; tech = tech-tree goals held (0–4).\n\n",
-        s.id, s.question, seeds
+        "{seeds} seeds per cell. survival = share alive at the end; active = share of decisions that started something; self = started without a command or danger push; C, D, V = means over decisions; freeze = share of actions with conflict > {FREEZE_CONFLICT}; stuck = stuck kicks per run; new = novelty units found; tech = tech-tree goals held (0–4). A dash means the arm has no such variable.\n\n"
     );
     t += &format!("| {} |\n", HEADER.join(" | "));
     t += &format!("|{}\n", "---|".repeat(HEADER.len()));
@@ -360,9 +365,14 @@ pub fn markdown(s: &Sweep, rows: &[Row], seeds: u64) -> String {
     t
 }
 
-/// The sweep as CSV, one line per row.
-pub fn csv(s: &Sweep, rows: &[Row]) -> String {
-    let mut t = format!("oq,{}\n", HEADER.join(","));
+/// The sweep as a Markdown table with a short heading.
+pub fn markdown(s: &Sweep, rows: &[Row], seeds: u64) -> String {
+    format!("## {}: {}\n\n{}", s.id, s.question, table(rows, seeds))
+}
+
+/// Rows as CSV, each line starting with `id` under the column `key`.
+pub fn csv_rows(key: &str, id: &str, rows: &[Row]) -> String {
+    let mut t = format!("{key},{}\n", HEADER.join(","));
     for r in rows {
         let c = cells(r).map(|x| {
             if x.contains(',') {
@@ -371,9 +381,14 @@ pub fn csv(s: &Sweep, rows: &[Row]) -> String {
                 x
             }
         });
-        t += &format!("{},{}\n", s.id, c.join(","));
+        t += &format!("{id},{}\n", c.join(","));
     }
     t
+}
+
+/// The sweep as CSV, one line per row.
+pub fn csv(s: &Sweep, rows: &[Row]) -> String {
+    csv_rows("oq", s.id, rows)
 }
 
 /// Every scenario the sim knows (spec §21).

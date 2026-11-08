@@ -1,0 +1,16 @@
+# Plan §5.1 baselines in the sim (spec §24, §26). Arms B and B+N need an
+# LLM tier and join when the runner can attach one to sim runs.
+id = "BASELINES"
+question = "What does the architecture add over a behaviour tree? (plan §5.1)"
+scenarios = ["first_night", "open_day", "commanded", "harsh", "long_horizon"]
+seeds = 50
+
+[[arms]]
+label = "A (behaviour tree)"
+arm = "a"
+expected = "Survives the first night (step 3 gate) and keeps busy, but finds fewer new things than C on open_day, because it never explores for its own sake."
+
+[[arms]]
+label = "C (brain)"
+arm = "c"
+expected = "More new things than A on open_day and long_horizon; self-started actions on open_day where A has no reason to act; lower survival than A until the hunger fix (known: starves on day 1)."
