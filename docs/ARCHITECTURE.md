@@ -27,6 +27,8 @@ Dependencies point one way. A crate may use only the crates below it.
 
 `scripts/check-architecture.sh` fails CI on any edge not in this table. Adding a crate means adding a row here and in the script, so its place is a decision, not an accident.
 
+The TypeScript bot does not copy these types by hand: `bot/src/generated/` is written from `host-api` by ts-rs (`cargo test -p host-api --features ts`), and CI fails if the committed copy is stale. To change the contract, change the Rust type and regenerate.
+
 **Why it matters:** the day `cognitive-core` imports `sim`, the brain can no longer move to Minecraft without a rewrite. The same check keeps the TypeScript bot replaceable (spec §31.8).
 
 ## 2. Purity
@@ -55,7 +57,7 @@ Rule: if a change needs a new branch in a function that already branches on the 
 
 ## 4. Single source of truth
 
-- **Names** (skills, items, blocks, task types) live once, in `host-api::ontology`. The TypeScript bot must not hand-copy them: generate its types from Rust (debt D3).
+- **Names** (skills, items, blocks, task types) live once, in `host-api::ontology`. The TypeScript bot must not hand-copy them: its types are generated from Rust into `bot/src/generated/`.
 - **Spec numbers** live once, as a default in a params struct, pinned by a test in `tests/spec_defaults.rs`. No literal spec value appears twice.
 - **Formulas** live once, in the module that mirrors their 01 section. Other code calls them; it never re-derives them.
 - **Duplication** is checked by jscpd (more than 3% of code in copied blocks of 70+ tokens fails CI). Below that, use the rule of three: the second copy is allowed, the third gets extracted. Extract to the lowest crate both callers already depend on; never add a dependency just to share a helper.
@@ -115,6 +117,5 @@ Known shortcuts, each with the point by which it must be paid.
 
 | ID | Debt | Pay before | Plan |
 |---|---|---|---|
-| D3 | The ontology will be needed in TypeScript; hand-copied names will drift. | Step 6 | Generate TS types from the Rust ontology (napi-rs typings or `ts-rs`), checked in CI. |
 | D4 | Public items lack doc comments (about 300). | Rolling | Enable `missing_docs` on `host-api` first (the contract), then crate by crate. |
 | D5 | The sim offers no `Flee` candidate when the only hostile is diagonal or the way away is blocked (`point_toward`, used by `sim::skills::threats`), so a threatened agent sometimes cannot flee. A behaviour change, so it gets its own PR after the D2 refactor. | Step 6 | In `sim::skills::threats`, pick the best open neighbour away from all hostiles. |

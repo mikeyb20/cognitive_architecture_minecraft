@@ -1,0 +1,8 @@
+[env]
+# Where `cargo test -p host-api --features ts` writes the TypeScript contract
+# (debt D3). CI regenerates it and fails if the checked-in copy differs.
+TS_RS_EXPORT_DIR = { value = "bot/src/generated", relative = true }
+# The bot is an ES module (NodeNext), so imports need the .js extension.
+TS_RS_IMPORT_EXTENSION = "js"
+# serde sends u64 (ticks) as plain JSON numbers.
+TS_RS_LARGE_INT = "number"

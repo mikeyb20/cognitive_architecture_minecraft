@@ -26,6 +26,15 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: cargo run -q -p runner
+      # The TypeScript contract is generated from host-api (debt D3); fail if
+      # the checked-in copy in bot/src/generated is stale.
+      - run: cargo test -q -p host-api --features ts
+      - run: |
+          if [ -n "$(git status --porcelain -- bot/src/generated)" ]; then
+            git status --porcelain -- bot/src/generated
+            echo "::error::bot/src/generated is stale; run 'cargo test -p host-api --features ts' and commit it"
+            exit 1
+          fi
       # Build step 4 gate: the brain runs at >= 5,000 world ticks/s (spec §21).
       - run: cargo run --release -q -p runner -- speed 20
 

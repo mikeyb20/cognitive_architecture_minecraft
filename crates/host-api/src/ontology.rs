@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 /// External skills a host can execute (spec §2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub enum Skill {
     Explore,
     MoveTo,
@@ -27,6 +28,7 @@ pub enum Skill {
 /// behaves differently.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub enum TaskType {
     Mining,
     Building,
