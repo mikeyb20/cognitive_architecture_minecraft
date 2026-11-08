@@ -2,7 +2,7 @@
 
 use std::collections::VecDeque;
 
-use cognitive_core::agent::ThinkTools;
+use cognitive_core::agent::{Need, ThinkTools};
 use cognitive_core::direction::PlanStep;
 use host_api::{AgentId, Inventory, Observation, Pos, Seen, SeenKind, Skill, TaskType, ThingId};
 use llm::{LlmError, LlmParams, Prompt, Provider, Reply};
@@ -230,6 +230,19 @@ fn progress_is_the_code_count() {
     assert_eq!(
         t.progress("iron_pickaxe", &o),
         SimTools.progress("iron_pickaxe", &o)
+    );
+    assert_eq!(t.stats.calls, 0);
+}
+
+#[test]
+fn the_teacher_stays_code() {
+    let mut t = LlmTools::new(ThinkConfig::default(), script(&[]));
+    let o = Observation { food: 0.3, ..obs() };
+    let hint = t.teach(Need::Hunger, &o);
+    assert_eq!(hint, SimTools.teach(Need::Hunger, &o));
+    assert_eq!(
+        hint.map(|s| (s.skill, s.thing)),
+        Some((Skill::Attack, "entity:pig".into()))
     );
     assert_eq!(t.stats.calls, 0);
 }

@@ -27,8 +27,9 @@ impl ThinkTools for Teacher {
     fn propose_goal(&mut self, _: &Observation) -> Option<String> {
         None
     }
-    fn teach(&mut self, need: Need, _: &Observation) -> Option<PlanStep> {
+    fn teach(&mut self, need: Need, obs: &Observation) -> Option<PlanStep> {
         assert_eq!(need, Need::Hunger);
+        assert!(obs.food < 0.75, "the teacher is asked only while hungry");
         self.0.map(|(skill, thing)| PlanStep {
             skill,
             thing: thing.into(),
@@ -215,13 +216,14 @@ fn what_relieved_hunger_keeps_its_push_without_the_teacher() {
 
 #[test]
 fn a_hunt_learns_relief_only_through_a_food_known_to_relieve() {
-    let pork = || Outcome {
+    let pork_n = |n| Outcome {
         success: true,
         items_gained: Inventory {
-            items: vec![("porkchop".into(), 1)],
+            items: vec![("porkchop".into(), n)],
         },
         ..Outcome::default()
     };
+    let pork = || pork_n(1);
     let hunt = || Teacher(Some((Skill::Attack, "entity:pig")));
     let mut b = Brain::new(drifting(NeedParams::default()), 5);
     let mut alone = Teacher(None);
@@ -238,6 +240,11 @@ fn a_hunt_learns_relief_only_through_a_food_known_to_relieve() {
     let mut tick = 0;
     act_once(&mut c, &mut eat_pork, &mut tick, 3, Outcome::default());
     let _ = c.step(&obs(tick, 0.25), &cands(), &mut alone);
+    // ...a hunt that yields none of it still teaches nothing...
+    act_once(&mut c, &mut hunt(), &mut tick, 1, pork_n(0));
+    let picks = run(&mut c, &mut alone, tick, 100, 0.0);
+    assert!(!picks.is_empty() && !picks.contains(&1), "{picks:?}");
+    tick += 100;
     // ...and then a hunt that yields it learns relief too.
     act_once(&mut c, &mut hunt(), &mut tick, 1, pork());
     let _ = c.step(&obs(tick, 0.0), &cands(), &mut alone);
