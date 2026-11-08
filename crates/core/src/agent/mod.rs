@@ -15,6 +15,7 @@ pub mod log;
 mod perceive;
 mod personality;
 pub mod think;
+mod triggers;
 
 #[cfg(test)]
 mod tests;
@@ -23,6 +24,7 @@ pub use config::{BrainConfig, BudgetPolicy, Horizon, LensPrior};
 pub use log::TickLog;
 pub use personality::{Spread, draw, jitter};
 pub use think::{NoTools, ThinkTools};
+pub use triggers::FixedThinking;
 
 use crate::activation::signals::{LearningProgress, NoveltyWindow};
 use crate::activation::{Activation, Affect, Curiosity, Signals, build_activation};
@@ -189,6 +191,8 @@ pub struct Brain {
     pub(crate) signals: Signals,
     pub(crate) c_target: f32,
     pub(crate) action_tags: Vec<u32>,
+    /// Fixed-trigger thinking's timer and goal count (plan §5.2 ablation).
+    pub(crate) triggers: triggers::TriggerState,
     pub(crate) log: TickLog,
 }
 
@@ -262,6 +266,7 @@ impl Brain {
             signals: Signals::default(),
             c_target: config.curiosity.base,
             action_tags: Vec::new(),
+            triggers: triggers::TriggerState::default(),
             log: TickLog::default(),
             rng,
             config,
@@ -312,6 +317,9 @@ impl Brain {
 
     /// Set a goal directly (scenarios and tests; players use chat).
     pub fn set_goal(&mut self, goal: Option<Goal>) {
+        if goal.is_some() {
+            self.triggers.goal_set();
+        }
         self.goal = goal;
         self.step = None;
         self.plan_inv = None;
@@ -342,7 +350,9 @@ impl Brain {
         self.log.reflex = reflex;
         self.learn(obs, tools);
         let s = self.sense(obs);
+        let triggered = self.run_triggers(obs, tools);
         let d = self.choose(obs, cands, &s, tools);
+        self.log.triggered = triggered;
         self.fill_state(obs, &s, cands);
         d
     }

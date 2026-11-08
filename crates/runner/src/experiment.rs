@@ -155,7 +155,7 @@ impl Driver for PolicyDriver {
 }
 
 /// Metrics for an arm without a brain: C, D, V, freeze and the brain's
-/// memory do not exist.
+/// memory and thinking do not exist (arm B's LLM calls are counted apart).
 pub fn baseline_metrics(r: &BrainResult) -> RunMetrics {
     let acted = r.decisions.saturating_sub(r.idle) as f32 / r.decisions.max(1) as f32;
     RunMetrics {
@@ -174,6 +174,8 @@ pub fn baseline_metrics(r: &BrainResult) -> RunMetrics {
         tech: tech_held(&r.inventory),
         memory: f32::NAN,
         recall: f32::NAN,
+        thinking: f32::NAN,
+        plan_lag: f32::NAN,
     }
 }
 

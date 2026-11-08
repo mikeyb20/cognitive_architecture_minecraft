@@ -78,6 +78,8 @@ pub struct TickLog {
     pub sigma_tiers: Option<[f32; 4]>,
     pub richness: f32,
     pub llm_calls: u32,
+    /// Thoughts run on fixed triggers this tick (plan §5.2 ablation).
+    pub triggered: u32,
     // goal
     pub goal: Option<String>,
     pub goal_commanded: bool,

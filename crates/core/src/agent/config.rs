@@ -2,6 +2,7 @@
 //! proposed values from spec §5–§17. `Default` is spec §19's "default" column.
 //! Archetypes are TOML files that override fields (build step 7).
 
+use super::FixedThinking;
 use crate::activation::{AffectParams, CuriosityParams, GShape, PowerActivation, SignalWeights};
 use crate::control::kick::KickParams;
 use crate::control::oracle::{Exp3, Oracle};
@@ -87,6 +88,9 @@ pub struct BrainConfig {
     /// own goal while the item is not held, so its goals support the
     /// player's (spec §19 helper; proposed).
     pub goals_from_commands: bool,
+    /// Plan, reflect and imagine run on set events instead of being chosen
+    /// (fixed-trigger ablation, plan §5.2; off by default, #40).
+    pub fixed_thinking: FixedThinking,
     pub aging_rate: f32,
     /// age = a_t·ticks + a_e·experiences (spec §15; proposed 1 and 0).
     pub age_per_tick: f32,
@@ -140,6 +144,7 @@ impl Default for BrainConfig {
             eps_ext: 0.20,
             threat_drive: true,
             goals_from_commands: false,
+            fixed_thinking: FixedThinking::default(),
             aging_rate: 1e-6,
             age_per_tick: 1.0,
             age_per_experience: 0.0,

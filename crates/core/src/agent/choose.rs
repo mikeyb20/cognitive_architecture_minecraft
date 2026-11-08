@@ -126,7 +126,10 @@ impl Brain {
             let pushed = c.commanded || (threatened && c.skill == Skill::Flee);
             out.push(self.scored(Choice::External(i), fi.external(c), pushed));
         }
-        for a in InternalAction::ALL {
+        let chosen = InternalAction::ALL
+            .into_iter()
+            .filter(|&a| !self.config.fixed_thinking.triggered(a));
+        for a in chosen {
             let commanded = a == InternalAction::Plan && cmd_goal;
             out.push(self.scored(Choice::Internal(a), fi.internal(a, &ext), commanded));
         }

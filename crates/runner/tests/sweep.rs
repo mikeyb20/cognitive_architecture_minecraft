@@ -93,6 +93,11 @@ fn meter_counts_by_hand() {
         (12.0, 0.2),
         "memory at the last row; one recall in five"
     );
+    assert!(
+        (r.thinking - 1000.0 / 2400.0).abs() < 1e-6,
+        "one Plan in 2,400 ticks"
+    );
+    assert!(r.plan_lag.is_nan(), "no goal, no lag");
     assert_eq!(
         r.tech, 2,
         "two held pickaxes; a zero-count furnace is not held"
@@ -102,6 +107,36 @@ fn meter_counts_by_hand() {
     assert_eq!(
         (empty.decisions, empty.active, empty.mean_c, empty.recall),
         (0, 0.0, 0.0, 0.0)
+    );
+}
+
+#[test]
+fn meter_times_plans_and_counts_thoughts() {
+    let at = |tick: u64, chosen: &str, goal: Option<&str>, planned: bool| TickLog {
+        tick,
+        chosen: chosen.into(),
+        goal: goal.map(Into::into),
+        plan_step: planned.then(|| "Chop:block:oak_log".into()),
+        ..TickLog::default()
+    };
+    let mut m = Meter::default();
+    m.push(&at(0, "idle", None, false));
+    m.push(&at(10, "idle", Some("stick"), false));
+    m.push(&at(15, "Plan", Some("stick"), true)); // lag 5
+    m.push(&at(16, "Chop", Some("stick"), true)); // already planned
+    let mut fired = at(20, "Rehearse", Some("stick"), true);
+    fired.triggered = 2;
+    m.push(&fired);
+    m.push(&at(30, "idle", Some("iron"), false));
+    m.push(&at(31, "Imagine", None, false)); // goal dropped unplanned
+    m.push(&at(40, "Reflect", Some("iron"), true)); // lag 0
+    let r = m.finish(&result(true, vec![]));
+    assert_eq!(r.plan_lag, 2.5, "mean of 5 and 0");
+    // Plan, Imagine, Reflect and two triggered: 5 in 2,400 ticks.
+    assert!(
+        (r.thinking - 5000.0 / 2400.0).abs() < 1e-5,
+        "{}",
+        r.thinking
     );
 }
 
@@ -116,6 +151,8 @@ fn summary_averages_over_seeds() {
         new_things: 10,
         memory: 30.0,
         recall: 0.25,
+        thinking: 2.0,
+        plan_lag: f32::NAN,
         ..RunMetrics::default()
     };
     let b = RunMetrics {
@@ -127,6 +164,8 @@ fn summary_averages_over_seeds() {
         new_things: 20,
         memory: 50.0,
         recall: 0.75,
+        thinking: 4.0,
+        plan_lag: 12.0,
         ..RunMetrics::default()
     };
     let s = summarise(&[a, b]);
@@ -142,8 +181,30 @@ fn summary_averages_over_seeds() {
         ),
         (0.5, 1.5, 1.5, 15.0, 40.0, 0.5)
     );
+    assert_eq!(
+        (s.thinking, s.plan_lag),
+        (3.0, 12.0),
+        "the lag averages only runs that planned"
+    );
     assert!((s.active - 0.3).abs() < 1e-6 && (s.mean_c - 0.3).abs() < 1e-6);
-    assert_eq!(summarise(&[]), Summary::default());
+    let lag = |plan_lag| RunMetrics {
+        plan_lag,
+        ..RunMetrics::default()
+    };
+    let three = summarise(&[lag(8.0), lag(f32::NAN), lag(12.0)]);
+    assert_eq!(
+        three.plan_lag, 10.0,
+        "mean of 8 and 12; the NaN run is left out"
+    );
+    let none = summarise(&[]);
+    assert!(none.plan_lag.is_nan());
+    assert_eq!(
+        Summary {
+            plan_lag: 0.0,
+            ..none
+        },
+        Summary::default()
+    );
 }
 
 #[test]
@@ -173,13 +234,18 @@ fn tables_have_one_line_per_row() {
                 stuck_kicks: 1.25,
                 memory: 41.6,
                 recall: 0.125,
+                thinking: 3.5,
+                plan_lag: f32::NAN,
                 ..Summary::default()
             },
         },
         Row {
             variant: "a, b".into(),
             scenario: "open_day".into(),
-            summary: Summary::default(),
+            summary: Summary {
+                plan_lag: 7.4,
+                ..Summary::default()
+            },
         },
     ];
     let md = markdown(&s, &rows, 4);
@@ -193,8 +259,8 @@ fn tables_have_one_line_per_row() {
     assert!(lines[0].starts_with("oq,variant,scenario,survival"));
     assert!(lines[1].starts_with("OQ18,EXP3 γ=0.1,harsh,0.50,"));
     assert!(
-        lines[1].ends_with(",42,0.12"),
-        "memory whole, recall to two places: {}",
+        lines[1].ends_with(",42,0.12,3.5,–"),
+        "memory whole, recall to two places, think to one, no lag: {}",
         lines[1]
     );
     assert!(
@@ -203,7 +269,7 @@ fn tables_have_one_line_per_row() {
         lines[1]
     );
     assert!(
-        lines[2].starts_with("OQ18,\"a, b\",open_day,"),
+        lines[2].starts_with("OQ18,\"a, b\",open_day,") && lines[2].ends_with(",0.0,7"),
         "{}",
         lines[2]
     );

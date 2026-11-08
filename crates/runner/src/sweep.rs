@@ -191,7 +191,17 @@ pub struct RunMetrics {
     /// Share of decisions that recalled a fact linked to a cue (spec §25
     /// `retrieval_hit`; plan §5.2 flat memory's recall).
     pub recall: f32,
+    /// Plan, reflect and imagine runs per 1,000 ticks, chosen or triggered
+    /// (each is an LLM call with an LLM tier; plan §5.2 fixed-trigger
+    /// thinking).
+    pub thinking: f32,
+    /// Mean ticks from a new goal to its first plan step; NaN when no goal
+    /// got one (plan §5.2 fixed-trigger thinking).
+    pub plan_lag: f32,
 }
+
+/// The internal actions that call the LLM tool (spec §6, #40).
+const LLM_THOUGHTS: [&str; 3] = ["Plan", "Reflect", "Imagine"];
 
 /// Conflict above which a decision counts as near-freeze (01 §1.5).
 pub const FREEZE_CONFLICT: f32 = 0.9;
@@ -209,6 +219,12 @@ pub struct Meter {
     stuck: u32,
     recalled: u32,
     memory: usize,
+    thoughts: u32,
+    goal: Option<String>,
+    /// Tick the current goal was set, until its first plan step.
+    waiting: Option<u64>,
+    lag_sum: u64,
+    lags: u32,
 }
 
 impl Meter {
@@ -224,6 +240,17 @@ impl Meter {
         self.stuck += u32::from(r.stuck_kick);
         self.recalled += u32::from(r.retrieval_hit);
         self.memory = r.mem_items;
+        self.thoughts += r.triggered + u32::from(LLM_THOUGHTS.contains(&r.chosen.as_str()));
+        if r.goal != self.goal {
+            self.goal.clone_from(&r.goal);
+            self.waiting = r.goal.as_ref().map(|_| r.tick);
+        }
+        if r.plan_step.is_some() {
+            if let Some(t0) = self.waiting.take() {
+                self.lag_sum += r.tick - t0;
+                self.lags += 1;
+            }
+        }
     }
 
     pub fn finish(&self, r: &BrainResult) -> RunMetrics {
@@ -245,6 +272,12 @@ impl Meter {
             tech: tech_held(&r.inventory),
             memory: self.memory as f32,
             recall: self.recalled as f32 / n,
+            thinking: self.thoughts as f32 * 1000.0 / r.ticks.max(1) as f32,
+            plan_lag: if self.lags == 0 {
+                f32::NAN
+            } else {
+                self.lag_sum as f32 / self.lags as f32
+            },
         }
     }
 }
@@ -281,6 +314,9 @@ pub struct Summary {
     pub tech: f32,
     pub memory: f32,
     pub recall: f32,
+    pub thinking: f32,
+    /// Mean over the runs where some goal got a plan; NaN if none did.
+    pub plan_lag: f32,
 }
 
 pub fn summarise(runs: &[RunMetrics]) -> Summary {
@@ -301,7 +337,17 @@ pub fn summarise(runs: &[RunMetrics]) -> Summary {
         tech: avg(&|r| r.tech as f32),
         memory: avg(&|r| r.memory),
         recall: avg(&|r| r.recall),
+        thinking: avg(&|r| r.thinking),
+        plan_lag: finite_mean(runs.iter().map(|r| r.plan_lag)),
     }
+}
+
+/// Mean of the finite values; NaN when there are none.
+fn finite_mean(xs: impl Iterator<Item = f32>) -> f32 {
+    let (sum, n) = xs
+        .filter(|x| x.is_finite())
+        .fold((0.0, 0u32), |(s, n), x| (s + x, n + 1));
+    if n == 0 { f32::NAN } else { sum / n as f32 }
 }
 
 /// One table row: a variant on a scenario.
@@ -337,12 +383,12 @@ pub fn run_sweep(s: &Sweep, scenarios: &[&str], seeds: u64, threads: usize) -> V
         .collect()
 }
 
-const HEADER: [&str; 15] = [
+const HEADER: [&str; 17] = [
     "variant", "scenario", "survival", "active", "self", "C", "D", "V", "freeze", "stuck",
-    "reflexes", "new", "tech", "memory", "recall",
+    "reflexes", "new", "tech", "memory", "recall", "think", "plan lag",
 ];
 
-fn cells(r: &Row) -> [String; 15] {
+fn cells(r: &Row) -> [String; 17] {
     let s = &r.summary;
     // A dash for a variable the arm does not have.
     let f = |x: f32, places: usize| {
@@ -369,13 +415,15 @@ fn cells(r: &Row) -> [String; 15] {
         f2(s.tech),
         f(s.memory, 0),
         f2(s.recall),
+        f(s.thinking, 1),
+        f(s.plan_lag, 0),
     ]
 }
 
 /// The legend and the results table, one row per variant and scenario.
 pub fn table(rows: &[Row], seeds: u64) -> String {
     let mut t = format!(
-        "{seeds} seeds per cell. survival = share alive at the end; active = share of decisions that started something; self = started without a command or danger push; C, D, V = means over decisions; freeze = share of actions with conflict > {FREEZE_CONFLICT}; stuck = stuck kicks per run; new = novelty units found; tech = tech-tree goals held (0–4); memory = items in memory at the end; recall = share of decisions that recalled a linked fact. A dash means the arm has no such variable.\n\n"
+        "{seeds} seeds per cell. survival = share alive at the end; active = share of decisions that started something; self = started without a command or danger push; C, D, V = means over decisions; freeze = share of actions with conflict > {FREEZE_CONFLICT}; stuck = stuck kicks per run; new = novelty units found; tech = tech-tree goals held (0–4); memory = items in memory at the end; recall = share of decisions that recalled a linked fact; think = plan, reflect and imagine runs per 1,000 ticks; plan lag = mean ticks from a new goal to its first plan step. A dash means the arm has no such variable.\n\n"
     );
     t += &format!("| {} |\n", HEADER.join(" | "));
     t += &format!("|{}\n", "---|".repeat(HEADER.len()));

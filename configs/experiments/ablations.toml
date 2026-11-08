@@ -1,5 +1,4 @@
-# Plan §5.2 ablations that are one config change each (spec §24 C−X).
-# Fixed-trigger thinking needs code and is not here yet.
+# Plan §5.2 ablations, one config change each (spec §24 C−X).
 # The table's columns stand in for each ablation's primary metric; the
 # expected text names the column to read.
 id = "ABLATIONS"
@@ -89,3 +88,9 @@ label = "flat memory"
 arm = "c"
 config = { memory = { flat = true } }
 expected = "Memory bloat: the memory column is higher in every scenario, because nothing decays and nothing is pruned. Plan §5.2 also expects worse recall of important items; the recall column counts any linked fact recalled, so it shows whether recall changes, not its precision."
+
+[[arms]]
+label = "fixed-trigger thinking"
+arm = "c"
+config = { fixed_thinking = { on = true } }
+expected = "Thinking stops tracking C and context (00 §2.2, §3.4). The think column is higher where little changes (open_day), since calls run on the timer whether or not anything is new. Plan lag falls to about 0, because a new goal triggers a plan at once; the late plans plan §5.2 expects show instead as stale steps between timer ticks, so fewer tech goals on commanded."
