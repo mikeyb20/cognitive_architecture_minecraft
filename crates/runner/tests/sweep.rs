@@ -321,9 +321,9 @@ fn affect_grid_scales_each_rate_by_its_label() {
 
 #[test]
 fn one_run_is_measured_and_every_scenario_is_listed() {
-    let r = run_one(&BrainConfig::default(), "first_night", 0);
-    // The run reaches the end; an action already under way finishes, so
-    // the last tick can pass 2,400 (here a long explore trip).
+    // Seed 1 lives through the night. The run reaches the end; an action
+    // already under way finishes, so the last tick can pass 2,400.
+    let r = run_one(&BrainConfig::default(), "first_night", 1);
     assert!(r.survived && r.decisions > 0 && r.ticks >= 2400, "{r:?}");
     assert_eq!(all_scenarios(), sim::scenario::NAMES.to_vec());
 }

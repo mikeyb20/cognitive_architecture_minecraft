@@ -376,7 +376,9 @@ fn cross_cell_lines_by_hand() {
 fn claims_replay_and_tabulate() {
     let c = claim("HARSH").unwrap();
     let one = run_claim(&c, 1, 1);
-    assert_eq!(one, run_claim(&c, 1, 3));
+    // Same rows on 1 and 3 threads; compared as text because an agent that
+    // dies before the "after" window leaves NaN, which never equals itself.
+    assert_eq!(format!("{one:?}"), format!("{:?}", run_claim(&c, 1, 3)));
     assert_eq!(one.len(), 2);
     assert_eq!(
         (one[0].scenario.as_str(), one[1].scenario.as_str()),

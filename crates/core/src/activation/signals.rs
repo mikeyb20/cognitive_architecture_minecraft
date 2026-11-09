@@ -37,7 +37,7 @@ impl Default for SignalWeights {
         Self {
             novelty: 0.40,
             learning_progress: 0.30,
-            energy: -0.40,
+            energy: -0.20,
             threat: -0.40,
             habituation: -0.30,
             social: 0.20,
@@ -203,8 +203,8 @@ mod tests {
             habituation: 1.0,
             social: 1.0,
         };
-        // 0.4 + 0.3 − 0.4·0.5 − 0.4·0.5 − 0.3 + 0.2 = 0.2
-        assert!((k.weighted(&s) - 0.2).abs() < 1e-6);
+        // 0.4 + 0.3 − 0.2·0.5 − 0.4·0.5 − 0.3 + 0.2 = 0.3
+        assert!((k.weighted(&s) - 0.3).abs() < 1e-6);
         let rested = Signals {
             energy: 1.0,
             ..Signals::default()
