@@ -132,10 +132,15 @@ impl SimWorld {
     }
 
     /// Walk to `goal` (or next to it). Returns whether it got there alive.
+    /// Below `min_effort` the agent stays put (spec §16): it gets there only
+    /// if it is there already.
     pub(crate) fn walk_to(&mut self, goal: Pos, adjacent: bool, effort: f32) -> bool {
         let Some(path) = self.path_to(goal, adjacent) else {
             return false;
         };
+        if effort < self.rules.min_effort && !path.is_empty() {
+            return false;
+        }
         let per = self.tile_ticks(effort);
         for p in path {
             self.enter(p);

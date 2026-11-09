@@ -50,8 +50,9 @@ pub struct Rules {
     pub tree_chops: u8,
     /// Animals per 100 plains tiles at world creation.
     pub animal_density: f32,
-    /// Below this effort the agent does not move or act: g(0) = 0 means no
-    /// self-generated movement (01 §1.4).
+    /// Below this effort the agent does not walk (spec §16 "stay put"); it
+    /// can still eat, craft or rest where it stands. Effort 0 does nothing
+    /// at all: g(0) = 0 (01 §1.4).
     pub min_effort: f32,
     /// Effort at or above which the agent sprints.
     pub sprint_effort: f32,
