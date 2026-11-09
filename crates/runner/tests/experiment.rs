@@ -59,6 +59,9 @@ fn the_code_ablations_are_one_setting_each() {
     let mut want = BrainConfig::default();
     want.needs.fades = false;
     assert_eq!(config_for(&e, arm("teacher stays"), 0).unwrap(), want);
+    let mut want = BrainConfig::default();
+    want.needs.steer = 0.0;
+    assert_eq!(config_for(&e, arm("need as floor only"), 0).unwrap(), want);
 }
 
 #[test]

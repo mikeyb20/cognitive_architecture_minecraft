@@ -137,10 +137,11 @@ fn brain_defaults_match_spec_19() {
     let b = BrainConfig::default();
     assert!(b.kick_enabled && b.threat_drive && b.horizon.is_none());
     // Thinking is chosen (#40); fixed triggers are an ablation (plan §5.2).
-    // Felt hunger is on (01 §1.6, #47); its values are proposed.
+    // Felt hunger is on and steers choice (01 §1.6, #47, #51); its values
+    // are proposed.
     let n = b.needs;
     assert!(n.on && n.fades);
-    assert_eq!((n.food_at, n.relief_step), (0.75, 0.5));
+    assert_eq!((n.food_at, n.relief_step, n.steer), (0.75, 0.5, 1.0));
     let f = b.fixed_thinking;
     assert_eq!((f.on, f.every, f.effort), (false, 120, 0.5));
     assert_eq!((b.tenacity_ab, b.tenacity_gamma), ([(1.0, 1.0); 4], 0.98));
@@ -179,8 +180,8 @@ fn brain_defaults_match_spec_19() {
 fn version_constants() {
     assert_eq!(
         cognitive_core::DEFS_VERSION,
-        "01 v3",
-        "v3 adds felt needs (#47)"
+        "01 v3.1",
+        "v3 adds felt needs (#47); v3.1 lets them steer choice (#51)"
     );
     assert_eq!(cognitive_core::SPEC_VERSION, "0.2");
 }

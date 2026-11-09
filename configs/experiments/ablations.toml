@@ -106,3 +106,9 @@ label = "teacher stays"
 arm = "c"
 config = { needs = { fades = false } }
 expected = "01 §1.6: the teacher's hints keep full strength as ρ rises. Survival is at least as good as the default, but the agent relies on the hint, not on what it learned relieved hunger; the gap grows with ρ, so it shows on long_horizon."
+
+[[arms]]
+label = "need as floor only"
+arm = "c"
+config = { needs = { steer = 0.0 } }
+expected = "01 v3 before #51: the need only sets an effort floor. Survival about as the default on quiet scenarios (the default brain is mostly idle, so the floor does most of the work) and lower on harsh, where the agent is busier."

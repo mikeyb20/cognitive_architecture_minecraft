@@ -229,6 +229,7 @@ fn scored(risk: f32, m_o: f32) -> Scored {
         m: [0.0, 0.0, 0.0, m_o],
         kicked: [0.0; 4],
         push: 0.0,
+        need: 0.0,
     }
 }
 

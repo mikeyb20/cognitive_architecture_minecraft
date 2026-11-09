@@ -187,8 +187,8 @@ fn golden_commanded_run_counts_reflexes_and_new_things() {
     assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");
 }
 
-const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (1601, 1477, 71, 0, 35);
-const GOLDEN_COUNTS: (u32, u32, u32) = (669, 614, 14);
-const GOLDEN_HASH: u64 = 3_031_246_186_955_019_076;
+const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (1621, 1523, 54, 0, 36);
+const GOLDEN_COUNTS: (u32, u32, u32) = (126, 85, 5);
+const GOLDEN_HASH: u64 = 8_882_826_889_255_094_663;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).
-const GOLDEN_SUMS: [f64; 5] = [54.9072, 0.0, -119.6980, 31.2821, 497.2279];
+const GOLDEN_SUMS: [f64; 5] = [35.1326, 0.0, 24.0736, 29.0466, 78.8006];

@@ -252,3 +252,50 @@ fn a_hunt_learns_relief_only_through_a_food_known_to_relieve() {
     assert!(picks.contains(&1), "the hunt is pushed: {picks:?}");
     assert!(!picks.contains(&2), "chopping never relieved");
 }
+
+/// An active agent: C held at 0.8, so g(C) starts most ticks by itself.
+fn active(steer: f32) -> BrainConfig {
+    BrainConfig {
+        curiosity: CuriosityParams {
+            base: 0.8,
+            rate: 0.0,
+        },
+        needs: NeedParams {
+            steer,
+            ..NeedParams::default()
+        },
+        ..drifting(NeedParams::default())
+    }
+}
+
+#[test]
+fn hunger_steers_what_an_active_agent_picks() {
+    // 01 §1.6 (#51): the effort floor adds nothing once g(C) starts the
+    // tick anyway; the score bonus is what favours the taught food.
+    let eats = |steer: f32| -> (usize, usize) {
+        let mut picks = vec![];
+        for seed in 0..5 {
+            let mut b = Brain::new(active(steer), seed);
+            picks.extend(run(&mut b, &mut bread(), 0, 200, 0.0));
+        }
+        (picks.iter().filter(|&&i| i == 0).count(), picks.len())
+    };
+    let (floor_only, n0) = eats(0.0);
+    let (steered, n1) = eats(1.0);
+    // Over 1,000 ticks: without the bonus the busy agent mostly thinks or
+    // does other things; with it, eating wins most choices.
+    assert!(
+        steered > 3 * floor_only.max(1),
+        "eats {floor_only}/{n0} → {steered}/{n1}"
+    );
+    assert!(
+        steered * 2 > n1,
+        "eating is most of what it does: {steered}/{n1}"
+    );
+    // A sated agent gets no bonus: steering changes nothing at food 0.9.
+    let sated = |steer| {
+        let mut b = Brain::new(active(steer), 7);
+        run(&mut b, &mut bread(), 0, 200, 0.9)
+    };
+    assert_eq!(sated(0.0), sated(1.0));
+}

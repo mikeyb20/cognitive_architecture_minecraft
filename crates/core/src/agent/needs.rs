@@ -31,6 +31,9 @@ pub struct NeedParams {
     /// The teacher's hints fade as ρ rises (#47); off keeps them at full
     /// strength (an ablation).
     pub fades: bool,
+    /// w_N: choice-score bonus per unit of need push (#51), so a need
+    /// steers an active agent too; 0 is the "floor only" ablation.
+    pub steer: f32,
 }
 
 impl Default for NeedParams {
@@ -40,6 +43,7 @@ impl Default for NeedParams {
             food_at: 0.75,
             relief_step: 0.5,
             fades: true,
+            steer: 1.0,
         }
     }
 }
@@ -52,6 +56,12 @@ pub fn hunger(food: f32, food_at: f32) -> f32 {
 /// `push = N × max(relief, taught × fade)` (01 §1.6).
 pub fn push(need: f32, relief: f32, taught: bool, fade: f32) -> f32 {
     need * relief.max(if taught { fade } else { 0.0 })
+}
+
+/// A candidate's choice score with the need's bonus: `score + w_N × push`
+/// (01 §1.6 steers choice, #51).
+pub fn steered(score: f32, steer: f32, need_push: f32) -> f32 {
+    score + steer * need_push
 }
 
 /// What the agent remembers relieved a need, per action key
@@ -173,6 +183,10 @@ mod tests {
         assert_eq!(push(0.5, 0.8, true, 0.4), 0.4);
         assert_eq!(push(0.5, 0.0, false, 1.0), 0.0);
         assert_eq!(push(0.0, 1.0, true, 1.0), 0.0);
+        // The bonus: 0.2 + 1.0 × 0.6, and nothing at w_N = 0.
+        assert!((steered(0.2, 1.0, 0.6) - 0.8).abs() < 1e-6);
+        assert_eq!(steered(0.2, 0.0, 0.6), 0.2);
+        assert_eq!(steered(-0.3, 0.5, 0.0), -0.3);
     }
 
     #[test]
