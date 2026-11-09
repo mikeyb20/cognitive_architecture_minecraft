@@ -45,6 +45,9 @@ fn moving_costs_walk_or_sprint_ticks_per_tile() {
         4,
         "flee always sprints"
     );
+    // Exactly at the walking floor the agent walks.
+    let o = w.execute(&at(Skill::MoveTo, 26, 24), slow);
+    assert!(o.success && w.body.pos == p(26, 24));
 }
 
 #[test]
@@ -57,17 +60,43 @@ fn every_action_takes_at_least_a_tick() {
 
 #[test]
 fn below_min_effort_nothing_moves() {
+    // Spec §16: below the walking floor the agent stays put.
+    let low = Intensity {
+        effort: 0.049,
+        ..FULL
+    };
     let mut w = flat();
-    let o = w.execute(
-        &at(Skill::MoveTo, 27, 24),
-        Intensity {
-            effort: 0.049,
-            ..FULL
-        },
-    );
+    for skill in [Skill::MoveTo, Skill::Flee] {
+        let o = w.execute(&at(skill, 27, 24), low);
+        assert!(o.blocked && !o.success, "{skill:?}");
+        assert_eq!(o.duration_ticks, 5, "a blocked action's ticks");
+        assert_eq!(w.body.pos, p(24, 24));
+    }
+    // Where it stands it still acts: eating needs no walking.
+    w.body.food = 0.5;
+    give(&mut w, "bread", 1);
+    let o = w.execute(&item(Skill::Eat, "bread"), low);
+    assert!(o.success && w.body.food > 0.5);
+    // Already there, a move succeeds without walking.
+    assert!(w.execute(&at(Skill::MoveTo, 24, 24), low).success);
+}
+
+#[test]
+fn zero_effort_does_nothing_at_all() {
+    // g(0) = 0 (01 §1.4): not even an action in place.
+    let mut w = flat();
+    w.body.food = 0.5;
+    give(&mut w, "bread", 1);
+    let none = Intensity {
+        effort: 0.0,
+        ..FULL
+    };
+    let o = w.execute(&item(Skill::Eat, "bread"), none);
     assert!(o.blocked && !o.success);
-    assert_eq!(o.duration_ticks, 1);
-    assert_eq!(w.body.pos, p(24, 24));
+    assert_eq!(
+        (o.duration_ticks, w.body.food),
+        (1, 0.5 - w.rules.food_decay)
+    );
 }
 
 #[test]

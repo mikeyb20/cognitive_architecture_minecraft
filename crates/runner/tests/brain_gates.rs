@@ -98,6 +98,7 @@ fn shutdown_barely_responds() {
     // On demand: high D and negative V.
     let early =
         |rows: &[TickLog]| -> f32 { rows.iter().filter(|r| r.tick < 300).map(|r| r.d_goal).sum() };
+    let mut progress = (0.0, 0.0);
     for seed in 0..3 {
         let mut b = Brain::new(drift_config(), seed);
         b.force_state(Some(0.0), Some((-0.6, 0.95)));
@@ -108,12 +109,17 @@ fn shutdown_barely_responds() {
             shut.iter()
                 .filter(|r| r.tick < 300 && r.external_drive)
                 .all(|r| r.effort < 0.05),
-            "commanded effort ε_ext·(1 − D) is below the sim's movement floor"
+            "commanded effort ε_ext·(1 − D) is below the sim's walking floor"
         );
-        assert_eq!(early(&shut), 0.0, "no progress on the command yet");
         let (drift, _) = run("commanded", seed, Brain::new(drift_config(), seed));
         assert!(early(&drift) > 0.0, "a drifting agent does respond");
+        progress.0 += early(&shut);
+        progress.1 += early(&drift);
     }
+    // Below the walking floor it can still craft where it stands (spec §16),
+    // so it barely responds rather than not at all: seeds 0–2 make 0.67 of
+    // a command step against the drifting agent's 3.
+    assert!(progress.0 < 0.5 * progress.1, "barely: {progress:?}");
     // Naturally: a drifting agent chased all night (seed 1) flees only at
     // ε_ext·(1 − D), so V sits at the D threshold, D rises, flight slows,
     // and it ends the night shut down (01 §1.3, §1.5).
@@ -187,7 +193,7 @@ fn golden_commanded_run_counts_reflexes_and_new_things() {
     assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");
 }
 
-const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (1621, 1523, 54, 0, 36);
+const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (1617, 1519, 54, 0, 36);
 const GOLDEN_COUNTS: (u32, u32, u32) = (126, 85, 5);
 const GOLDEN_HASH: u64 = 8_882_826_889_255_094_663;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).
