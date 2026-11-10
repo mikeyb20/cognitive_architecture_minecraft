@@ -487,8 +487,9 @@ impl Host for SimWorld {
         let before = self.body.inv.clone();
         let (success, progress, blocked) = if !self.alive() {
             (false, 0.0, true)
-        } else if it.effort < self.rules.min_effort {
-            // g(0) = 0: no self-generated movement (01 §1.4).
+        } else if it.effort <= 0.0 {
+            // g(0) = 0: no effort, no action (01 §1.4). Below `min_effort`
+            // the agent still acts where it stands (spec §16), see `walk_to`.
             self.step_world(1);
             (false, 0.0, true)
         } else {
