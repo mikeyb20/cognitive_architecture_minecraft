@@ -57,18 +57,7 @@ impl ThinkTools for SimTools {
     /// The teacher for felt hunger (01 §1.6): the planner's food step.
     fn teach(&mut self, need: Need, obs: &Observation) -> Option<PlanStep> {
         match need {
-            Need::Hunger => food_step(obs).map(|s| {
-                // Prototype: with no food at hand or in view, look for some.
-                if s.skill == Skill::Eat || s.skill == Skill::Attack {
-                    s
-                } else {
-                    PlanStep {
-                        skill: Skill::Explore,
-                        thing: String::new(),
-                        task: TaskType::Travel,
-                    }
-                }
-            }),
+            Need::Hunger => food_step(obs),
         }
     }
 }
