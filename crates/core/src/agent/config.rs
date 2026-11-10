@@ -77,7 +77,7 @@ pub struct BrainConfig {
     pub tm_tau: f32,
     pub beta_u: f32,
     pub beta_c: f32,
-    /// External-drive floor ε_ext (spec §16, #41).
+    /// External-drive floor ε_ext (spec §16, #41; 0.2 → 0.4 by #54).
     pub eps_ext: f32,
     /// Danger counts as an external force: Flee candidates get the same
     /// effort floor as commanded steps, ε_ext·(1 − D) (proposed, pending
@@ -143,7 +143,7 @@ impl Default for BrainConfig {
             tm_tau: 50.0,
             beta_u: 0.2,
             beta_c: 0.1,
-            eps_ext: 0.20,
+            eps_ext: 0.40,
             threat_drive: true,
             goals_from_commands: false,
             needs: NeedParams::default(),

@@ -29,7 +29,7 @@ impl ThinkTools for Teacher {
     }
     fn teach(&mut self, need: Need, obs: &Observation) -> Option<PlanStep> {
         assert_eq!(need, Need::Hunger);
-        assert!(obs.food < 0.75, "the teacher is asked only while hungry");
+        assert!(obs.food < 0.9, "the teacher is asked only while hungry");
         self.0.map(|(skill, thing)| PlanStep {
             skill,
             thing: thing.into(),
@@ -132,17 +132,17 @@ fn a_sated_drifting_agent_does_nothing() {
 fn hunger_pushes_the_taught_action() {
     let mut b = Brain::new(drifting(NeedParams::default()), 1);
     let picks = run(&mut b, &mut bread(), 0, 200, 0.3);
-    // N = (0.75 − 0.3)/0.75 = 0.6; push = 0.6 at ρ = 0, so the floor is
-    // 0.2·0.6 = 0.12 and about 36% of ticks start (u ≥ 0.64).
-    assert!((40..=110).contains(&picks.len()), "{}", picks.len());
+    // N = (0.9 − 0.3)/0.9 = 2/3; push = 2/3 at ρ = 0, so the floor is
+    // 0.4·2/3 ≈ 0.267 and about 80% of ticks start (u ≥ 0.2).
+    assert!((130..=185).contains(&picks.len()), "{}", picks.len());
     assert!(picks.iter().all(|&i| i == 0), "only the taught action");
     let l = b.last_log();
-    assert!((l.hunger - 0.6).abs() < 1e-6, "{}", l.hunger);
+    assert!((l.hunger - 2.0 / 3.0).abs() < 1e-6, "{}", l.hunger);
     let acted = run(&mut b, &mut bread(), 200, 50, 0.3);
     assert!(!acted.is_empty());
     let l = b.last_log();
     if l.chosen != "idle" {
-        assert!((l.need_push - 0.6).abs() < 1e-6 && l.external_drive);
+        assert!((l.need_push - 2.0 / 3.0).abs() < 1e-6 && l.external_drive);
     }
 }
 
@@ -200,7 +200,7 @@ fn what_relieved_hunger_keeps_its_push_without_the_teacher() {
         !picks.is_empty() && picks.iter().all(|&i| i == 0),
         "{picks:?}"
     );
-    // N = 0.5/0.75 = 2/3; push = 2/3 × 0.5 = 1/3.
+    // N = 0.65/0.9 = 13/18; push = 13/18 × 0.5 = 13/36.
     let mut t = tick + 301;
     loop {
         let _ = b.step(&obs(t, 0.25), &cands(), &mut alone);
@@ -210,8 +210,8 @@ fn what_relieved_hunger_keeps_its_push_without_the_teacher() {
         t += 1;
     }
     let l = b.last_log();
-    assert!((l.need_push - 1.0 / 3.0).abs() < 1e-6, "{}", l.need_push);
-    assert!((l.hunger - 2.0 / 3.0).abs() < 1e-6 && l.external_drive);
+    assert!((l.need_push - 13.0 / 36.0).abs() < 1e-6, "{}", l.need_push);
+    assert!((l.hunger - 13.0 / 18.0).abs() < 1e-6 && l.external_drive);
 }
 
 #[test]

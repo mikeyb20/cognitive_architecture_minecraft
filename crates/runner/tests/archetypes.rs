@@ -37,7 +37,7 @@ fn column(name: &str) -> Column {
             lr: [1.0, 1.3, 1.0, 1.0],
             tau: 30.0,
             beta_u: 0.3,
-            eps_ext: 0.20,
+            eps_ext: 0.40,
             from_commands: false,
         },
         "builder" => Column {
@@ -53,7 +53,7 @@ fn column(name: &str) -> Column {
             lr: [1.0, 0.8, 1.2, 1.0],
             tau: 100.0,
             beta_u: 0.1,
-            eps_ext: 0.20,
+            eps_ext: 0.40,
             from_commands: false,
         },
         "guardian" => Column {
@@ -69,7 +69,7 @@ fn column(name: &str) -> Column {
             lr: [1.0, 1.0, 1.0, 1.2],
             tau: 50.0,
             beta_u: 0.2,
-            eps_ext: 0.20,
+            eps_ext: 0.40,
             from_commands: false,
         },
         "helper" => Column {
@@ -85,7 +85,7 @@ fn column(name: &str) -> Column {
             lr: [1.0, 1.0, 1.1, 1.0],
             tau: 50.0,
             beta_u: 0.2,
-            eps_ext: 0.35,
+            eps_ext: 0.55,
             from_commands: true,
         },
         _ => unreachable!(),
