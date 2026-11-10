@@ -24,8 +24,9 @@ pub enum Need {
 pub struct NeedParams {
     /// Felt needs on (the default since #47; off is the "no need" ablation).
     pub on: bool,
-    /// Hunger starts below this food level and is full at 0. 0.9 since #54:
-    /// above it the body heals (sim `regen_food_min`), so a full bar pays.
+    /// Hunger starts below this food level and is full at 0. 0.9 since #54,
+    /// so the agent keeps the bar where the body heals (sim: above 0.8,
+    /// `regen_food_min`; Minecraft: 18/20).
     pub food_at: f32,
     /// Relief added each time an action met the need, capped at 1.
     pub relief_step: f32,
