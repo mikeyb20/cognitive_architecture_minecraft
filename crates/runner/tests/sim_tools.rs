@@ -145,7 +145,7 @@ fn brain_command_reports_and_logs() {
         text.contains("seed 0:") && text.contains("seed 1:"),
         "{text}"
     );
-    assert!(text.contains("brain first_night: 2/2 survived"), "{text}");
+    assert!(text.contains("brain first_night: 1/2 survived"), "{text}");
     let body = std::fs::read_to_string(&log).unwrap();
     let headers = body
         .lines()

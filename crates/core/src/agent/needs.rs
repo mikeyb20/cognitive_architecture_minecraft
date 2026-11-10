@@ -24,7 +24,8 @@ pub enum Need {
 pub struct NeedParams {
     /// Felt needs on (the default since #47; off is the "no need" ablation).
     pub on: bool,
-    /// Hunger starts below this food level and is full at 0.
+    /// Hunger starts below this food level and is full at 0. 0.9 since #54:
+    /// above it the body heals (sim `regen_food_min`), so a full bar pays.
     pub food_at: f32,
     /// Relief added each time an action met the need, capped at 1.
     pub relief_step: f32,
@@ -40,7 +41,7 @@ impl Default for NeedParams {
     fn default() -> Self {
         Self {
             on: true,
-            food_at: 0.75,
+            food_at: 0.9,
             relief_step: 0.5,
             fades: true,
             steer: 1.0,

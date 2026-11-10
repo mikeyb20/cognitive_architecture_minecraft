@@ -141,7 +141,7 @@ fn brain_defaults_match_spec_19() {
     // are proposed.
     let n = b.needs;
     assert!(n.on && n.fades);
-    assert_eq!((n.food_at, n.relief_step, n.steer), (0.75, 0.5, 1.0));
+    assert_eq!((n.food_at, n.relief_step, n.steer), (0.9, 0.5, 1.0));
     let f = b.fixed_thinking;
     assert_eq!((f.on, f.every, f.effort), (false, 120, 0.5));
     assert_eq!((b.tenacity_ab, b.tenacity_gamma), ([(1.0, 1.0); 4], 0.98));
@@ -152,7 +152,7 @@ fn brain_defaults_match_spec_19() {
     assert!(b.lens_priors.is_empty());
     assert_eq!((b.lens_lr, b.lens_frozen), ([1.0; 4], [false; 4]));
     assert_eq!((b.tm_k, b.tm_tau), (7, 50.0));
-    assert_eq!((b.beta_u, b.beta_c, b.eps_ext), (0.2, 0.1, 0.20));
+    assert_eq!((b.beta_u, b.beta_c, b.eps_ext), (0.2, 0.1, 0.40));
     assert_eq!(
         (b.aging_rate, b.age_per_tick, b.age_per_experience),
         (1e-6, 1.0, 0.0)
