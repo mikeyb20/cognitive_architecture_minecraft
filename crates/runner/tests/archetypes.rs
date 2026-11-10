@@ -26,7 +26,7 @@ fn column(name: &str) -> Column {
     match name {
         "explorer" => Column {
             c_base: 0.55,
-            k: [0.60, 0.35, -0.30, -0.25, -0.45, 0.10],
+            k: [0.60, 0.35, -0.15, -0.25, -0.45, 0.10],
             c_rate: 0.15,
             pi_base: 0.45,
             perf_ab: (1.0, 1.0),
@@ -42,7 +42,7 @@ fn column(name: &str) -> Column {
         },
         "builder" => Column {
             c_base: 0.35,
-            k: [0.20, 0.40, -0.40, -0.40, -0.15, 0.15],
+            k: [0.20, 0.40, -0.20, -0.40, -0.15, 0.15],
             c_rate: 0.06,
             pi_base: 0.25,
             perf_ab: (3.0, 1.0),
@@ -58,7 +58,7 @@ fn column(name: &str) -> Column {
         },
         "guardian" => Column {
             c_base: 0.40,
-            k: [0.30, 0.25, -0.40, -0.60, -0.30, 0.45],
+            k: [0.30, 0.25, -0.20, -0.60, -0.30, 0.45],
             c_rate: 0.10,
             pi_base: 0.50,
             perf_ab: (2.0, 1.0),
@@ -74,7 +74,7 @@ fn column(name: &str) -> Column {
         },
         "helper" => Column {
             c_base: 0.40,
-            k: [0.30, 0.30, -0.40, -0.40, -0.20, 0.60],
+            k: [0.30, 0.30, -0.20, -0.40, -0.20, 0.60],
             c_rate: 0.10,
             pi_base: 0.40,
             perf_ab: (2.0, 1.0),

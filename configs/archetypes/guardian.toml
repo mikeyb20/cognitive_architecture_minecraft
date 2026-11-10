@@ -19,7 +19,7 @@ rate = 0.10
 [k]
 novelty = 0.30
 learning_progress = 0.25
-energy = -0.40
+energy = -0.20
 threat = -0.60
 habituation = -0.30
 social = 0.45
