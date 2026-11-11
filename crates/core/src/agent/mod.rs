@@ -356,12 +356,20 @@ impl Brain {
         self.log = TickLog::default();
         self.log.reflex = reflex;
         self.learn(obs, tools);
+        self.observe_memory();
         let s = self.sense(obs);
         let triggered = self.run_triggers(obs, tools);
+        self.observe_memory();
         let d = self.choose(obs, cands, &s, tools);
         self.log.triggered = triggered;
         self.fill_state(obs, &s, cands);
         d
+    }
+
+    /// Refresh ρ from the memory store after it changed (01 §4.7, #61).
+    fn observe_memory(&mut self) {
+        self.dev
+            .observe_memory(self.mem.useful_len(), self.mem.len());
     }
 
     /// Report the outcome of the external action from the last decision.

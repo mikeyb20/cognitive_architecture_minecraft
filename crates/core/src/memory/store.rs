@@ -45,7 +45,8 @@ pub struct Entry {
     pub useful: f32,
     /// Last tick this item was in thought momentum (spec §14 usefulness).
     pub last_tm: Option<u64>,
-    /// Counted as useful toward ρ already (each item counts once).
+    /// Useful (01 §4.7): retrieved before a positive R. Counts toward ρ
+    /// while the item is retained; set through [`MemoryStore::mark_useful`].
     pub counted_useful: bool,
     /// Episodic items: turned into semantic items by `reflect` yet.
     pub reflected: bool,
@@ -65,6 +66,8 @@ pub struct MemoryStore {
     /// Cheapest remembered cost per result key (spec §3 f6).
     routes: BTreeMap<String, f32>,
     alive: usize,
+    /// Retained items marked useful (01 §4.7, #61).
+    alive_useful: usize,
 }
 
 impl MemoryStore {
@@ -81,6 +84,23 @@ impl MemoryStore {
 
     pub fn is_empty(&self) -> bool {
         self.alive == 0
+    }
+
+    /// Retained items that are useful: the numerator of ρ (01 §4.7, #61).
+    pub fn useful_len(&self) -> usize {
+        self.alive_useful
+    }
+
+    /// Mark a retained item useful (01 §4.7). Each item counts once; a dead
+    /// item is not counted. Returns whether the count rose.
+    pub fn mark_useful(&mut self, id: usize) -> bool {
+        let e = &mut self.entries[id];
+        if !e.alive || e.counted_useful {
+            return false;
+        }
+        e.counted_useful = true;
+        self.alive_useful += 1;
+        true
     }
 
     /// Slots ever used, alive or not (ids are `0..capacity()`).
@@ -243,6 +263,9 @@ impl MemoryStore {
         e.alive = false;
         e.links.clear();
         self.alive -= 1;
+        if e.counted_useful {
+            self.alive_useful -= 1;
+        }
         true
     }
 

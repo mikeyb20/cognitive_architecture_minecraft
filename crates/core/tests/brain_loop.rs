@@ -45,8 +45,32 @@ fn every_row_stays_in_range() {
                 r.richness
             );
             assert!(in_range(r.rho_eff, 0.0, 1.0), "{}", r.rho_eff);
+            assert!(r.rho_eff >= r.rho, "ρ_eff = max(ρ, ρ_pre)");
         }
     }
+}
+
+#[test]
+fn rho_tracks_the_useful_share_of_memory() {
+    // 01 §4.7 (#61): after each tick ρ is useful retained / retained, so it
+    // falls only when useful items are lost or new items are learned.
+    let mut b = Brain::new(busy(), 3);
+    let mut rows = vec![];
+    for _ in 0..DAY / 20 {
+        b = run(b, 20, &mut rows).0;
+        let m = b.memory();
+        let want = m.useful_len() as f32 / m.len().max(1) as f32;
+        assert!(m.useful_len() <= m.len());
+        assert!(
+            (b.last_log().rho - want).abs() < 1e-6,
+            "{want} vs {}",
+            b.last_log().rho
+        );
+    }
+    assert!(
+        rows.iter().any(|r| r.rho > 0.0),
+        "some memory became useful"
+    );
 }
 
 #[test]
@@ -132,16 +156,16 @@ fn same_seed_same_trace_and_the_trace_is_pinned() {
 
 /// Float sums per golden run (busy, default, low-commanded).
 const GOLDEN_SUMS: [[f64; 5]; 3] = [
-    [310.5956, 0.0, 168.5190, 255.0899, 301.4172],
-    [88.3345, 0.0, 63.7941, 101.3933, 163.0097],
-    [127.3823, 0.0, 45.8931, 62.2505, 562.5152],
+    [664.7568, 0.0, 338.2163, 549.8511, 603.3524],
+    [129.4128, 0.0, 53.9221, 68.0641, 242.1633],
+    [112.1142, 0.0, 53.0408, 69.7169, 602.8526],
 ];
 
-const GOLDEN_COUNTS: (u32, u32, u32, u32) = (360, 0, 4, 1);
+const GOLDEN_COUNTS: (u32, u32, u32, u32) = (715, 0, 8, 2);
 const GOLDEN_HASHES: (u64, u64, u64) = (
-    7_683_097_129_651_233_922,
-    4_743_214_279_255_298_247,
-    11_303_102_237_290_075_586,
+    8_215_857_933_761_119_103,
+    17_938_787_185_883_113_790,
+    5_455_370_578_165_343_641,
 );
 
 #[test]

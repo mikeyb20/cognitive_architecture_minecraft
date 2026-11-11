@@ -5,6 +5,7 @@
 use cognitive_core::activation::{CuriosityParams, SignalWeights};
 use cognitive_core::agent::digest::{float_sums, sums_close, trace_digest};
 use cognitive_core::agent::{Brain, BrainConfig, NeedParams, TickLog};
+use cognitive_core::control::subconscious::SubconsciousParams;
 use runner::brain::{BrainResult, run_with, setup};
 
 fn no_signals() -> SignalWeights {
@@ -28,6 +29,12 @@ fn drift_config() -> BrainConfig {
         },
         k: no_signals(),
         kick_enabled: false,
+        // The subconscious nudge also raises C (spec §17); off, so nothing
+        // does. Seeds 0–2 met no nudge until #61 changed the run.
+        subconscious: SubconsciousParams {
+            nudge: 0.0,
+            ..SubconsciousParams::default()
+        },
         needs: NeedParams {
             on: false,
             ..NeedParams::default()
@@ -142,8 +149,10 @@ fn a_default_agent_that_can_flee_stays_calm_through_the_harsh_night() {
     for seed in 0..3 {
         let (rows, _) = run("harsh", seed, Brain::new(BrainConfig::default(), seed));
         assert!(rows.iter().filter(|r| r.chosen.starts_with("Flee")).count() > 20);
+        // Near 0, far from shutdown: seed 0 is the highest, at 0.12 at dawn
+        // since #61 (0.08 before), falling to 0.06 by tick 3,600.
         let after = rows.iter().find(|r| r.tick >= 2400).unwrap();
-        assert!(after.d < 0.1, "seed {seed}: D after the night {}", after.d);
+        assert!(after.d < 0.15, "seed {seed}: D after the night {}", after.d);
     }
 }
 
@@ -200,8 +209,8 @@ fn golden_commanded_run_counts_reflexes_and_new_things() {
     assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");
 }
 
-const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (93, 3, 47, 3, 33);
-const GOLDEN_COUNTS: (u32, u32, u32) = (256, 212, 5);
-const GOLDEN_HASH: u64 = 14_900_811_719_407_155_808;
+const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (93, 13, 37, 3, 33);
+const GOLDEN_COUNTS: (u32, u32, u32) = (237, 172, 5);
+const GOLDEN_HASH: u64 = 13_957_761_032_102_615_939;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).
-const GOLDEN_SUMS: [f64; 5] = [25.5302, 8.0301, -40.0284, 23.0308, 143.4606];
+const GOLDEN_SUMS: [f64; 5] = [34.6586, 16.7005, -6.5816, 44.0441, 152.0453];

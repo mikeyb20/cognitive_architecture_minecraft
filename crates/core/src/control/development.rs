@@ -4,7 +4,11 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct Development {
-    useful: u64,
+    /// Retained memories marked useful (01 §4.7, #61).
+    useful_retained: u64,
+    /// Retained memories (01 §4.7, #61).
+    retained: u64,
+    /// Executed actions: input to age only (spec §15).
     total: u64,
     /// Pretraining offset ρ_pre (0.5 when an LLM tier is attached; spec §14).
     pub rho_pre: f32,
@@ -21,13 +25,14 @@ pub enum Stage {
 impl Development {
     pub fn new(rho_pre: f32) -> Self {
         Self {
-            useful: 0,
+            useful_retained: 0,
+            retained: 0,
             total: 0,
             rho_pre,
         }
     }
 
-    /// One experience = one executed action (spec §14).
+    /// One experience = one executed action; feeds age (spec §15), not ρ (#61).
     pub fn record_experience(&mut self) {
         self.total += 1;
     }
@@ -37,17 +42,20 @@ impl Development {
         self.total
     }
 
-    /// A memory became useful (retrieved within 20 ticks before a tick with R > 0).
-    pub fn record_useful(&mut self) {
-        self.useful = (self.useful + 1).min(self.total);
+    /// Read the memory counts ρ is made of (01 §4.7, #61): `useful` retained
+    /// items out of `retained`. Useful is capped at retained.
+    pub fn observe_memory(&mut self, useful: usize, retained: usize) {
+        self.retained = retained as u64;
+        self.useful_retained = (useful as u64).min(self.retained);
     }
 
-    /// ρ = useful retained ÷ total experiences ∈ [0, 1] (01 §4.7).
+    /// `ρ = useful retained ÷ retained ∈ [0, 1]`, 0 while nothing is retained
+    /// (01 §4.7, #61).
     pub fn rho(&self) -> f32 {
-        if self.total == 0 {
+        if self.retained == 0 {
             0.0
         } else {
-            self.useful as f32 / self.total as f32
+            self.useful_retained as f32 / self.retained as f32
         }
     }
 
@@ -118,12 +126,7 @@ mod tests {
     #[test]
     fn rho_is_a_fraction() {
         let mut d = Development::new(0.0);
-        for i in 0..100 {
-            d.record_experience();
-            if i % 3 == 0 {
-                d.record_useful();
-            }
-        }
+        d.observe_memory(34, 100);
         assert!((d.rho() - 34.0 / 100.0).abs() < 1e-6);
     }
 
@@ -137,10 +140,7 @@ mod tests {
     fn young_agent_kicks_more() {
         let young = Development::new(0.0);
         let mut old = Development::new(0.0);
-        for _ in 0..10 {
-            old.record_experience();
-            old.record_useful();
-        }
+        old.observe_memory(10, 10);
         assert!(young.kick_rate(0.05) > old.kick_rate(0.05));
         assert!((young.kick_rate(0.05) - 0.2).abs() < 1e-6);
     }
@@ -152,14 +152,11 @@ mod tests {
     }
 
     #[test]
-    fn useful_never_exceeds_total() {
+    fn useful_never_exceeds_retained() {
         let mut d = Development::new(0.0);
-        d.record_useful();
-        d.record_useful();
-        assert_eq!(d.rho(), 0.0);
-        d.record_experience();
-        d.record_useful();
-        d.record_useful();
+        d.observe_memory(2, 0);
+        assert_eq!(d.rho(), 0.0, "nothing retained");
+        d.observe_memory(2, 1);
         assert_eq!(d.rho(), 1.0);
         assert_eq!(
             d.subconscious_budget(1.0, true),

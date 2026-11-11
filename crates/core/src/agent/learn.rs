@@ -252,10 +252,7 @@ impl Brain {
                 .is_some_and(|t| now.saturating_sub(t) <= USEFUL_WINDOW)
             {
                 e.useful = 1.0;
-                if !e.counted_useful {
-                    e.counted_useful = true;
-                    self.dev.record_useful();
-                }
+                self.mem.mark_useful(id);
             }
         }
     }
