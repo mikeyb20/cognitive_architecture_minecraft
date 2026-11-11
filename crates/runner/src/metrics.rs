@@ -43,6 +43,9 @@ pub struct RunMetrics {
     /// The first tick the agent stood in a shelter that passes the shelter
     /// test (01 §4.11). On `held_out` this is the transfer test (plan §5.0).
     pub shelter_at: Option<u64>,
+    /// Ticks into the run to each `PACE` milestone, if reached (plan §5.0
+    /// progression pace).
+    pub pace: [Option<u64>; 5],
 }
 
 /// The internal actions that call the LLM tool (spec §6, #40).
@@ -124,8 +127,34 @@ impl Meter {
                 self.lag_sum as f32 / self.lags as f32
             },
             shelter_at: r.shelter_at,
+            pace: pace(r),
         }
     }
+}
+
+/// Plan §5.0 progression-pace milestones: wood, stone tools, iron, food
+/// gathered from the land (the sim has no planting) and a shelter that
+/// passes the test. The first four are items first held.
+pub const PACE: [&str; 5] = [
+    "oak_log",
+    "stone_pickaxe",
+    "raw_iron",
+    "wheat",
+    SHELTER_MILESTONE,
+];
+/// The pace milestone read from the shelter test, not the inventory.
+pub const SHELTER_MILESTONE: &str = "shelter";
+
+/// Ticks into the run to each `PACE` milestone (plan §5.0), for any arm.
+pub fn pace(r: &BrainResult) -> [Option<u64>; 5] {
+    let first = |m: &str| {
+        if m == SHELTER_MILESTONE {
+            r.shelter_at
+        } else {
+            r.firsts.iter().find(|(i, _)| i == m).map(|(_, t)| *t)
+        }
+    };
+    PACE.map(|m| first(m).map(|t| t.saturating_sub(r.start_tick)))
 }
 
 /// Tech-tree goals held in an inventory (spec §21), 0..4.
@@ -157,6 +186,16 @@ pub struct Summary {
     /// Share of runs that stood in a passing shelter (01 §4.11); on
     /// `held_out`, the transfer score (plan §5.0).
     pub shelter: f32,
+    /// Per `PACE` milestone: the share of runs that reached it and the mean
+    /// ticks to it over those runs (NaN if none did).
+    pub pace: [Pace; 5],
+}
+
+/// One progression-pace milestone over seeds (plan §5.0).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Pace {
+    pub reached: f32,
+    pub ticks: f32,
 }
 
 pub fn summarise(runs: &[RunMetrics]) -> Summary {
@@ -180,6 +219,13 @@ pub fn summarise(runs: &[RunMetrics]) -> Summary {
         thinking: avg(&|r| r.thinking),
         plan_lag: finite_mean(runs.iter().map(|r| r.plan_lag)),
         shelter: avg(&|r| f32::from(u8::from(r.shelter_at.is_some()))),
+        pace: std::array::from_fn(|i| Pace {
+            reached: avg(&|r| f32::from(u8::from(r.pace[i].is_some()))),
+            ticks: finite_mean(
+                runs.iter()
+                    .map(|r| r.pace[i].map_or(f32::NAN, |t| t as f32)),
+            ),
+        }),
     }
 }
 

@@ -183,3 +183,25 @@ fn ready_made(seed: u64) -> sim::scenario::Setup {
     assert!(s.world.shelter_test().passes(), "seed {seed}");
     s
 }
+
+#[test]
+fn a_run_records_the_first_tick_each_item_was_held() {
+    // Plan §5.0 pace reads these, for every arm. Held at the start: the
+    // start tick, once; a zero count is not held.
+    let mut s = setup("held_out", 0);
+    s.world.body.inv.items.push(("stick".into(), 0));
+    s.max_ticks = 3;
+    let mut b = Brain::new(BrainConfig::default(), 0);
+    let r = run_with(s, &mut b, 0, &mut |_| {});
+    assert!(r.decisions > 0);
+    assert_eq!(r.start_tick, 0);
+    assert_eq!(r.firsts[0], ("wooden_pickaxe".to_string(), 0));
+    assert!(r.firsts.iter().all(|(i, _)| i != "stick"));
+    let picks = r.firsts.iter().filter(|(i, _)| i == "wooden_pickaxe");
+    assert_eq!(picks.count(), 1, "{:?}", r.firsts);
+    // A scenario that starts mid-day keeps its start tick.
+    let mut s = setup("harsh", 0);
+    s.max_ticks = 0;
+    let r = run_with(s, &mut b, 0, &mut |_| {});
+    assert_eq!(r.start_tick, sim::scenario::DAY / 2);
+}

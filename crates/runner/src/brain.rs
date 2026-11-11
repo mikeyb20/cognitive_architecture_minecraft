@@ -129,7 +129,7 @@ pub fn food_step(obs: &Observation) -> Option<PlanStep> {
 }
 
 /// What one brain run produced.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct BrainResult {
     pub scenario: &'static str,
     pub seed: u64,
@@ -145,6 +145,13 @@ pub struct BrainResult {
     /// The first tick the agent stood in a shelter that passes the host's
     /// shelter test (01 §4.11; plan §5.0 transfer), if it ever did.
     pub shelter_at: Option<u64>,
+    /// The world tick the run started at (scenarios such as harsh start
+    /// mid-day), so milestone ticks can be read as time into the run.
+    pub start_tick: u64,
+    /// Each item the agent held, with the first tick it held one, in that
+    /// order (plan §5.0 progression pace). Items held at the start get the
+    /// start tick.
+    pub firsts: Vec<(String, u64)>,
 }
 
 /// Run one scenario with the brain. `on_row` sees every log row.

@@ -57,6 +57,8 @@ pub(crate) fn run_scenario(
         new_things: 0,
         inventory: Vec::new(),
         shelter_at: None,
+        start_tick: world.tick,
+        firsts: Vec::new(),
     };
     while world.tick < end && world.alive() {
         if world.tick < harass_until {
@@ -66,10 +68,7 @@ pub(crate) fn run_scenario(
             scenario::end_harsh(&mut world);
             harsh_open = false;
         }
-        let test = world.shelter_test();
-        if test.passes() {
-            r.shelter_at.get_or_insert(world.tick);
-        }
+        let test = milestones(&mut r, &world);
         let mut obs = world.perceive();
         let mut cands = world.candidate_actions(&obs);
         player.apply(&mut obs, &mut cands);
@@ -102,11 +101,25 @@ pub(crate) fn run_scenario(
         }
     }
     r.survived = world.alive();
-    if r.survived && world.shelter_test().passes() {
-        r.shelter_at.get_or_insert(world.tick);
-    }
+    milestones(&mut r, &world);
     r.ticks = world.tick;
     r.death = world.body.death;
     r.inventory = world.body.inv.items.clone();
     r
+}
+
+/// Note the first tick of each milestone the plan §5.0 scores read: a
+/// passing shelter test (01 §4.11) while alive, and each item first held.
+/// Returns the shelter test for the driver.
+fn milestones(r: &mut BrainResult, world: &sim::SimWorld) -> ShelterTest {
+    let test = world.shelter_test();
+    if world.alive() && test.passes() {
+        r.shelter_at.get_or_insert(world.tick);
+    }
+    for (item, n) in &world.body.inv.items {
+        if *n > 0 && !r.firsts.iter().any(|(i, _)| i == item) {
+            r.firsts.push((item.clone(), world.tick));
+        }
+    }
+    test
 }
