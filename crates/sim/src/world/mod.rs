@@ -209,6 +209,12 @@ impl SimWorld {
         t.walkable() && t != Tile::Shelter
     }
 
+    /// Whether mob `i` is a hostile within `chase_radius` of the agent.
+    fn chases(&self, i: usize) -> bool {
+        let m = &self.mobs[i];
+        m.kind.hostile() && cheb(m.pos, self.body.pos) <= self.rules.chase_radius
+    }
+
     fn hostile_count(&self) -> usize {
         self.mobs.iter().filter(|m| m.kind.hostile()).count()
     }
@@ -229,19 +235,24 @@ impl SimWorld {
         }
     }
 
-    fn move_mob(&mut self, i: usize) {
+    /// A chaser (`reach` given: a hostile within `chase_radius`) follows a
+    /// shortest walkable path to the agent (#62), or the greedy steps when
+    /// no path exists; every other mob wanders.
+    fn move_mob(&mut self, i: usize, reach: Option<&Reach>) {
         let m = &self.mobs[i];
         let me = self.body.pos;
-        let steps: Vec<(i32, i32)> =
-            if m.kind.hostile() && cheb(m.pos, me) <= self.rules.chase_radius {
-                if cheb(m.pos, me) <= 1 {
-                    return;
-                }
-                chase_steps(m.pos, me).to_vec()
-            } else {
-                let d = [(1, 0), (-1, 0), (0, 1), (0, -1)][self.rng.random_range(0..4)];
-                vec![d]
-            };
+        let steps: Vec<(i32, i32)> = if let Some(reach) = reach {
+            if cheb(m.pos, me) <= 1 {
+                return;
+            }
+            let greedy = chase_steps(m.pos, me);
+            reach
+                .step_toward_origin(m.pos, greedy)
+                .map_or_else(|| greedy.to_vec(), |s| vec![s])
+        } else {
+            let d = [(1, 0), (-1, 0), (0, 1), (0, -1)][self.rng.random_range(0..4)];
+            vec![d]
+        };
         for (dx, dz) in steps {
             if dx == 0 && dz == 0 {
                 continue;
@@ -284,9 +295,16 @@ impl SimWorld {
                 .retain(|m| !m.kind.hostile() || map.biome(m.pos) == Biome::Cave);
         }
         let sheltered = self.sheltered();
+        // One path search per tick, and only when a chaser moves.
+        let mut reach: Option<Reach> = None;
         for i in 0..self.mobs.len() {
             if self.tick >= self.mobs[i].next_move {
-                self.move_mob(i);
+                let chase = if self.chases(i) {
+                    Some(&*reach.get_or_insert_with(|| self.reach()))
+                } else {
+                    None
+                };
+                self.move_mob(i, chase);
                 self.mobs[i].next_move = self.tick
                     + if self.mobs[i].kind.hostile() {
                         self.rules.mob_move_ticks

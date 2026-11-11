@@ -41,7 +41,9 @@ pub struct Rules {
     /// Food restored by eating.
     pub meat_food: f32,
     pub bread_food: f32,
-    /// Ticks to build a shelter with and without 4 blocks in hand.
+    /// Ticks to build a shelter with and without 4 blocks in hand. Digging in
+    /// is 6 since #62 (was 60, about 30 s): Minecraft dirt breaks in 0.75 s
+    /// by hand, so a dig-in takes a few seconds, and a sim tick is 0.5 s.
     pub shelter_ticks_blocks: u32,
     pub shelter_ticks_dig: u32,
     /// Base skill success before focus and threat.
@@ -101,7 +103,7 @@ impl Default for Rules {
             meat_food: 0.3,
             bread_food: 0.5,
             shelter_ticks_blocks: 20,
-            shelter_ticks_dig: 60,
+            shelter_ticks_dig: 6,
             base_success: 0.95,
             tree_chops: 3,
             animal_density: 1.0,

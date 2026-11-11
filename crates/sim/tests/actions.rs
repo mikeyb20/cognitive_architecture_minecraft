@@ -371,10 +371,14 @@ fn crafting_takes_ten_ticks_and_counts_recipes_as_new() {
 }
 
 #[test]
-fn shelters_take_60_ticks_or_20_with_four_blocks() {
+fn shelters_take_6_ticks_to_dig_or_20_with_four_blocks() {
     let mut w = flat();
     let o = w.execute(&act(Skill::Shelter, None), FULL);
-    assert_eq!((o.success, o.duration_ticks), (true, 60));
+    assert_eq!(
+        (o.success, o.duration_ticks),
+        (true, 6),
+        "#62: dig-in 60 → 6"
+    );
     assert!(w.sheltered());
     assert_eq!(w.map.get(p(24, 24)), Tile::Shelter);
     assert_eq!(o.new_things, vec![ThingId("block:shelter".into())]);

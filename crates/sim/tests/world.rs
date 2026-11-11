@@ -199,6 +199,73 @@ fn zombies_take_the_longer_axis_then_go_around() {
 }
 
 #[test]
+fn zombies_path_around_a_wall_the_greedy_chase_cannot_pass() {
+    // #62: a wall at x = 26 from z = 20 to 28 sits between the zombie and
+    // the agent at (24, 24). Two greedy steps would stall at (27, 24); the
+    // shortest path goes round an end of the wall.
+    let mut w = flat();
+    w.tick = 1200;
+    for z in 20..=28 {
+        w.map.set(p(26, z), Tile::Stone);
+    }
+    zombie(&mut w, 28, 24);
+    w.step_world(1);
+    assert_eq!(w.mobs[0].pos, p(27, 24), "the greedy step first");
+    w.step_world(6);
+    assert_eq!(
+        w.mobs[0].pos,
+        p(27, 25),
+        "then along the wall to the nearer end"
+    );
+    w.step_world(120);
+    let m = w.mobs[0].pos;
+    assert!(
+        (m.x - 24).abs().max((m.z - 24).abs()) <= 1,
+        "reached the agent: {m:?}"
+    );
+}
+
+#[test]
+fn a_zombie_backs_out_of_a_pocket_to_chase() {
+    // Each pocket opens away from the agent at (24, 24), on -x and on -z,
+    // so the first step is one the greedy chase never takes.
+    let mut w = flat();
+    w.tick = 1200;
+    for q in [p(22, 23), p(22, 24), p(22, 25), p(21, 23), p(21, 25)] {
+        w.map.set(q, Tile::Stone);
+    }
+    for q in [p(23, 22), p(24, 22), p(25, 22), p(23, 21), p(25, 21)] {
+        w.map.set(q, Tile::Stone);
+    }
+    zombie(&mut w, 21, 24);
+    zombie(&mut w, 24, 21);
+    w.step_world(1);
+    assert_eq!(w.mobs[0].pos, p(20, 24), "out on -x");
+    assert_eq!(w.mobs[1].pos, p(24, 20), "out on -z");
+}
+
+#[test]
+fn a_walled_in_zombie_stays_put_and_pigs_never_chase() {
+    let mut w = flat();
+    w.tick = 1200;
+    for q in [p(29, 24), p(31, 24), p(30, 23), p(30, 25)] {
+        w.map.set(q, Tile::Stone);
+    }
+    zombie(&mut w, 30, 24);
+    zombie(&mut w, 27, 24);
+    let t = w.tick;
+    w.mobs.push(Mob::new(MobKind::Pig, p(24, 30), t));
+    w.step_world(60);
+    assert_eq!(
+        w.mobs[0].pos,
+        p(30, 24),
+        "no path, so the greedy step is blocked"
+    );
+    let pig = w.mobs[2].pos;
+    assert_ne!(pig, p(24, 25), "the pig wanders: {pig:?}");
+}
+
+#[test]
 fn zombies_hit_every_20_ticks_unless_sheltered() {
     let mut w = flat();
     w.tick = 1200;

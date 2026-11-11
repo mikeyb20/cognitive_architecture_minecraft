@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use host_api::{Pos, World};
 
 use super::{PATH_RADIUS, SimWorld};
-use crate::geom::{cheb, neighbours4, ring, square};
+use crate::geom::{cheb, neighbours4, offset, ring, square};
 
 /// Path lengths from one origin (see [`SimWorld::reach`]).
 #[derive(Debug, Clone)]
@@ -31,6 +31,20 @@ impl Reach {
         self.idx(p)
             .map(|i| self.steps[i])
             .filter(|d| *d != u16::MAX)
+    }
+
+    /// A chaser's next 4-way step from `from` along a shortest path to the
+    /// origin, trying `prefer` first (spec §21, #62: zombies path around
+    /// obstacles as Minecraft's do). `None` if `from` has no path.
+    pub fn step_toward_origin(&self, from: Pos, prefer: [(i32, i32); 2]) -> Option<(i32, i32)> {
+        let here = self.steps(from)?;
+        prefer
+            .into_iter()
+            .chain([(1, 0), (-1, 0), (0, 1), (0, -1)])
+            .find(|&(dx, dz)| {
+                self.steps(offset(from, dx, dz))
+                    .is_some_and(|d| d + 1 == here)
+            })
     }
 
     /// Steps to stand on or next to `p` (king move), if reachable.
