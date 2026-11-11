@@ -17,9 +17,10 @@ use crate::FULL;
 use crate::brain::{BrainResult, setup};
 use crate::drive::{Driver, run_scenario};
 use crate::mc::McArm;
-use crate::metrics::{Meter, RunMetrics, pace, recovery, summarise, tech_held};
+use crate::metrics::{Meter, RunMetrics, kept, pace, recovery, summarise, tech_held};
 use crate::sweep::Row;
 use crate::taught::Teacher;
+use crate::teachability::teach_until;
 
 /// Which arm picks the actions (spec §24).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -94,6 +95,11 @@ pub struct Experiment {
     /// the teacher is followed by a copy without it.
     #[serde(default)]
     pub teacher_off: bool,
+    /// The teacher shows for the first this many days, then stops (plan
+    /// §5.0 teachability: does the agent keep the goal?). Unset is the
+    /// whole run.
+    #[serde(default)]
+    pub teach_days: Option<u64>,
     pub arms: Vec<ArmSpec>,
 }
 
@@ -231,6 +237,8 @@ pub fn baseline_metrics(r: &BrainResult) -> RunMetrics {
         plan_lag: f32::NAN,
         shelter_at: r.shelter_at,
         pace: pace(r),
+        hints: r.nights.hints(),
+        kept: kept(r),
         ..recovery(r)
     }
 }
@@ -245,6 +253,8 @@ pub fn run_arm(
 ) -> Result<(RunMetrics, LlmStats), String> {
     let mut s = setup(scenario, seed);
     s.player.dusk_call = e.floor;
+    s.teach_days = e.teach_days;
+    let until = teach_until(s.teach_days, s.world.rules.day_ticks);
     let Some(which) = arm.arm.baseline() else {
         let config = config_for(e, arm, seed)?;
         let mut m = Meter::default();
@@ -257,7 +267,7 @@ pub fn run_arm(
     };
     let mut d = PolicyDriver {
         policy: crate::mc::arm(which, tier, provider)?,
-        teacher: Teacher::new(arm.teacher),
+        teacher: Teacher::new(arm.teacher, until),
     };
     let no_rows = &mut |_: &TickLog| unreachable!("baseline arms keep no log rows");
     let r = run_scenario(s, &mut d, None, seed, no_rows);
@@ -349,6 +359,7 @@ pub fn header(e: &Experiment) -> serde_json::Value {
         "per_agent": e.per_agent,
         "floor": e.floor,
         "teacher_off": e.teacher_off,
+        "teach_days": e.teach_days,
         "arms": arms,
         "defs_version": cognitive_core::DEFS_VERSION,
         "paper_version": cognitive_core::PAPER_VERSION,
@@ -386,7 +397,7 @@ mod tests {
     fn a_baseline_is_taught_until_its_shelter_test_passes() {
         let mut d = PolicyDriver {
             policy: Box::new(ArmA::default()),
-            teacher: Teacher::new(true),
+            teacher: Teacher::new(true, None),
         };
         let asked = obs(&["get shelter"], &[]);
         assert_eq!(d.decide(&asked, &cands()), Decision::Act(0, FULL), "chop");
@@ -405,7 +416,7 @@ mod tests {
             enclosed: true,
             exit: true,
         });
-        assert_eq!(d.teacher, Teacher::new(true), "the lesson ends");
+        assert_eq!(d.teacher, Teacher::new(true, None), "the lesson ends");
         assert_eq!(d.log(), None);
         d.reflex_fired(0);
     }
@@ -452,5 +463,25 @@ mod tests {
         assert_eq!(header(&e)["teacher_off"], true);
         let plain = parse(&text.replace("teacher_off=true", "")).unwrap();
         assert_eq!((plain.arms.len(), plain.teacher_off), (3, false));
+        assert_eq!(plain.teach_days, None);
+        let days = parse(&text.replace("teacher_off=true", "teach_days=2")).unwrap();
+        assert_eq!(days.teach_days, Some(2));
+        assert_eq!(header(&days)["teach_days"], 2);
+    }
+
+    #[test]
+    fn baselines_are_scored_for_teachability() {
+        use crate::teachability::{Night, Nights};
+        let r = BrainResult {
+            nights: Nights(vec![Night {
+                day: 2,
+                asked: true,
+                sheltered: true,
+            }]),
+            teach_days: Some(2),
+            ..BrainResult::default()
+        };
+        let m = baseline_metrics(&r);
+        assert_eq!((m.hints, m.kept), (Some(1), 1.0));
     }
 }

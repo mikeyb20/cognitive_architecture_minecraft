@@ -138,6 +138,8 @@ fn baseline_metrics_by_hand() {
         firsts: vec![("wooden_pickaxe".into(), 100), ("wheat".into(), 400)],
         recoveries: vec![40],
         unrecovered: 1,
+        nights: runner::teachability::Nights::default(),
+        teach_days: None,
     };
     let m = baseline_metrics(&r);
     assert_eq!((m.survived, m.ticks, m.decisions), (true, 2400, 8));
@@ -163,6 +165,8 @@ fn baseline_metrics_by_hand() {
         (40.0, 2, 1),
         "recovery for every arm"
     );
+    assert_eq!(m.hints, None, "no night in a passing shelter");
+    assert!(m.kept.is_nan(), "the teacher never stopped");
     let none = baseline_metrics(&BrainResult {
         decisions: 0,
         idle: 0,
@@ -459,4 +463,21 @@ fn the_shared_teacher_shows_arm_a_a_hut_that_passes() {
     a.teacher = true;
     let (unasked, _) = runner::experiment::run_arm(&e, &a, "first_night", 0, None).unwrap();
     assert_eq!(unasked.shelter_at, None, "nothing asked, nothing taught");
+}
+
+#[test]
+fn teachability_is_scored_after_the_teacher_stops() {
+    // Plan §5.0 teachability: with the teacher showing on day 0 only, arm
+    // A follows the recipe on night 0 (one hint) and is scored on the
+    // nights after (seeds 0 and 1 of open_day).
+    let text = std::fs::read_to_string("../../configs/experiments/teachability.toml").unwrap();
+    let mut e = parse(&text).unwrap();
+    assert_eq!((e.teach_days, e.teacher_off), (Some(1), true));
+    e.scenarios = vec!["open_day".into()];
+    e.seeds = 2;
+    e.arms.truncate(1);
+    let rows = run(&e, 2, None).unwrap().rows;
+    let s = &rows[0].summary;
+    assert_eq!((s.learned, s.hints), (1.0, 1.0));
+    assert!((0.0..=1.0).contains(&s.kept), "{s:?}");
 }

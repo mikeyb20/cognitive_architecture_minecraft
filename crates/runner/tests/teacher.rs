@@ -48,6 +48,7 @@ fn the_shelter_recipe_starts_from_what_is_held() {
 fn the_sim_teacher_explains_only_the_shelter() {
     let mut t = SimTools {
         shelter: Some(true),
+        ..SimTools::default()
     };
     let obs = setup("first_night", 0).world.perceive();
     assert_eq!(t.explain(SHELTER, &obs), Some(true));

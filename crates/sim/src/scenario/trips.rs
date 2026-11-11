@@ -163,6 +163,7 @@ pub(super) fn setup(name: &'static str, world: SimWorld, max_ticks: u64) -> Setu
         max_ticks,
         harass_until: 0,
         horizon: None,
+        teach_days: None,
     }
 }
 

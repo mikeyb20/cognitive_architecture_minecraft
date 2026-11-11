@@ -266,12 +266,12 @@ fn num(x: f32, places: usize) -> String {
 /// Plan §5.0 scores: per pace milestone, the share of runs that reached
 /// it and the mean ticks into the run over those runs; then recovery.
 fn scores_table(rows: &[Row]) -> String {
-    let mut t = "\nPlan §5.0 scores. Pace: share of runs that reached each milestone @ mean ticks into the run for those runs (a dash if none did); shelter = a shelter that passes the shelter test. recovery = mean ticks from a setback (damage taken) to the next work action, not fleeing, sheltering, resting or eating; recovered = share of setbacks the agent got back to work from before the run ended.\n\n".to_string();
+    let mut t = "\nPlan §5.0 scores. Pace: share of runs that reached each milestone @ mean ticks into the run for those runs (a dash if none did); shelter = a shelter that passes the shelter test. recovery = mean ticks from a setback (damage taken) to the next work action, not fleeing, sheltering, resting or eating; recovered = share of setbacks the agent got back to work from before the run ended. Teachability: learned = share of runs that spent a night in a passing shelter; hints = the player's dusk calls up to that night; kept = share of nights in a passing shelter after the teacher stopped (a dash if it never stopped).\n\n".to_string();
     t += &format!(
-        "| variant | scenario | {} | recovery | recovered |\n",
+        "| variant | scenario | {} | recovery | recovered | learned | hints | kept |\n",
         PACE.join(" | ")
     );
-    t += &format!("|{}\n", "---|".repeat(PACE.len() + 4));
+    t += &format!("|{}\n", "---|".repeat(PACE.len() + 7));
     for r in rows {
         let s = &r.summary;
         let pace = s.pace.map(|p| {
@@ -282,24 +282,35 @@ fn scores_table(rows: &[Row]) -> String {
             }
         });
         t += &format!(
-            "| {} | {} | {} | {} | {} |\n",
+            "| {} | {} | {} | {} |\n",
             r.variant,
             r.scenario,
             pace.join(" | "),
-            num(s.recovery, 0),
-            num(s.recovered, 2)
+            after_pace(s).join(" | ")
         );
     }
     t
 }
 
 /// CSV columns after `HEADER`: each pace milestone's share and ticks, then
-/// recovery.
+/// recovery and teachability.
 fn scores_header() -> Vec<String> {
+    let after = ["recovery", "recovered", "learned", "hints", "kept"];
     PACE.iter()
         .flat_map(|m| [format!("{m} reached"), format!("{m} ticks")])
-        .chain(["recovery".to_string(), "recovered".to_string()])
+        .chain(after.map(str::to_string))
         .collect()
+}
+
+/// The scores after pace: recovery, then teachability.
+fn after_pace(s: &Summary) -> [String; 5] {
+    [
+        num(s.recovery, 0),
+        num(s.recovered, 2),
+        num(s.learned, 2),
+        num(s.hints, 1),
+        num(s.kept, 2),
+    ]
 }
 
 /// Each milestone's share and mean ticks (a dash for ticks when none did),
@@ -308,7 +319,7 @@ fn scores_cells(s: &Summary) -> Vec<String> {
     s.pace
         .iter()
         .flat_map(|p| [num(p.reached, 2), num(p.ticks, 0)])
-        .chain([num(s.recovery, 0), num(s.recovered, 2)])
+        .chain(after_pace(s))
         .collect()
 }
 
@@ -357,11 +368,11 @@ mod tests {
 
     // Also unit tests, for the same reason: the scores table follows the
     // results table, and the CSV has two pace columns per milestone, then
-    // recovery.
+    // recovery and teachability.
     #[test]
     fn scores_table_and_columns() {
         let h = scores_header();
-        assert_eq!(h.len(), 2 * PACE.len() + 2);
+        assert_eq!(h.len(), 2 * PACE.len() + 5);
         assert_eq!(
             (h[0].as_str(), h[1].as_str()),
             ("oak_log reached", "oak_log ticks")
@@ -370,6 +381,7 @@ mod tests {
             (h[9].as_str(), h[11].as_str()),
             ("shelter ticks", "recovered")
         );
+        assert_eq!(h[12..], ["learned", "hints", "kept"]);
         let summary = Summary {
             pace: [Pace {
                 reached: 0.5,
@@ -377,11 +389,14 @@ mod tests {
             }; 5],
             recovery: 12.4,
             recovered: f32::NAN,
+            learned: 0.25,
+            hints: 1.25,
+            kept: f32::NAN,
             ..Summary::default()
         };
         let c = scores_cells(&summary);
         assert_eq!(c[..2], ["0.50", "–"]);
-        assert_eq!(c[10..], ["12", "–"]);
+        assert_eq!(c[10..], ["12", "–", "0.25", "1.2", "–"]);
         let row = Row {
             variant: "v".into(),
             scenario: "s".into(),
@@ -389,7 +404,11 @@ mod tests {
         };
         let t = scores_table(std::slice::from_ref(&row));
         assert!(t.contains("| v | s | 0.00 @ 0 |"), "{t}");
-        assert!(t.ends_with("| 0 | 0.00 |\n"), "{t}");
+        assert!(t.ends_with("| 0 | 0.00 | 0.00 | 0.0 | 0.00 |\n"), "{t}");
+        assert!(
+            t.contains("| recovered | learned | hints | kept |\n|"),
+            "{t}"
+        );
         assert!(table(&[row], 1).ends_with(&t), "the scores table follows");
     }
 }

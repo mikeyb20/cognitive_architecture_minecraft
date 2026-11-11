@@ -12,6 +12,7 @@ use sim::world::ShelterTest;
 use sim::{Death, Rules};
 
 use crate::drive::{Driver, run_scenario};
+use crate::teachability::{Nights, teach_until, teaching};
 
 /// The sim's code tools (spec §21): the scripted planner and the
 /// tech-tree recombiner stand in for the LLM. As the teacher (01 §4.11)
@@ -19,6 +20,9 @@ use crate::drive::{Driver, run_scenario};
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SimTools {
     pub shelter: Option<bool>,
+    /// The tick the teacher stops showing recipes (plan §5.0
+    /// teachability); the test is still explained after it (01 §4.11).
+    pub teach_until: Option<u64>,
 }
 
 /// Dusk, from which the planner puts shelter first (same as arm A's tree).
@@ -68,7 +72,8 @@ impl ThinkTools for SimTools {
 
     /// The teacher shows how to build a shelter (01 §4.11, #59).
     fn show(&mut self, goal: &str, obs: &Observation) -> Option<Recipe> {
-        (goal == SHELTER).then(|| shelter_recipe(&obs.inventory))
+        (goal == SHELTER && teaching(self.teach_until, obs.tick))
+            .then(|| shelter_recipe(&obs.inventory))
     }
 
     /// The shelter test (01 §4.11): no hostile has a path in, and a way out.
@@ -156,6 +161,10 @@ pub struct BrainResult {
     /// setbacks the run ended inside (plan §5.0 recovery).
     pub recoveries: Vec<u64>,
     pub unrecovered: u32,
+    /// Each night's dusk call and shelter, and the days the teacher showed
+    /// for (plan §5.0 teachability).
+    pub nights: Nights,
+    pub teach_days: Option<u64>,
 }
 
 /// Run one scenario with the brain. `on_row` sees every log row.
@@ -206,7 +215,10 @@ pub fn run_with(
     let end = brain.lifespan();
     let mut d = BrainDriver {
         brain,
-        tools: SimTools::default(),
+        tools: SimTools {
+            teach_until: teach_until(setup.teach_days, setup.world.rules.day_ticks),
+            ..SimTools::default()
+        },
     };
     run_scenario(setup, &mut d, end, seed, on_row)
 }
@@ -271,6 +283,44 @@ mod tests {
         assert!(r.survived, "{r:?}");
         let r = (r.decisions, r.ticks);
         assert_eq!(r, (0, 0));
+    }
+
+    // Unit test for the same reason: the teacher stops showing at
+    // `teach_until` but still explains the test (01 §4.11).
+    #[test]
+    fn the_sim_teacher_stops_showing_but_keeps_explaining() {
+        use host_api::Host;
+        let mut obs = setup("first_night", 0).world.perceive();
+        let mut t = SimTools {
+            shelter: Some(false),
+            teach_until: Some(100),
+        };
+        obs.tick = 99;
+        assert!(t.show(SHELTER, &obs).is_some());
+        assert!(t.show("stick", &obs).is_none());
+        obs.tick = 100;
+        assert!(t.show(SHELTER, &obs).is_none());
+        assert_eq!(t.explain(SHELTER, &obs), Some(false));
+    }
+
+    // A run passes its teaching days to the brain's teacher: asked at
+    // dusk, the brain is shown the recipe unless the teacher has stopped.
+    #[test]
+    fn a_run_tells_the_sim_teacher_when_to_stop() {
+        let shown = |days| {
+            let mut s = setup("first_night", 0);
+            s.player.dusk_call = true;
+            s.teach_days = days;
+            s.max_ticks = scenario::DAY / 2;
+            let mut brain = Brain::new(BrainConfig::default(), 0);
+            let mut any = false;
+            run_with(s, &mut brain, 0, &mut |row| {
+                any |= row.recipe_step.is_some()
+            });
+            any
+        };
+        assert!(shown(None));
+        assert!(!shown(Some(0)));
     }
 
     // The driver passes reflexes on, so O learns from them (spec §7.1).

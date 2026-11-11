@@ -1,0 +1,21 @@
+# Plan §5.0 teachability (spec §27 step 16): the player asks for a shelter
+# at each dusk (the shared floor) and the teacher shows the recipe on day 0
+# only. learned/hints: how many calls it took to spend a night in a passing
+# shelter; kept: the share of later nights (teacher silent, test still
+# explained) spent in one. Each arm is re-run with the teacher off.
+id = "TEACHABILITY"
+question = "Does the agent keep a taught goal once the teacher stops showing it? (plan §5.0)"
+scenarios = ["open_day", "long_horizon"]
+seeds = 50
+teach_days = 1
+teacher_off = true
+
+[[arms]]
+label = "A (behaviour tree)"
+arm = "a"
+expected = "Learned on night 0 with one hint (it follows the shown steps), but kept only as often as its own dusk rule passes the test (about its teacher-off rate): it never learns."
+
+[[arms]]
+label = "C (brain)"
+arm = "c"
+expected = "Learned on night 0 about as often as with the teacher all run (0.8). Kept above its teacher-off rate if the taught recipe or test changed what it values; likely few runs reach day 1 alive, so read kept with the run count."

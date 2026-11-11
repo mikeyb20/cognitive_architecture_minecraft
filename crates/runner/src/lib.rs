@@ -13,6 +13,7 @@ pub(crate) mod par;
 pub mod recovery;
 pub mod sweep;
 pub(crate) mod taught;
+pub mod teachability;
 pub mod theory;
 pub mod think;
 

@@ -201,6 +201,7 @@ fn summary_averages_over_seeds() {
     );
     let none = summarise(&[]);
     assert!(none.plan_lag.is_nan() && none.recovery.is_nan() && none.recovered.is_nan());
+    assert!(none.hints.is_nan() && none.kept.is_nan());
     assert!(
         none.pace
             .iter()
@@ -212,6 +213,8 @@ fn summary_averages_over_seeds() {
             pace: [Pace::default(); 5],
             recovery: 0.0,
             recovered: 0.0,
+            hints: 0.0,
+            kept: 0.0,
             ..none
         },
         Summary::default()
@@ -284,13 +287,13 @@ fn tables_have_one_line_per_row() {
     assert!(md.contains("\nPlan §5.0 scores. Pace:"), "{md}");
     assert!(
         md.contains(
-            "| variant | scenario | oak_log | stone_pickaxe | raw_iron | wheat | shelter | recovery | recovered |"
+            "| variant | scenario | oak_log | stone_pickaxe | raw_iron | wheat | shelter | recovery | recovered | learned | hints | kept |"
         ),
         "{md}"
     );
     assert!(
         md.contains(
-            "| EXP3 γ=0.1 | harsh | 0.50 @ 31 | – | 0.00 @ 0 | 0.00 @ 0 | 0.00 @ 0 | 12 | 0.75 |"
+            "| EXP3 γ=0.1 | harsh | 0.50 @ 31 | – | 0.00 @ 0 | 0.00 @ 0 | 0.00 @ 0 | 12 | 0.75 | 0.00 | 0.0 | 0.00 |"
         ),
         "share @ mean ticks; a dash when none reached: {md}"
     );
@@ -300,14 +303,15 @@ fn tables_have_one_line_per_row() {
     assert!(lines[0].starts_with("oq,variant,scenario,survival"));
     assert!(
         lines[0].contains(",plan lag,shelter,oak_log reached,oak_log ticks,stone_pickaxe reached,")
-            && lines[0].ends_with(",shelter reached,shelter ticks,recovery,recovered"),
+            && lines[0]
+                .ends_with(",shelter reached,shelter ticks,recovery,recovered,learned,hints,kept"),
         "{}",
         lines[0]
     );
     assert!(lines[1].starts_with("OQ18,EXP3 γ=0.1,harsh,0.50,"));
     assert!(
         lines[1].contains(",42,0.12,3.5,–,0.25,0.50,31,0.00,–,0.00,0,")
-            && lines[1].ends_with(",12,0.75"),
+            && lines[1].ends_with(",12,0.75,0.00,0.0,0.00"),
         "memory whole, recall to two places, think to one, no lag, shelter: {}",
         lines[1]
     );

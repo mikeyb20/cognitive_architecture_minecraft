@@ -42,17 +42,19 @@ impl ScriptedPlayer {
 
     /// The dusk call (plan §5.0 shared floor): once per day, from dusk on,
     /// "get shelter" in chat while the agent is not in a shelter that
-    /// passes the test. `day_ticks` is the length of a day.
-    pub fn call_at_dusk(&mut self, obs: &mut Observation, day_ticks: u64, sheltered: bool) {
+    /// passes the test. `day_ticks` is the length of a day. Returns whether
+    /// it called.
+    pub fn call_at_dusk(&mut self, obs: &mut Observation, day_ticks: u64, sheltered: bool) -> bool {
         let day = obs.tick / day_ticks;
         if !self.dusk_call || sheltered || obs.day_phase < DUSK || self.called_day == Some(day) {
-            return;
+            return false;
         }
         self.called_day = Some(day);
         obs.chat.push(ChatMsg {
             from: PLAYER.into(),
             text: format!("get {SHELTER_GOAL}"),
         });
+        true
     }
 
     /// The open command, if any.
@@ -216,7 +218,8 @@ mod tests {
                 day_phase: phase,
                 ..obs(tick)
             };
-            p.call_at_dusk(&mut o, 100, sheltered);
+            let called = p.call_at_dusk(&mut o, 100, sheltered);
+            assert_eq!(called, !o.chat.is_empty());
             o.chat
         };
         let mut off = ScriptedPlayer::idle();

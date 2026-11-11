@@ -52,6 +52,12 @@ pub struct RunMetrics {
     /// Setbacks in the run, and how many it recovered from.
     pub setbacks: u32,
     pub recovered: u32,
+    /// Dusk calls up to the first night in a passing shelter, if there was
+    /// one (plan §5.0 teachability).
+    pub hints: Option<u32>,
+    /// Share of the nights after the teacher stopped spent in a passing
+    /// shelter; NaN if the teacher never stopped or no such night came.
+    pub kept: f32,
 }
 
 /// The internal actions that call the LLM tool (spec §6, #40).
@@ -134,6 +140,8 @@ impl Meter {
             },
             shelter_at: r.shelter_at,
             pace: pace(r),
+            hints: r.nights.hints(),
+            kept: kept(r),
             ..recovery(r)
         }
     }
@@ -175,6 +183,12 @@ pub fn recovery(r: &BrainResult) -> RunMetrics {
     }
 }
 
+/// Plan §5.0 teachability for any arm: the share of nights after the
+/// teacher stopped spent in a passing shelter (NaN if it never stopped).
+pub fn kept(r: &BrainResult) -> f32 {
+    r.teach_days.map_or(f32::NAN, |d| r.nights.kept(d))
+}
+
 /// Tech-tree goals held in an inventory (spec §21), 0..4.
 pub fn tech_held(inventory: &[(String, u32)]) -> u32 {
     let held = |g: &str| inventory.iter().any(|(i, k)| i == g && *k > 0);
@@ -212,6 +226,13 @@ pub struct Summary {
     /// recovered from (NaN if there were none).
     pub recovery: f32,
     pub recovered: f32,
+    /// Share of runs that spent a night in a passing shelter, the mean
+    /// dusk calls it took over those runs (NaN if none did), and the mean
+    /// over runs of the share of nights kept after the teacher stopped
+    /// (runs with none left out; NaN if no run had one).
+    pub learned: f32,
+    pub hints: f32,
+    pub kept: f32,
 }
 
 /// One progression-pace milestone over seeds (plan §5.0).
@@ -255,6 +276,9 @@ pub fn summarise(runs: &[RunMetrics]) -> Summary {
             let back: u32 = runs.iter().map(|r| r.recovered).sum();
             back as f32 / all as f32
         },
+        learned: avg(&|r| f32::from(u8::from(r.hints.is_some()))),
+        hints: finite_mean(runs.iter().map(|r| r.hints.map_or(f32::NAN, |h| h as f32))),
+        kept: finite_mean(runs.iter().map(|r| r.kept)),
     }
 }
 
@@ -264,4 +288,46 @@ fn finite_mean(xs: impl Iterator<Item = f32>) -> f32 {
         .filter(|x| x.is_finite())
         .fold((0.0, 0u32), |(s, n), x| (s + x, n + 1));
     if n == 0 { f32::NAN } else { sum / n as f32 }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::teachability::{Night, Nights};
+
+    // Unit tests, so a mutant here fails before the slow CLI tests run.
+    #[test]
+    fn teachability_by_hand() {
+        let night = |day, asked, sheltered| Night {
+            day,
+            asked,
+            sheltered,
+        };
+        let r = BrainResult {
+            nights: Nights(vec![night(0, true, true), night(1, false, false)]),
+            teach_days: Some(1),
+            ..BrainResult::default()
+        };
+        assert_eq!(kept(&r), 0.0);
+        let untimed = BrainResult {
+            teach_days: None,
+            ..r.clone()
+        };
+        assert!(kept(&untimed).is_nan(), "the teacher never stopped");
+        let run = |hints, kept| RunMetrics {
+            hints,
+            kept,
+            ..RunMetrics::default()
+        };
+        let s = summarise(&[
+            run(Some(1), 0.0),
+            run(Some(4), 1.0),
+            run(None, f32::NAN),
+            run(None, 0.5),
+        ]);
+        assert_eq!((s.learned, s.hints, s.kept), (0.5, 2.5, 0.5));
+        let m = Meter::default().finish(&r);
+        assert_eq!((m.hints, m.kept), (Some(1), 0.0));
+        assert!(Meter::default().finish(&untimed).kept.is_nan());
+    }
 }

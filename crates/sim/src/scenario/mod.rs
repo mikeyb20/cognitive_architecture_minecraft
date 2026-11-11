@@ -46,6 +46,10 @@ pub struct Setup {
     pub harass_until: u64,
     /// Lifespan for urgency (spec §15), if the scenario sets one.
     pub horizon: Option<f32>,
+    /// The teacher shows recipes for the first this many days, then stops
+    /// (plan §5.0 teachability); `None` is the whole run. Read by the
+    /// runner's teachers; the world ignores it.
+    pub teach_days: Option<u64>,
 }
 
 /// Build a scenario by name.
@@ -61,6 +65,7 @@ pub fn build(name: &str, rules: Rules, seed: u64) -> Option<Setup> {
         max_ticks: DAY,
         harass_until: 0,
         horizon: None,
+        teach_days: None,
     };
     match name {
         "open_day" => s.max_ticks = 3 * DAY,

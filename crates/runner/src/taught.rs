@@ -13,33 +13,39 @@ use host_api::{Candidate, Observation, Skill};
 use sim::world::ShelterTest;
 
 use crate::brain::{SHELTER, shelter_recipe};
+use crate::teachability::teaching;
 
 /// The teacher beside a baseline arm (plan §5.0).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Teacher {
     /// Off is the teacher-off rerun (plan §5.0).
     pub show: bool,
+    /// The tick it stops showing new lessons (plan §5.0 teachability).
+    pub until: Option<u64>,
     lesson: Option<Lesson>,
     /// The last chosen action, to move the lesson on when it succeeds.
     chosen: Option<(Skill, Option<String>)>,
 }
 
 impl Teacher {
-    pub fn new(show: bool) -> Self {
+    pub fn new(show: bool, until: Option<u64>) -> Self {
         Self {
             show,
+            until,
             ..Self::default()
         }
     }
 
     /// Hear chat: "get shelter" opens a lesson from what the agent holds,
-    /// unless one is open (01 §4.11: shown once per goal).
+    /// unless one is open (01 §4.11: shown once per goal) or the teacher
+    /// has stopped.
     pub fn hear(&mut self, obs: &Observation) {
         let asked = obs
             .chat
             .iter()
             .any(|m| m.text.strip_prefix("get ").map(str::trim) == Some(SHELTER));
-        if self.show && asked && self.lesson.is_none() {
+        let open = self.show && teaching(self.until, obs.tick);
+        if open && asked && self.lesson.is_none() {
             self.lesson = Some(Lesson::new(shelter_recipe(&obs.inventory)));
         }
     }
@@ -151,7 +157,7 @@ pub(crate) mod tests {
 
     #[test]
     fn a_shelter_call_is_taught_step_by_step_until_the_test_passes() {
-        let mut t = Teacher::new(true);
+        let mut t = Teacher::new(true, None);
         let quiet = obs(&[], &[]);
         t.hear(&quiet);
         assert_eq!(marked(&t, &quiet), [false; 4], "nothing asked");
@@ -183,8 +189,20 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_stopped_teacher_opens_no_new_lesson() {
+        let mut t = Teacher::new(true, Some(5));
+        let mut late = obs(&["get shelter"], &[]);
+        late.tick = 5;
+        t.hear(&late);
+        assert_eq!(marked(&t, &late), [false; 4]);
+        late.tick = 4;
+        t.hear(&late);
+        assert_eq!(marked(&t, &late), [true, false, false, false]);
+    }
+
+    #[test]
     fn with_the_teacher_off_nothing_is_marked_but_commands_stay() {
-        let mut t = Teacher::new(false);
+        let mut t = Teacher::new(false, None);
         let o = obs(&["get shelter"], &[]);
         t.hear(&o);
         let mut cs = cands();
@@ -193,6 +211,6 @@ pub(crate) mod tests {
         assert_eq!(out, [false, false, true, false]);
         // An outcome with no lesson changes nothing.
         t.outcome(true);
-        assert_eq!(t, Teacher::new(false));
+        assert_eq!(t, Teacher::new(false, None));
     }
 }

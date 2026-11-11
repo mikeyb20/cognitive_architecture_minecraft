@@ -3,6 +3,7 @@
 //! arm that implements [`Driver`].
 
 use cognitive_core::agent::{Decision, TickLog};
+use host_api::ontology::DUSK;
 use host_api::reflex::{ReflexThresholds, emergency_reflex};
 use host_api::{Candidate, Host, Observation, Outcome, World};
 use sim::scenario::{self, Setup};
@@ -41,6 +42,7 @@ pub(crate) fn run_scenario(
         mut player,
         max_ticks,
         harass_until,
+        teach_days,
         ..
     } = setup;
     let end = lifespan.map_or(max_ticks, |l| l.min(max_ticks));
@@ -49,6 +51,7 @@ pub(crate) fn run_scenario(
         scenario: name,
         seed,
         start_tick: world.tick,
+        teach_days,
         ..BrainResult::default()
     };
     let mut setbacks = Setbacks::default();
@@ -65,7 +68,11 @@ pub(crate) fn run_scenario(
         let mut obs = world.perceive();
         let mut cands = world.candidate_actions(&obs);
         player.apply(&mut obs, &mut cands);
-        player.call_at_dusk(&mut obs, world.rules.day_ticks, test.passes());
+        let day_ticks = world.rules.day_ticks;
+        let asked = player.call_at_dusk(&mut obs, day_ticks, test.passes());
+        let dusk = obs.day_phase >= DUSK;
+        r.nights
+            .see(obs.tick / day_ticks, dusk, asked, test.passes());
         if let Some((_, c)) = emergency_reflex(&obs, &cands, ReflexThresholds::default()) {
             let c = c.clone();
             r.reflexes += 1;
@@ -166,6 +173,25 @@ mod tests {
         assert_eq!(d.shelter_at, None, "only while alive");
         milestones(&mut r, &w);
         assert_eq!(r.shelter_at, Some(7));
+    }
+
+    #[test]
+    fn nights_note_the_dusk_call_and_the_teaching_days() {
+        let run = |end: u64| {
+            let mut s = crate::brain::setup("first_night", 0);
+            s.player.dusk_call = true;
+            s.teach_days = Some(1);
+            s.max_ticks = end;
+            let mut b = cognitive_core::agent::Brain::new(Default::default(), 0);
+            crate::brain::run_with(s, &mut b, 0, &mut |_| {})
+        };
+        let day = sim::scenario::DAY;
+        let before = run(day * 2 / 5);
+        assert_eq!(before.nights.0, [], "before dusk");
+        assert_eq!(before.teach_days, Some(1));
+        let r = run(day / 2);
+        let n = &r.nights.0;
+        assert_eq!((n.len(), n[0].day, n[0].asked), (1, 0, true), "{n:?}");
     }
 
     #[test]
