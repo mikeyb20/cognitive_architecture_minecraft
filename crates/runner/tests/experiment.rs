@@ -402,13 +402,27 @@ fn the_transfer_score_is_computed_for_every_arm() {
     e.scenarios = vec!["held_out".into()];
     e.seeds = 2;
     let rows = run(&e, 2, None).unwrap().rows;
-    assert_eq!(rows.len(), 3);
+    // Each arm, then its teacher-off rerun.
+    let labels: Vec<&str> = rows.iter().map(|r| r.variant.as_str()).collect();
+    assert_eq!(
+        labels,
+        [
+            "A (behaviour tree)",
+            "A (behaviour tree), teacher off",
+            "C (brain)",
+            "C (brain), teacher off"
+        ]
+    );
     for r in &rows {
         assert!((0.0..=1.0).contains(&r.summary.shelter), "{}", r.variant);
     }
     // Arm A's tree mines stone with the pickaxe it holds and builds at
-    // dusk, so its hut passes (seeds 0 and 1).
-    assert_eq!(rows[0].summary.shelter, 1.0);
+    // dusk, so its hut passes (seeds 0 and 1), taught or not: the recipe's
+    // chop step has nothing to act on there.
+    assert_eq!(
+        (rows[0].summary.shelter, rows[1].summary.shelter),
+        (1.0, 1.0)
+    );
 }
 
 #[test]

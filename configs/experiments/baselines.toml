@@ -4,6 +4,7 @@ id = "BASELINES"
 question = "What does the architecture add over a behaviour tree? (plan §5.1)"
 scenarios = ["first_night", "open_day", "commanded", "harsh", "long_horizon"]
 seeds = 50
+teacher_off = true
 
 [[arms]]
 label = "A (behaviour tree)"

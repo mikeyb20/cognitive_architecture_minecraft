@@ -90,6 +90,10 @@ pub struct Experiment {
     /// false.
     #[serde(default = "on")]
     pub floor: bool,
+    /// Re-run every arm with the teacher off (plan §5.0): each arm that has
+    /// the teacher is followed by a copy without it.
+    #[serde(default)]
+    pub teacher_off: bool,
     pub arms: Vec<ArmSpec>,
 }
 
@@ -107,7 +111,10 @@ fn default_archetype() -> String {
 
 /// Read an experiment and check every arm's config and every scenario.
 pub fn parse(text: &str) -> Result<Experiment, String> {
-    let e: Experiment = toml::from_str(text).map_err(|err| err.to_string())?;
+    let mut e: Experiment = toml::from_str(text).map_err(|err| err.to_string())?;
+    if e.teacher_off {
+        e.arms = e.arms.iter().flat_map(with_rerun).collect();
+    }
     for sc in &e.scenarios {
         if !sim::scenario::NAMES.contains(&sc.as_str()) {
             return Err(format!("unknown scenario {sc:?}"));
@@ -120,6 +127,23 @@ pub fn parse(text: &str) -> Result<Experiment, String> {
         config_for(&e, arm, 0)?;
     }
     Ok(e)
+}
+
+/// An arm and, if it has the teacher, its teacher-off rerun (plan §5.0).
+fn with_rerun(arm: &ArmSpec) -> Vec<ArmSpec> {
+    let mut out = vec![arm.clone()];
+    if arm.teacher {
+        out.push(ArmSpec {
+            label: format!("{}, teacher off", arm.label),
+            expected: format!(
+                "Below {} wherever the teacher's recipe works; a gain that vanishes here came from the teacher (plan §5.0).",
+                arm.label
+            ),
+            teacher: false,
+            ..arm.clone()
+        });
+    }
+    out
 }
 
 /// Every key of `over` must already be in `base`, so a typo is an error
@@ -324,6 +348,7 @@ pub fn header(e: &Experiment) -> serde_json::Value {
         "archetype": e.archetype,
         "per_agent": e.per_agent,
         "floor": e.floor,
+        "teacher_off": e.teacher_off,
         "arms": arms,
         "defs_version": cognitive_core::DEFS_VERSION,
         "paper_version": cognitive_core::PAPER_VERSION,
@@ -398,5 +423,34 @@ mod tests {
             assert_eq!(header(&e)["arms"][0]["teacher"], on);
             assert_eq!(config_for(&e, &e.arms[0], 0).unwrap().teacher.show, on);
         }
+    }
+
+    #[test]
+    fn teacher_off_reruns_each_taught_arm_right_after_it() {
+        let text = "id='x'\nquestion='q'\nscenarios=[]\nteacher_off=true\n\
+            [[arms]]\nlabel='A'\narm='a'\nexpected='-'\n\
+            [[arms]]\nlabel='C'\narm='c'\nexpected='-'\n\
+            [[arms]]\nlabel='C bare'\narm='c'\nexpected='-'\nteacher=false";
+        let e = parse(text).unwrap();
+        let arms: Vec<(&str, bool)> = e
+            .arms
+            .iter()
+            .map(|a| (a.label.as_str(), a.teacher))
+            .collect();
+        assert_eq!(
+            arms,
+            [
+                ("A", true),
+                ("A, teacher off", false),
+                ("C", true),
+                ("C, teacher off", false),
+                ("C bare", false),
+            ]
+        );
+        assert_eq!(e.arms[1].arm, ArmKind::A);
+        assert!(e.arms[3].expected.starts_with("Below C wherever"));
+        assert_eq!(header(&e)["teacher_off"], true);
+        let plain = parse(&text.replace("teacher_off=true", "")).unwrap();
+        assert_eq!((plain.arms.len(), plain.teacher_off), (3, false));
     }
 }
