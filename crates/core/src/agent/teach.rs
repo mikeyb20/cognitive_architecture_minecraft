@@ -11,7 +11,8 @@ use host_api::{Candidate, Observation, Outcome};
 
 impl Brain {
     /// Ask the teacher about the current goal (01 §4.11): a recipe once,
-    /// the test every tick. Logs the next step and the test result.
+    /// the test every tick. Logs the next step and the test result, and
+    /// completes the goal if its test passes (#58).
     pub(crate) fn consult_teacher(&mut self, obs: &Observation, tools: &mut dyn super::ThinkTools) {
         let Some(goal) = self.goal.as_ref().map(|g| g.item.clone()) else {
             return;
@@ -30,6 +31,12 @@ impl Brain {
         if self.log.goal_test.is_some() {
             self.remember_taught(&format!("test:{goal}"), Tier::Semantic, obs.tick);
         }
+        // A goal already met by its test is done before the agent moves
+        // (01 §4.11, #58); one met by an action is caught in `learn`.
+        if self.log.goal_test == Some(true) {
+            self.set_goal(None);
+            return;
+        }
         self.log.recipe_step = self
             .lesson
             .as_ref()
@@ -42,6 +49,21 @@ impl Brain {
     fn remember_taught(&mut self, key: &str, tier: Tier, now: u64) {
         let x = PriorityInputs::default();
         self.mem.encode(key, tier, x, now, Source::Teacher);
+    }
+
+    /// Whether the goal's test passes (01 §4.11, #58). Only a test the
+    /// agent holds counts: one the teacher explained and memory kept.
+    pub(crate) fn test_passes(
+        &self,
+        goal: &str,
+        obs: &Observation,
+        tools: &mut dyn super::ThinkTools,
+    ) -> bool {
+        let known = self
+            .mem
+            .get(&format!("test:{goal}"))
+            .is_some_and(|i| self.mem.is_alive(i));
+        known && tools.explain(goal, obs) == Some(true)
     }
 
     /// The bonus the recipe's next step gives candidate `c`:

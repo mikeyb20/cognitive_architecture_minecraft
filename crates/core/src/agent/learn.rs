@@ -61,10 +61,14 @@ impl Brain {
             p: lerp(self.config.thr_p, rho),
         };
         let success = all_success(&view, &thr);
-        let progress_now = self
-            .goal
-            .as_ref()
-            .map_or(0.0, |g| tools.progress(&g.item, obs));
+        // A goal with a known test is met when the test passes, however it
+        // was reached (01 §4.11, #58).
+        let progress_now = self.goal.clone().map_or(0.0, |g| {
+            let by_test = self.test_passes(&g.item, obs, tools);
+            tools
+                .progress(&g.item, obs)
+                .max(f32::from(u8::from(by_test)))
+        });
         let d_goal = progress_now - p.progress_before;
         let goal_done = self.goal.is_some() && progress_now >= 1.0;
         if goal_done {

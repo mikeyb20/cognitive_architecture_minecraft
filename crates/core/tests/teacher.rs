@@ -195,6 +195,8 @@ fn a_young_agent_follows_the_shown_recipe_step_by_step() {
             .all(|(_, bonus, _)| *bonus == 0.0 || (*bonus - 1.0).abs() < 1e-6)
     );
     assert_eq!(b.last_log().recipe_step, None, "the recipe is done");
+    // #58: the recipe ran to its end, but the test fails, so the goal stays.
+    assert_eq!(b.goal().map(|g| g.item.as_str()), Some("shelter"));
     let m = b.memory();
     let r = m.get("recipe:shelter").expect("recipe stored");
     assert_eq!(m.entry(r).item.tier, Tier::Procedural);
@@ -206,13 +208,13 @@ fn a_young_agent_follows_the_shown_recipe_step_by_step() {
 fn a_developed_agent_gets_no_bonus_but_keeps_the_test() {
     let mut b = brain(1.0, TeacherParams::default());
     let mut t = Teacher {
-        test: Some(true),
+        test: Some(false),
         shows: 0,
     };
     let acts = run(&mut b, &mut t, 200);
     assert!(acts.iter().all(|(_, bonus, _)| *bonus == 0.0));
     let l = b.last_log();
-    assert_eq!(l.goal_test, Some(true), "the test does not fade");
+    assert_eq!(l.goal_test, Some(false), "the test does not fade");
     let m = b.memory();
     let test = m.get("test:shelter").expect("test stored");
     assert_eq!(m.entry(test).item.tier, Tier::Semantic);
@@ -267,4 +269,45 @@ fn a_new_goal_drops_the_old_lesson() {
         t.shows, 2,
         "asked once about the new goal, which has no recipe"
     );
+}
+
+/// Step until the goal is gone or `n` ticks pass; returns the tick it went.
+fn until_done(b: &mut Brain, t: &mut Teacher, from: u64, n: u64) -> Option<u64> {
+    for tick in from..from + n {
+        let _ = b.step(&obs(tick), &cands(), t);
+        b.outcome(Outcome::default());
+        if b.goal().is_none() {
+            return Some(tick);
+        }
+    }
+    None
+}
+
+#[test]
+fn a_goal_is_done_when_its_known_test_passes() {
+    // #58: however the agent got there, a passing test completes the goal.
+    let mut b = brain(1.0, TeacherParams::default());
+    let mut t = Teacher {
+        test: Some(false),
+        shows: 0,
+    };
+    assert_eq!(until_done(&mut b, &mut t, 0, 50), None, "fails: not done");
+    t.test = Some(true);
+    let done = until_done(&mut b, &mut t, 50, 5).expect("done once it passes");
+    assert_eq!(done, 50, "on the next learning step");
+    assert!(b.last_log().d_goal > 0.0, "and it counts as goal progress");
+}
+
+#[test]
+fn a_test_the_agent_was_never_taught_does_not_count() {
+    let off = TeacherParams {
+        show: false,
+        ..TeacherParams::default()
+    };
+    let mut b = brain(0.0, off);
+    let mut t = Teacher {
+        test: Some(true),
+        shows: 0,
+    };
+    assert_eq!(until_done(&mut b, &mut t, 0, 50), None);
 }
