@@ -26,6 +26,7 @@ fn result(ticks: u64, new_things: usize) -> BrainResult {
         reflexes: 0,
         new_things,
         inventory: vec![],
+        shelter_at: None,
     }
 }
 

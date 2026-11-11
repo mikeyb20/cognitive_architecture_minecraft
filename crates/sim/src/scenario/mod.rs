@@ -10,6 +10,7 @@ use crate::player::ScriptedPlayer;
 use crate::rules::Rules;
 use crate::world::SimWorld;
 
+pub mod held_out;
 pub mod trips;
 
 /// One day (spec §21).
@@ -22,7 +23,7 @@ pub const HARSH_RING: i32 = 2;
 pub const HARSH_DAMAGE: f32 = 0.01;
 
 /// The scenario names `build` knows.
-pub const NAMES: [&str; 10] = [
+pub const NAMES: [&str; 11] = [
     "first_night",
     "open_day",
     "commanded",
@@ -33,6 +34,7 @@ pub const NAMES: [&str; 10] = [
     "hostile_at_food",
     "expedition",
     "incubation",
+    "held_out",
 ];
 
 pub struct Setup {
@@ -48,7 +50,8 @@ pub struct Setup {
 
 /// Build a scenario by name.
 pub fn build(name: &str, rules: Rules, seed: u64) -> Option<Setup> {
-    if let Some((_, make)) = trips::TRIPS.iter().find(|(n, _)| *n == name) {
+    let others: [(&str, trips::Builder); 1] = [("held_out", held_out::held_out)];
+    if let Some((_, make)) = trips::TRIPS.iter().chain(&others).find(|(n, _)| *n == name) {
         return Some(make(rules, seed));
     }
     let mut s = Setup {

@@ -177,6 +177,7 @@ pub fn baseline_metrics(r: &BrainResult) -> RunMetrics {
         recall: f32::NAN,
         thinking: f32::NAN,
         plan_lag: f32::NAN,
+        shelter_at: r.shelter_at,
     }
 }
 

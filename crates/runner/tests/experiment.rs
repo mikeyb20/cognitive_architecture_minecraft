@@ -32,7 +32,7 @@ expected = "flat C"
 
 #[test]
 fn the_shipped_experiments_parse() {
-    for f in ["baselines", "baselines-llm", "ablations"] {
+    for f in ["baselines", "baselines-llm", "ablations", "transfer"] {
         let text = std::fs::read_to_string(format!("../../configs/experiments/{f}.toml")).unwrap();
         let e = parse(&text).unwrap_or_else(|err| panic!("{f}: {err}"));
         assert!(e.arms.iter().all(|a| !a.expected.is_empty()), "{f}");
@@ -133,6 +133,7 @@ fn baseline_metrics_by_hand() {
         reflexes: 1,
         new_things: 4,
         inventory: vec![("wooden_pickaxe".into(), 1)],
+        shelter_at: Some(700),
     };
     let m = baseline_metrics(&r);
     assert_eq!((m.survived, m.ticks, m.decisions), (true, 2400, 8));
@@ -147,6 +148,7 @@ fn baseline_metrics_by_hand() {
         (m.stuck_kicks, m.reflexes, m.new_things, m.tech),
         (0, 1, 4, 1)
     );
+    assert_eq!(m.shelter_at, Some(700), "the host's test, for every arm");
     let none = baseline_metrics(&BrainResult {
         decisions: 0,
         idle: 0,
@@ -186,13 +188,15 @@ fn runs_replay_and_tabulate() {
         "dashes for A's missing variables: {md}"
     );
     let a_row = md.lines().find(|l| l.starts_with("| A |")).unwrap();
+    let shelter = format!("{:.2}", rows[0].summary.shelter);
     assert!(
-        a_row.ends_with(" | – | – | – | – |"),
-        "no memory, recall, thinking or plan lag: {a_row}"
+        a_row.ends_with(&format!(" | – | – | – | – | {shelter} |")),
+        "no memory, recall, thinking or plan lag, but the shelter test: {a_row}"
     );
     let c_row = md.lines().find(|l| l.starts_with("| C slow |")).unwrap();
+    let (before, _shelter) = c_row.trim_end_matches(" |").rsplit_once(" | ").unwrap();
     assert!(
-        !c_row.trim_end_matches(" – |").contains('–'),
+        !before.trim_end_matches(" | –").contains('–'),
         "the brain has every variable, and a lag only if it planned: {c_row}"
     );
     let csv = csv_rows("experiment", &e.id, &rows);
@@ -372,4 +376,23 @@ fn llm_arms_need_an_llm() {
         "{:?}",
         res.llm
     );
+}
+
+#[test]
+fn the_transfer_score_is_computed_for_every_arm() {
+    // Spec §27 step 15 gate (plan §5.0): every arm on held-out terrain gets
+    // the shelter share, read from the host's test whatever drives it.
+    let text = std::fs::read_to_string("../../configs/experiments/transfer.toml").unwrap();
+    let mut e = parse(&text).unwrap();
+    assert!(e.scenarios.contains(&"held_out".to_string()));
+    e.scenarios = vec!["held_out".into()];
+    e.seeds = 2;
+    let rows = run(&e, 2, None).unwrap().rows;
+    assert_eq!(rows.len(), 3);
+    for r in &rows {
+        assert!((0.0..=1.0).contains(&r.summary.shelter), "{}", r.variant);
+    }
+    // Arm A's tree mines stone with the pickaxe it holds and builds at
+    // dusk, so its hut passes (seeds 0 and 1).
+    assert_eq!(rows[0].summary.shelter, 1.0);
 }

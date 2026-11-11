@@ -220,3 +220,70 @@ fn trips_replay_from_the_seed() {
         assert_eq!(pigs(&a.world), pigs(&b.world), "{n}");
     }
 }
+
+#[test]
+fn held_out_turns_every_tree_to_stone_and_asks_for_a_shelter() {
+    use sim::scenario::held_out::HELD_OUT_GOAL;
+    for seed in SEEDS {
+        let s = make("held_out", seed);
+        let base = SimWorld::new(Rules::default(), seed);
+        let w = &s.world;
+        assert!(tiles(w, is_tree).is_empty(), "seed {seed}: no trees");
+        let trees = tiles(&base, is_tree);
+        assert!(!trees.is_empty());
+        for p in tiles(&base, |_| true) {
+            let want = if is_tree(base.map.get(p)) {
+                Tile::Stone
+            } else {
+                base.map.get(p)
+            };
+            assert_eq!(w.map.get(p), want, "seed {seed} {p:?}");
+        }
+        assert_eq!(w.body.pos, base.body.pos);
+        assert_eq!(pigs(w), pigs(&base), "the same pigs");
+        assert_eq!(w.body.inv.count("wooden_pickaxe"), 1);
+        assert_eq!(s.player.commands, [(0, HELD_OUT_GOAL.to_string())]);
+        assert!(s.player.present);
+        assert_eq!((s.max_ticks, w.tick, s.harass_until), (DAY, 0, 0));
+    }
+}
+
+#[test]
+fn on_held_out_terrain_the_shelter_test_can_still_be_met() {
+    // #58: the recipe (chop a log) has nothing to act on, but mining four
+    // stone with the pickaxe in hand and building a hut passes the test.
+    use host_api::{Host, Intensity, Skill};
+    let full = Intensity {
+        effort: 1.0,
+        focus: 1.0,
+        external_drive: false,
+    };
+    for seed in SEEDS {
+        let mut w = make("held_out", seed).world;
+        let o = w.perceive();
+        let chop = w
+            .candidate_actions(&o)
+            .iter()
+            .any(|c| c.skill == Skill::Chop);
+        assert!(!chop, "seed {seed}: nothing to chop");
+        for _ in 0..12 {
+            if w.body.inv.count("cobblestone") >= 4 {
+                break;
+            }
+            let o = w.perceive();
+            let mine = w
+                .candidate_actions(&o)
+                .into_iter()
+                .find(|c| c.skill == Skill::Mine);
+            w.execute(&mine.expect("stone in reach"), full);
+        }
+        assert!(w.body.inv.count("cobblestone") >= 4, "seed {seed}");
+        let o = w.perceive();
+        let build = w
+            .candidate_actions(&o)
+            .into_iter()
+            .find(|c| c.skill == Skill::Shelter);
+        assert!(w.execute(&build.unwrap(), full).success, "seed {seed}");
+        assert!(w.shelter_test().passes(), "seed {seed}");
+    }
+}

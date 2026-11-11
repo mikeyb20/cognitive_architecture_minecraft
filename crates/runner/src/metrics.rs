@@ -40,6 +40,9 @@ pub struct RunMetrics {
     /// Mean ticks from a new goal to its first plan step; NaN when no goal
     /// got one (plan §5.2 fixed-trigger thinking).
     pub plan_lag: f32,
+    /// The first tick the agent stood in a shelter that passes the shelter
+    /// test (01 §4.11). On `held_out` this is the transfer test (plan §5.0).
+    pub shelter_at: Option<u64>,
 }
 
 /// The internal actions that call the LLM tool (spec §6, #40).
@@ -120,6 +123,7 @@ impl Meter {
             } else {
                 self.lag_sum as f32 / self.lags as f32
             },
+            shelter_at: r.shelter_at,
         }
     }
 }
@@ -150,6 +154,9 @@ pub struct Summary {
     pub thinking: f32,
     /// Mean over the runs where some goal got a plan; NaN if none did.
     pub plan_lag: f32,
+    /// Share of runs that stood in a passing shelter (01 §4.11); on
+    /// `held_out`, the transfer score (plan §5.0).
+    pub shelter: f32,
 }
 
 pub fn summarise(runs: &[RunMetrics]) -> Summary {
@@ -172,6 +179,7 @@ pub fn summarise(runs: &[RunMetrics]) -> Summary {
         recall: avg(&|r| r.recall),
         thinking: avg(&|r| r.thinking),
         plan_lag: finite_mean(runs.iter().map(|r| r.plan_lag)),
+        shelter: avg(&|r| f32::from(u8::from(r.shelter_at.is_some()))),
     }
 }
 

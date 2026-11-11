@@ -55,6 +55,7 @@ fn result(survived: bool, inventory: Vec<(String, u32)>) -> BrainResult {
         reflexes: 2,
         new_things: 7,
         inventory,
+        shelter_at: None,
     }
 }
 
@@ -153,6 +154,7 @@ fn summary_averages_over_seeds() {
         recall: 0.25,
         thinking: 2.0,
         plan_lag: f32::NAN,
+        shelter_at: Some(300),
         ..RunMetrics::default()
     };
     let b = RunMetrics {
@@ -186,6 +188,7 @@ fn summary_averages_over_seeds() {
         (3.0, 12.0),
         "the lag averages only runs that planned"
     );
+    assert_eq!(s.shelter, 0.5, "one run of two stood in a passing shelter");
     assert!((s.active - 0.3).abs() < 1e-6 && (s.mean_c - 0.3).abs() < 1e-6);
     let lag = |plan_lag| RunMetrics {
         plan_lag,
@@ -237,6 +240,7 @@ fn tables_have_one_line_per_row() {
                 recall: 0.125,
                 thinking: 3.5,
                 plan_lag: f32::NAN,
+                shelter: 0.25,
                 ..Summary::default()
             },
         },
@@ -260,8 +264,8 @@ fn tables_have_one_line_per_row() {
     assert!(lines[0].starts_with("oq,variant,scenario,survival"));
     assert!(lines[1].starts_with("OQ18,EXP3 γ=0.1,harsh,0.50,"));
     assert!(
-        lines[1].ends_with(",42,0.12,3.5,–"),
-        "memory whole, recall to two places, think to one, no lag: {}",
+        lines[1].ends_with(",42,0.12,3.5,–,0.25"),
+        "memory whole, recall to two places, think to one, no lag, shelter: {}",
         lines[1]
     );
     assert!(
@@ -270,7 +274,7 @@ fn tables_have_one_line_per_row() {
         lines[1]
     );
     assert!(
-        lines[2].starts_with("OQ18,\"a, b\",open_day,") && lines[2].ends_with(",0.0,7"),
+        lines[2].starts_with("OQ18,\"a, b\",open_day,") && lines[2].ends_with(",0.0,7,0.00"),
         "{}",
         lines[2]
     );

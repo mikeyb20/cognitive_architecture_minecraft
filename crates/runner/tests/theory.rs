@@ -28,6 +28,7 @@ fn result(inventory: &[(&str, u32)]) -> BrainResult {
         reflexes: 0,
         new_things: 9,
         inventory: inventory.iter().map(|(i, n)| (i.to_string(), *n)).collect(),
+        shelter_at: None,
     }
 }
 

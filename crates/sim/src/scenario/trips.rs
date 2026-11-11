@@ -155,7 +155,7 @@ pub fn incubation(rules: Rules, seed: u64) -> Setup {
     setup("incubation", world, 3 * DAY)
 }
 
-fn setup(name: &'static str, world: SimWorld, max_ticks: u64) -> Setup {
+pub(super) fn setup(name: &'static str, world: SimWorld, max_ticks: u64) -> Setup {
     Setup {
         name,
         world,
@@ -187,11 +187,16 @@ fn road(map: &mut Map, from: Pos, to: Pos) {
 
 /// Turn every tile matching `which` into grass.
 fn clear(map: &mut Map, which: impl Fn(Tile) -> bool) {
+    replace(map, which, Tile::Grass);
+}
+
+/// Turn every tile matching `which` into `with`.
+pub(super) fn replace(map: &mut Map, which: impl Fn(Tile) -> bool, with: Tile) {
     for z in 0..map.size {
         for x in 0..map.size {
             let p = Pos { x, y: 0, z };
             if which(map.get(p)) {
-                map.set(p, Tile::Grass);
+                map.set(p, with);
             }
         }
     }

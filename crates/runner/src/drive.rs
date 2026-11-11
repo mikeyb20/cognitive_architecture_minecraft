@@ -56,6 +56,7 @@ pub(crate) fn run_scenario(
         reflexes: 0,
         new_things: 0,
         inventory: Vec::new(),
+        shelter_at: None,
     };
     while world.tick < end && world.alive() {
         if world.tick < harass_until {
@@ -64,6 +65,10 @@ pub(crate) fn run_scenario(
         } else if harsh_open {
             scenario::end_harsh(&mut world);
             harsh_open = false;
+        }
+        let test = world.shelter_test();
+        if test.passes() {
+            r.shelter_at.get_or_insert(world.tick);
         }
         let mut obs = world.perceive();
         let mut cands = world.candidate_actions(&obs);
@@ -76,7 +81,7 @@ pub(crate) fn run_scenario(
             continue;
         }
         r.decisions += 1;
-        d.see_tests(world.shelter_test());
+        d.see_tests(test);
         match d.decide(&obs, &cands) {
             Decision::Act(i, it) => {
                 let out = world.execute(&cands[i], it);
@@ -97,6 +102,9 @@ pub(crate) fn run_scenario(
         }
     }
     r.survived = world.alive();
+    if r.survived && world.shelter_test().passes() {
+        r.shelter_at.get_or_insert(world.tick);
+    }
     r.ticks = world.tick;
     r.death = world.body.death;
     r.inventory = world.body.inv.items.clone();

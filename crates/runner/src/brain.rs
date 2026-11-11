@@ -142,6 +142,9 @@ pub struct BrainResult {
     pub reflexes: u32,
     pub new_things: usize,
     pub inventory: Vec<(String, u32)>,
+    /// The first tick the agent stood in a shelter that passes the host's
+    /// shelter test (01 §4.11; plan §5.0 transfer), if it ever did.
+    pub shelter_at: Option<u64>,
 }
 
 /// Run one scenario with the brain. `on_row` sees every log row.

@@ -112,45 +112,15 @@ fn a_shelter_found_ready_made_completes_the_goal() {
     // built around the agent before the run, so the test passes before any
     // recipe step is taken and the goal is done on the first learning step.
     for seed in 0..3 {
-        let mut s = setup("first_night", seed);
-        let me = s.world.body.pos;
-        for dx in -2i32..=2 {
-            for dz in -2i32..=2 {
-                if dx.abs().max(dz.abs()) == 2 {
-                    let p = host_api::Pos {
-                        x: me.x + dx,
-                        y: 0,
-                        z: me.z + dz,
-                    };
-                    s.world.map.set(p, sim::map::Tile::Stone);
-                }
-            }
-        }
-        let door = host_api::Pos {
-            x: me.x + 2,
-            y: 0,
-            z: me.z,
-        };
-        s.world.map.set(door, sim::map::Tile::Door);
-        // Clear the floor, so nothing inside blocks the 4-way check.
-        for dx in -1i32..=1 {
-            for dz in -1i32..=1 {
-                let p = host_api::Pos {
-                    x: me.x + dx,
-                    y: 0,
-                    z: me.z + dz,
-                };
-                s.world.map.set(p, sim::map::Tile::Grass);
-            }
-        }
-        assert!(s.world.shelter_test().passes(), "seed {seed}");
+        let s = ready_made(seed);
         let mut b = Brain::new(BrainConfig::default(), seed);
         b.set_goal(Some(Goal {
             item: SHELTER.into(),
             commanded: false,
         }));
         let mut rows = vec![];
-        run_with(s, &mut b, seed, &mut |r| rows.push(r.clone()));
+        let r = run_with(s, &mut b, seed, &mut |r| rows.push(r.clone()));
+        assert_eq!(r.shelter_at, Some(0), "seed {seed}: passes from the start");
         let done = rows
             .iter()
             .position(|r| r.goal.as_deref() != Some(SHELTER))
@@ -161,4 +131,55 @@ fn a_shelter_found_ready_made_completes_the_goal() {
             "seed {seed}: done without building"
         );
     }
+}
+
+#[test]
+fn a_run_records_when_the_agent_first_stood_in_a_passing_shelter() {
+    // Plan §5.0 transfer reads this. With no time to act, the end of the
+    // run still counts: in a ready-made hut, tick 0; on open ground, never.
+    let mut s = ready_made(0);
+    s.max_ticks = 0;
+    let mut b = Brain::new(BrainConfig::default(), 0);
+    assert_eq!(run_with(s, &mut b, 0, &mut |_| {}).shelter_at, Some(0));
+    let mut s = setup("first_night", 0);
+    s.max_ticks = 0;
+    let r = run_with(s, &mut b, 0, &mut |_| {});
+    assert!(r.survived && r.shelter_at.is_none(), "{r:?}");
+}
+
+/// First night with a stone ring and a door built around the agent.
+fn ready_made(seed: u64) -> sim::scenario::Setup {
+    let mut s = setup("first_night", seed);
+    let me = s.world.body.pos;
+    for dx in -2i32..=2 {
+        for dz in -2i32..=2 {
+            if dx.abs().max(dz.abs()) == 2 {
+                let p = host_api::Pos {
+                    x: me.x + dx,
+                    y: 0,
+                    z: me.z + dz,
+                };
+                s.world.map.set(p, sim::map::Tile::Stone);
+            }
+        }
+    }
+    let door = host_api::Pos {
+        x: me.x + 2,
+        y: 0,
+        z: me.z,
+    };
+    s.world.map.set(door, sim::map::Tile::Door);
+    // Clear the floor, so nothing inside blocks the 4-way check.
+    for dx in -1i32..=1 {
+        for dz in -1i32..=1 {
+            let p = host_api::Pos {
+                x: me.x + dx,
+                y: 0,
+                z: me.z + dz,
+            };
+            s.world.map.set(p, sim::map::Tile::Grass);
+        }
+    }
+    assert!(s.world.shelter_test().passes(), "seed {seed}");
+    s
 }

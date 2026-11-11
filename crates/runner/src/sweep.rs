@@ -207,12 +207,12 @@ pub fn run_sweep(s: &Sweep, scenarios: &[&str], seeds: u64, threads: usize) -> V
         .collect()
 }
 
-const HEADER: [&str; 17] = [
+const HEADER: [&str; 18] = [
     "variant", "scenario", "survival", "active", "self", "C", "D", "V", "freeze", "stuck",
-    "reflexes", "new", "tech", "memory", "recall", "think", "plan lag",
+    "reflexes", "new", "tech", "memory", "recall", "think", "plan lag", "shelter",
 ];
 
-fn cells(r: &Row) -> [String; 17] {
+fn cells(r: &Row) -> [String; 18] {
     let s = &r.summary;
     // A dash for a variable the arm does not have.
     let f = |x: f32, places: usize| {
@@ -241,13 +241,14 @@ fn cells(r: &Row) -> [String; 17] {
         f2(s.recall),
         f(s.thinking, 1),
         f(s.plan_lag, 0),
+        f2(s.shelter),
     ]
 }
 
 /// The legend and the results table, one row per variant and scenario.
 pub fn table(rows: &[Row], seeds: u64) -> String {
     let mut t = format!(
-        "{seeds} seeds per cell. survival = share alive at the end; active = share of decisions that started something; self = started without a command or danger push; C, D, V = means over decisions; freeze = share of actions with conflict > {FREEZE_CONFLICT}; stuck = stuck kicks per run; new = novelty units found; tech = tech-tree goals held (0–4); memory = items in memory at the end; recall = share of decisions that recalled a linked fact; think = plan, reflect and imagine runs per 1,000 ticks; plan lag = mean ticks from a new goal to its first plan step. A dash means the arm has no such variable.\n\n"
+        "{seeds} seeds per cell. survival = share alive at the end; active = share of decisions that started something; self = started without a command or danger push; C, D, V = means over decisions; freeze = share of actions with conflict > {FREEZE_CONFLICT}; stuck = stuck kicks per run; new = novelty units found; tech = tech-tree goals held (0–4); memory = items in memory at the end; recall = share of decisions that recalled a linked fact; think = plan, reflect and imagine runs per 1,000 ticks; plan lag = mean ticks from a new goal to its first plan step; shelter = share of runs that stood in a shelter passing the shelter test (on held_out, the transfer score). A dash means the arm has no such variable.\n\n"
     );
     t += &format!("| {} |\n", HEADER.join(" | "));
     t += &format!("|{}\n", "---|".repeat(HEADER.len()));
