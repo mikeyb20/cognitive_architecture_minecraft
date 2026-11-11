@@ -427,3 +427,22 @@ fn the_floor_asks_every_arm_for_a_shelter_at_dusk() {
     let text = SMALL.replace("seeds = 2", "seeds = 2\nfloor = false");
     assert!(!parse(&text).unwrap().floor);
 }
+
+#[test]
+fn the_shared_teacher_shows_arm_a_a_hut_that_passes() {
+    // Plan §5.0: every arm gets the same teacher. Asked at dusk, arm A
+    // follows the shown recipe to a passing hut on seed 0's first night;
+    // with the teacher off it digs in, which fails the test.
+    let mut e = parse(SMALL).unwrap();
+    let mut a = e.arms[0].clone();
+    assert!(a.teacher, "on by default");
+    let (on, _) = runner::experiment::run_arm(&e, &a, "first_night", 0, None).unwrap();
+    assert!(on.shelter_at.is_some(), "{on:?}");
+    a.teacher = false;
+    let (off, _) = runner::experiment::run_arm(&e, &a, "first_night", 0, None).unwrap();
+    assert_eq!(off.shelter_at, None);
+    e.floor = false;
+    a.teacher = true;
+    let (unasked, _) = runner::experiment::run_arm(&e, &a, "first_night", 0, None).unwrap();
+    assert_eq!(unasked.shelter_at, None, "nothing asked, nothing taught");
+}

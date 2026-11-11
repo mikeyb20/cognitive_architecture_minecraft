@@ -12,6 +12,7 @@ pub mod metrics;
 pub(crate) mod par;
 pub mod recovery;
 pub mod sweep;
+pub(crate) mod taught;
 pub mod theory;
 pub mod think;
 

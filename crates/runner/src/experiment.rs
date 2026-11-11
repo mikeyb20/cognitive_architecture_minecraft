@@ -11,6 +11,7 @@ use cognitive_core::agent::{BrainConfig, Decision, TickLog};
 use host_api::{Candidate, Observation, Outcome};
 use llm::{LlmStats, Provider, Tier};
 use serde::Deserialize;
+use sim::world::ShelterTest;
 
 use crate::FULL;
 use crate::brain::{BrainResult, setup};
@@ -18,6 +19,7 @@ use crate::drive::{Driver, run_scenario};
 use crate::mc::McArm;
 use crate::metrics::{Meter, RunMetrics, pace, recovery, summarise, tech_held};
 use crate::sweep::Row;
+use crate::taught::Teacher;
 
 /// Which arm picks the actions (spec §24).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -62,6 +64,11 @@ pub struct ArmSpec {
     /// Brain settings changed from the archetype's (arm `c` only).
     #[serde(default)]
     pub config: toml::Table,
+    /// The shared teacher (01 §4.11, plan §5.0), on unless set false: false
+    /// is the teacher-off rerun, for any arm (for arm `c` it sets
+    /// `teacher.show = false`).
+    #[serde(default = "on")]
+    pub teacher: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -139,6 +146,7 @@ pub fn config_for(e: &Experiment, arm: &ArmSpec, seed: u64) -> Result<BrainConfi
             .try_into()
             .map_err(|err| format!("{}: {err}", arm.label))?;
     }
+    mean.teacher.show &= arm.teacher;
     Ok(if e.per_agent {
         crate::archetype::drawn(&mean, seed)
     } else {
@@ -146,21 +154,32 @@ pub fn config_for(e: &Experiment, arm: &ArmSpec, seed: u64) -> Result<BrainConfi
     })
 }
 
-/// A baseline arm as a scenario driver: full effort, no log rows.
+/// A baseline arm as a scenario driver: full effort, no log rows, and the
+/// shared teacher (plan §5.0).
 struct PolicyDriver {
     policy: Box<dyn Policy>,
+    teacher: Teacher,
 }
 
 impl Driver for PolicyDriver {
     fn decide(&mut self, obs: &Observation, cands: &[Candidate]) -> Decision {
-        self.policy
-            .choose(obs, cands)
-            .map_or(Decision::Idle, |i| Decision::Act(i, FULL))
+        self.teacher.hear(obs);
+        let cands = self.teacher.mark(obs, cands);
+        let Some(i) = self.policy.choose(obs, &cands) else {
+            return Decision::Idle;
+        };
+        self.teacher.chose(obs, &cands[i]);
+        Decision::Act(i, FULL)
     }
-    fn outcome(&mut self, _: Outcome) {}
+    fn outcome(&mut self, out: Outcome) {
+        self.teacher.outcome(out.success);
+    }
     fn reflex_fired(&mut self, _: u64) {}
     fn log(&self) -> Option<&TickLog> {
         None
+    }
+    fn see_tests(&mut self, shelter: ShelterTest) {
+        self.teacher.see(shelter);
     }
 }
 
@@ -214,6 +233,7 @@ pub fn run_arm(
     };
     let mut d = PolicyDriver {
         policy: crate::mc::arm(which, tier, provider)?,
+        teacher: Teacher::new(arm.teacher),
     };
     let no_rows = &mut |_: &TickLog| unreachable!("baseline arms keep no log rows");
     let r = run_scenario(s, &mut d, None, seed, no_rows);
@@ -286,7 +306,14 @@ pub fn header(e: &Experiment) -> serde_json::Value {
     let arms: Vec<serde_json::Value> = e
         .arms
         .iter()
-        .map(|a| serde_json::json!({"label": a.label, "expected": a.expected, "config": a.config}))
+        .map(|a| {
+            serde_json::json!({
+                "label": a.label,
+                "expected": a.expected,
+                "config": a.config,
+                "teacher": a.teacher,
+            })
+        })
         .collect();
     serde_json::json!({
         "header": true,
@@ -322,4 +349,54 @@ pub fn markdown(e: &Experiment, res: &Results) -> String {
         );
     }
     t
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::taught::tests::{cands, obs};
+    use baselines::ArmA;
+
+    #[test]
+    fn a_baseline_is_taught_until_its_shelter_test_passes() {
+        let mut d = PolicyDriver {
+            policy: Box::new(ArmA::default()),
+            teacher: Teacher::new(true),
+        };
+        let asked = obs(&["get shelter"], &[]);
+        assert_eq!(d.decide(&asked, &cands()), Decision::Act(0, FULL), "chop");
+        let done = |success| Outcome {
+            success,
+            ..Outcome::default()
+        };
+        d.outcome(done(true));
+        assert_eq!(d.decide(&asked, &cands()), Decision::Act(1, FULL), "craft");
+        d.outcome(done(false));
+        assert_eq!(d.decide(&asked, &cands()), Decision::Act(1, FULL), "again");
+        d.outcome(done(true));
+        assert_eq!(d.decide(&asked, &cands()), Decision::Act(2, FULL), "build");
+        d.outcome(done(true));
+        d.see_tests(ShelterTest {
+            enclosed: true,
+            exit: true,
+        });
+        assert_eq!(d.teacher, Teacher::new(true), "the lesson ends");
+        assert_eq!(d.log(), None);
+        d.reflex_fired(0);
+    }
+
+    #[test]
+    fn teacher_false_turns_the_brains_teacher_off_too() {
+        let text = |on| {
+            format!(
+                "id='x'\nquestion='q'\nscenarios=[]\n[[arms]]\nlabel='C'\narm='c'\nexpected='-'\nteacher={on}"
+            )
+        };
+        for on in [true, false] {
+            let e = parse(&text(on)).unwrap();
+            assert_eq!(e.arms[0].teacher, on);
+            assert_eq!(header(&e)["arms"][0]["teacher"], on);
+            assert_eq!(config_for(&e, &e.arms[0], 0).unwrap().teacher.show, on);
+        }
+    }
 }

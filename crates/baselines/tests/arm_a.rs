@@ -282,3 +282,21 @@ fn without_a_plan_match_takes_the_cheapest_resource_then_explores() {
         "goal held: cheapest resource"
     );
 }
+
+#[test]
+fn follows_the_cheapest_commanded_step_after_danger_and_before_dusk() {
+    let mut a = all();
+    for i in [10, 11] {
+        a[i].commanded = true;
+    }
+    let mut o = obs();
+    o.day_phase = 0.42;
+    assert_eq!(pick(&o, &a), Some(11), "the cheaper of two, before dusk");
+    a[11].est_cost = 0.13;
+    assert_eq!(pick(&o, &a), Some(10));
+    o.food = 0.59;
+    assert_eq!(pick(&o, &a), Some(3), "eating first");
+    o.food = 1.0;
+    hostile(&mut o, 2.0);
+    assert_eq!(pick(&o, &a), Some(2), "a close hostile first");
+}
