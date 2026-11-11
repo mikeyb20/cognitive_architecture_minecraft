@@ -5,6 +5,7 @@
 //! social signal (spec §5).
 
 use host_api::command::mark_step;
+use host_api::ontology::{DUSK, SHELTER_GOAL};
 use host_api::{Candidate, ChatMsg, Observation, Pos, Seen, SeenKind, ThingId};
 
 /// The player's name in chat and perception.
@@ -18,6 +19,10 @@ pub struct ScriptedPlayer {
     pub commands: Vec<(u64, String)>,
     /// The player stands next to the agent (social signal).
     pub present: bool,
+    /// At each dusk, ask for a shelter unless the agent is in one that
+    /// passes the shelter test (plan §5.0 shared floor; spec §27 step 16).
+    pub dusk_call: bool,
+    called_day: Option<u64>,
     next: usize,
     active: Option<String>,
 }
@@ -33,6 +38,21 @@ impl ScriptedPlayer {
             present: true,
             ..Self::default()
         }
+    }
+
+    /// The dusk call (plan §5.0 shared floor): once per day, from dusk on,
+    /// "get shelter" in chat while the agent is not in a shelter that
+    /// passes the test. `day_ticks` is the length of a day.
+    pub fn call_at_dusk(&mut self, obs: &mut Observation, day_ticks: u64, sheltered: bool) {
+        let day = obs.tick / day_ticks;
+        if !self.dusk_call || sheltered || obs.day_phase < DUSK || self.called_day == Some(day) {
+            return;
+        }
+        self.called_day = Some(day);
+        obs.chat.push(ChatMsg {
+            from: PLAYER.into(),
+            text: format!("get {SHELTER_GOAL}"),
+        });
     }
 
     /// The open command, if any.
@@ -186,5 +206,38 @@ mod tests {
         p.apply(&mut o, &mut c);
         assert_eq!(p.active(), Some("diamond"));
         assert!(c.iter().all(|c| !c.commanded));
+    }
+
+    #[test]
+    fn the_dusk_call_asks_once_a_day_from_dusk_unless_sheltered() {
+        // Days of 100 ticks; `tick` sets the day, `phase` the time of day.
+        let calls = |p: &mut ScriptedPlayer, phase, tick, sheltered| {
+            let mut o = Observation {
+                day_phase: phase,
+                ..obs(tick)
+            };
+            p.call_at_dusk(&mut o, 100, sheltered);
+            o.chat
+        };
+        let mut off = ScriptedPlayer::idle();
+        assert!(calls(&mut off, 0.5, 50, false).is_empty(), "off by default");
+        let mut p = ScriptedPlayer {
+            dusk_call: true,
+            ..ScriptedPlayer::idle()
+        };
+        assert!(calls(&mut p, 0.41, 41, false).is_empty(), "before dusk");
+        assert!(calls(&mut p, DUSK, 42, true).is_empty(), "already in one");
+        let c = calls(&mut p, DUSK, 42, false);
+        assert_eq!(c.len(), 1);
+        assert_eq!(
+            (c[0].from.as_str(), c[0].text.as_str()),
+            (PLAYER, "get shelter")
+        );
+        assert!(calls(&mut p, 0.9, 90, false).is_empty(), "once that day");
+        assert_eq!(
+            calls(&mut p, 0.5, 150, false).len(),
+            1,
+            "and again the next"
+        );
     }
 }

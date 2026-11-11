@@ -65,6 +65,7 @@ pub(crate) fn run_scenario(
         let mut obs = world.perceive();
         let mut cands = world.candidate_actions(&obs);
         player.apply(&mut obs, &mut cands);
+        player.call_at_dusk(&mut obs, world.rules.day_ticks, test.passes());
         if let Some((_, c)) = emergency_reflex(&obs, &cands, ReflexThresholds::default()) {
             let c = c.clone();
             r.reflexes += 1;

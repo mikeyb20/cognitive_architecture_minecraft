@@ -150,7 +150,7 @@ pub const PACE: [&str; 5] = [
     SHELTER_MILESTONE,
 ];
 /// The pace milestone read from the shelter test, not the inventory.
-pub const SHELTER_MILESTONE: &str = "shelter";
+pub const SHELTER_MILESTONE: &str = host_api::ontology::SHELTER_GOAL;
 
 /// Ticks into the run to each `PACE` milestone (plan §5.0), for any arm.
 pub fn pace(r: &BrainResult) -> [Option<u64>; 5] {

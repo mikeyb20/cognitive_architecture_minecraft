@@ -31,3 +31,9 @@ fn bot_settings_sent_at_connect() {
     let c = BotConfig::default();
     assert_eq!(c.thresholds, ReflexThresholds::default().into());
 }
+
+#[test]
+fn dusk_and_the_taught_goal() {
+    assert_eq!(host_api::ontology::DUSK, 0.42);
+    assert_eq!(host_api::ontology::SHELTER_GOAL, "shelter");
+}
