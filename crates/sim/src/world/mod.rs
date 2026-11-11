@@ -27,7 +27,9 @@ pub use host_api::ontology::REGION;
 pub const PATH_RADIUS: i32 = 20;
 
 mod path;
+mod shelter;
 pub use path::Reach;
+pub use shelter::ShelterTest;
 
 /// What killed the agent, as the world reports it. Outcome first (#43): the
 /// cause behind the cause is worked out later from the log, never guessed here.
@@ -205,8 +207,7 @@ impl SimWorld {
     }
 
     fn walkable_free(&self, p: Pos) -> bool {
-        let t = self.map.get(p);
-        t.walkable() && t != Tile::Shelter
+        self.map.get(p).mob_walkable()
     }
 
     /// Whether mob `i` is a hostile within `chase_radius` of the agent.

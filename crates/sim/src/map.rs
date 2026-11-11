@@ -21,6 +21,9 @@ pub enum Tile {
     Wheat,
     /// A built hut: walkable, and hostile mobs cannot reach whoever is in it.
     Shelter,
+    /// A door: the agent opens it and walks through; mobs cannot (spec §21,
+    /// #58: as in Minecraft, zombies don't open doors).
+    Door,
 }
 
 impl Tile {
@@ -36,15 +39,21 @@ impl Tile {
             Tile::CaveFloor => "cave_floor",
             Tile::Wheat => "wheat",
             Tile::Shelter => "shelter",
+            Tile::Door => "oak_door",
         }
     }
 
-    /// Tiles the agent and mobs can stand on.
+    /// Tiles the agent can stand on.
     pub fn walkable(self) -> bool {
         matches!(
             self,
-            Tile::Grass | Tile::CaveFloor | Tile::Wheat | Tile::Shelter
+            Tile::Grass | Tile::CaveFloor | Tile::Wheat | Tile::Shelter | Tile::Door
         )
+    }
+
+    /// Tiles a mob can stand on: walkable, but not a hut or a door (spec §21).
+    pub fn mob_walkable(self) -> bool {
+        self.walkable() && !matches!(self, Tile::Shelter | Tile::Door)
     }
 
     /// Tiles worth listing in an observation (not plain ground).
@@ -253,9 +262,18 @@ mod tests {
 
     #[test]
     fn tile_properties() {
-        for t in [Tile::Grass, Tile::CaveFloor, Tile::Wheat, Tile::Shelter] {
+        for t in [
+            Tile::Grass,
+            Tile::CaveFloor,
+            Tile::Wheat,
+            Tile::Shelter,
+            Tile::Door,
+        ] {
             assert!(t.walkable(), "{t:?}");
+            let mobs = !matches!(t, Tile::Shelter | Tile::Door);
+            assert_eq!(t.mob_walkable(), mobs, "{t:?}");
         }
+        assert!(Tile::Door.notable() && !Tile::Stone.mob_walkable());
         assert!(Tile::Shelter.notable() && Tile::Wheat.notable());
         assert_eq!(Tile::Shelter.name(), "shelter");
         for t in [
@@ -278,6 +296,7 @@ mod tests {
             Tile::Lava,
             Tile::CaveFloor,
             Tile::Wheat,
+            Tile::Door,
         ]
         .iter()
         .map(|t| t.name())
@@ -291,7 +310,8 @@ mod tests {
                 "water",
                 "lava",
                 "cave_floor",
-                "wheat"
+                "wheat",
+                "oak_door"
             ]
         );
     }
