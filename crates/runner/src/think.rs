@@ -118,7 +118,7 @@ impl<P: Provider> LlmTools<P> {
             config,
             llm,
             guard,
-            code: SimTools,
+            code: SimTools::default(),
             stats: LlmStats::default(),
         }
     }

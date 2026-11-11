@@ -34,7 +34,7 @@ fn step(skill: Skill, thing: &str, task: TaskType) -> Option<PlanStep> {
 
 #[test]
 fn plan_puts_shelter_then_food_then_the_goal() {
-    let mut t = SimTools;
+    let mut t = SimTools::default();
     let goal = "oak_planks";
     let mut o = obs();
     assert_eq!(
@@ -81,7 +81,7 @@ fn plan_puts_shelter_then_food_then_the_goal() {
 
 #[test]
 fn progress_and_own_goals_come_from_the_planner() {
-    let mut t = SimTools;
+    let mut t = SimTools::default();
     let mut o = obs();
     assert_eq!(t.progress("oak_planks", &o), 0.0);
     assert_eq!(t.propose_goal(&o), Some("wooden_pickaxe".into()));

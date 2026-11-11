@@ -5,6 +5,7 @@
 //! template reflector and the recombiner, spec §21).
 
 use super::{Brain, Goal};
+use crate::control::teacher::Recipe;
 use crate::direction::PlanStep;
 use crate::memory::{InternalAction, PriorityInputs, Source, Tier};
 use host_api::{Observation, TaskType};
@@ -20,6 +21,16 @@ pub trait ThinkTools {
     /// A teacher's hint: the step that meets a felt need (01 §1.6). No
     /// teacher by default.
     fn teach(&mut self, _need: super::Need, _obs: &Observation) -> Option<PlanStep> {
+        None
+    }
+    /// A teacher shows a recipe for the goal (01 §4.11). No teacher by
+    /// default.
+    fn show(&mut self, _goal: &str, _obs: &Observation) -> Option<Recipe> {
+        None
+    }
+    /// A teacher's test for the goal, computed by the host from what it
+    /// perceives: pass or fail, `None` if the goal has no test (01 §4.11).
+    fn explain(&mut self, _goal: &str, _obs: &Observation) -> Option<bool> {
         None
     }
 }

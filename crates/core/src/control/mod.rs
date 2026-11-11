@@ -9,5 +9,6 @@ pub mod oracle;
 pub mod permeability;
 pub mod reward;
 pub mod subconscious;
+pub mod teacher;
 pub mod tenacity;
 pub mod time;

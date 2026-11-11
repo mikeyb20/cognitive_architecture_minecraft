@@ -6,6 +6,7 @@
 //! relieved the need takes over.
 
 use super::{Brain, Pending};
+use crate::control::teacher::step_matches;
 use crate::direction::{PlanStep, target_key};
 use host_api::{Candidate, Observation, Outcome, Skill};
 use serde::{Deserialize, Serialize};
@@ -116,9 +117,10 @@ impl Brain {
             return 0.0;
         }
         let key = target_key(obs, c);
-        let taught = felt.hint.as_ref().is_some_and(|s| {
-            c.skill == s.skill && (s.thing.is_empty() || key.as_deref() == Some(s.thing.as_str()))
-        });
+        let taught = felt
+            .hint
+            .as_ref()
+            .is_some_and(|s| step_matches(s, c.skill, key.as_deref()));
         let fade = if self.config.needs.fades {
             1.0 - self.dev.rho_eff()
         } else {

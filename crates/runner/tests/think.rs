@@ -174,7 +174,7 @@ fn up_to_two_replans_then_the_code_planner() {
 
     let mut s = script(&["a", "b", "c", "chop block:oak_log"]);
     let mut t = LlmTools::new(ThinkConfig::default(), Shared(&mut s));
-    let code = SimTools.plan("iron_pickaxe", &obs());
+    let code = SimTools::default().plan("iron_pickaxe", &obs());
     assert_eq!(t.plan("iron_pickaxe", &obs()), code);
     assert_eq!((t.stats.calls, t.stats.fallbacks), (3, 1));
 }
@@ -184,7 +184,7 @@ fn errors_and_the_budget_fall_back_without_spending() {
     let mut t = LlmTools::new(ThinkConfig::default(), script(&[]));
     assert_eq!(
         t.plan("iron_pickaxe", &obs()),
-        SimTools.plan("iron_pickaxe", &obs())
+        SimTools::default().plan("iron_pickaxe", &obs())
     );
     assert_eq!((t.stats.calls, t.stats.fallbacks), (0, 1));
 
@@ -219,7 +219,10 @@ fn own_goals_come_from_the_llm_or_the_recombiner() {
          stone_pickaxe, furnace, iron_ingot, iron_pickaxe, bread"
     ));
     let mut t = LlmTools::new(ThinkConfig::default(), script(&["x", "y", "z"]));
-    assert_eq!(t.propose_goal(&obs()), SimTools.propose_goal(&obs()));
+    assert_eq!(
+        t.propose_goal(&obs()),
+        SimTools::default().propose_goal(&obs())
+    );
     assert_eq!((t.stats.unparsed, t.stats.fallbacks), (3, 1));
 }
 
@@ -229,7 +232,7 @@ fn progress_is_the_code_count() {
     let o = obs();
     assert_eq!(
         t.progress("iron_pickaxe", &o),
-        SimTools.progress("iron_pickaxe", &o)
+        SimTools::default().progress("iron_pickaxe", &o)
     );
     assert_eq!(t.stats.calls, 0);
 }
@@ -239,7 +242,7 @@ fn the_teacher_stays_code() {
     let mut t = LlmTools::new(ThinkConfig::default(), script(&[]));
     let o = Observation { food: 0.3, ..obs() };
     let hint = t.teach(Need::Hunger, &o);
-    assert_eq!(hint, SimTools.teach(Need::Hunger, &o));
+    assert_eq!(hint, SimTools::default().teach(Need::Hunger, &o));
     assert_eq!(
         hint.map(|s| (s.skill, s.thing)),
         Some((Skill::Attack, "entity:pig".into()))

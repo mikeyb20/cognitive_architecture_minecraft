@@ -88,6 +88,11 @@ pub struct TickLog {
     pub goal: Option<String>,
     pub goal_commanded: bool,
     pub plan_step: Option<String>,
+    /// Teacher (01 §4.11): the shown recipe's next step, the chosen
+    /// action's bonus from it, and the goal's test (pass, fail or none).
+    pub recipe_step: Option<String>,
+    pub shown: f32,
+    pub goal_test: Option<bool>,
     // body and survival context (spec §20.1)
     pub health: f32,
     pub food: f32,

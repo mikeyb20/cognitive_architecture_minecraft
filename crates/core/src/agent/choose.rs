@@ -31,6 +31,8 @@ pub(crate) struct Scored {
     /// The felt need's push alone, for the choice bonus (#51); a command's
     /// push gets no bonus.
     pub need: f32,
+    /// The shown recipe's bonus for this step (01 §4.11).
+    pub shown: f32,
 }
 
 impl Brain {
@@ -140,6 +142,7 @@ impl Brain {
             let push = if forced { 1.0 } else { need };
             let mut sc = self.scored(Choice::External(i), fi.external(c), push);
             sc.need = need;
+            sc.shown = self.shown_bonus(obs, c);
             out.push(sc);
         }
         let chosen = InternalAction::ALL
@@ -161,6 +164,7 @@ impl Brain {
             kicked: m,
             push,
             need: 0.0,
+            shown: 0.0,
         }
     }
 
@@ -176,6 +180,7 @@ impl Brain {
         let x = self.context(s, pin.stakes);
         let felt = self.feel(obs, tools);
         self.log.hunger = felt.hunger;
+        self.consult_teacher(obs, tools);
         let mut all = self.score_all(obs, cands, pin.stakes, &felt);
         // 11 Oracle: kick first (00 §3.5.4), then weights.
         let p_kick = self.dev.kick_rate(self.config.kick.p_base);
@@ -211,11 +216,12 @@ impl Brain {
             }
         }
         // 12–13 score and choose.
-        // A felt need also steers the choice (01 §1.6, #51).
+        // A felt need also steers the choice (01 §1.6, #51), and so does a
+        // shown recipe's next step (01 §4.11).
         let steer = self.config.needs.steer;
         let scores: Vec<f32> = all
             .iter()
-            .map(|sc| needs::steered(score(&w, &sc.kicked), steer, sc.need))
+            .map(|sc| needs::steered(score(&w, &sc.kicked), steer, sc.need) + sc.shown)
             .collect();
         let g = self.g();
         // A command, danger or felt need sets an effort floor (#41; 01 §1.6).
@@ -357,6 +363,7 @@ impl Brain {
         self.log.focus = it.focus;
         self.log.external_drive = it.external_drive;
         self.log.need_push = sc.push;
+        self.log.shown = sc.shown;
         let decision = match sc.choice {
             Choice::External(i) => Decision::Act(i, it),
             Choice::Internal(a) => {

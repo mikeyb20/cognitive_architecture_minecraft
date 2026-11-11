@@ -6,6 +6,7 @@ use cognitive_core::agent::{Decision, TickLog};
 use host_api::reflex::{ReflexThresholds, emergency_reflex};
 use host_api::{Candidate, Host, Observation, Outcome, World};
 use sim::scenario::{self, Setup};
+use sim::world::ShelterTest;
 
 use crate::FULL;
 use crate::brain::BrainResult;
@@ -19,6 +20,9 @@ pub(crate) trait Driver {
     fn reflex_fired(&mut self, tick: u64);
     /// The log row of the last decision, if the driver keeps one.
     fn log(&self) -> Option<&TickLog>;
+    /// The host's goal tests where the agent stands (01 §4.11), before each
+    /// decision. Drivers without a teacher ignore them.
+    fn see_tests(&mut self, _shelter: ShelterTest) {}
 }
 
 /// Run `setup` with `d` until its tick limit (or `lifespan`, if sooner) or
@@ -72,6 +76,7 @@ pub(crate) fn run_scenario(
             continue;
         }
         r.decisions += 1;
+        d.see_tests(world.shelter_test());
         match d.decide(&obs, &cands) {
             Decision::Act(i, it) => {
                 let out = world.execute(&cands[i], it);

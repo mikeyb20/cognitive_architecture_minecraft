@@ -16,13 +16,16 @@ pub enum Source {
     PlayerChat,
     Llm,
     Reflection,
+    /// Shown or explained by a teacher (01 §4.11, #59).
+    Teacher,
 }
 
 impl Source {
     /// Starting confidence: LLM-made items start at 0.6 (spec §17).
     pub fn confidence(self) -> f32 {
         match self {
-            Source::Llm => 0.6,
+            // Taught items start below experience too (01 §4.11, X13).
+            Source::Llm | Source::Teacher => 0.6,
             _ => 1.0,
         }
     }

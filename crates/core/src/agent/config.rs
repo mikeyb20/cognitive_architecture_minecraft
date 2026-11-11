@@ -8,6 +8,7 @@ use crate::control::kick::KickParams;
 use crate::control::oracle::{Exp3, Oracle};
 use crate::control::permeability::PermeabilityParams;
 use crate::control::subconscious::SubconsciousParams;
+use crate::control::teacher::TeacherParams;
 use crate::memory::MemoryParams;
 use serde::{Deserialize, Serialize};
 
@@ -90,6 +91,8 @@ pub struct BrainConfig {
     pub goals_from_commands: bool,
     /// Felt needs: hunger pushes what relieved it (01 §1.6, #47).
     pub needs: NeedParams,
+    /// The teacher shows recipes and explains tests (01 §4.11, #59).
+    pub teacher: TeacherParams,
     /// Plan, reflect and imagine run on set events instead of being chosen
     /// (fixed-trigger ablation, plan §5.2; off by default, #40).
     pub fixed_thinking: FixedThinking,
@@ -147,6 +150,7 @@ impl Default for BrainConfig {
             threat_drive: true,
             goals_from_commands: false,
             needs: NeedParams::default(),
+            teacher: TeacherParams::default(),
             fixed_thinking: FixedThinking::default(),
             aging_rate: 1e-6,
             age_per_tick: 1.0,

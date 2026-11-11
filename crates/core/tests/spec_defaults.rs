@@ -10,7 +10,7 @@ use cognitive_core::control::kick::KickParams;
 use cognitive_core::control::oracle::Oracle;
 use cognitive_core::control::permeability::PermeabilityParams;
 use cognitive_core::control::subconscious::SubconsciousParams;
-use cognitive_core::memory::{FLAT_PRIORITY, FLAT_TIER, MemoryParams};
+use cognitive_core::memory::{FLAT_PRIORITY, FLAT_TIER, MemoryParams, Source};
 use cognitive_core::modes::{Lens, LensParams, Mode, ModeNetwork};
 
 #[test]
@@ -142,6 +142,11 @@ fn brain_defaults_match_spec_19() {
     let n = b.needs;
     assert!(n.on && n.fades);
     assert_eq!((n.food_at, n.relief_step, n.steer), (0.9, 0.5, 1.0));
+    // The teacher shows and explains (01 §4.11, #59); w_R is proposed.
+    assert!(b.teacher.show);
+    assert_eq!(b.teacher.weight, 1.0);
+    assert_eq!(Source::Teacher.confidence(), Source::Llm.confidence());
+    assert_eq!(Source::Teacher.confidence(), 0.6);
     let f = b.fixed_thinking;
     assert_eq!((f.on, f.every, f.effort), (false, 120, 0.5));
     assert_eq!((b.tenacity_ab, b.tenacity_gamma), ([(1.0, 1.0); 4], 0.98));

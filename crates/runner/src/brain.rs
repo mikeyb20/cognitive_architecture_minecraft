@@ -2,19 +2,24 @@
 //! sim's code tools, the scripted player and the shared emergency reflexes.
 
 use cognitive_core::agent::{Brain, BrainConfig, Decision, Horizon, Need, ThinkTools, TickLog};
+use cognitive_core::control::teacher::Recipe;
 use cognitive_core::direction::PlanStep;
 use host_api::{Candidate, Outcome};
 use host_api::{Observation, Skill, TaskType};
 use sim::planner;
 use sim::scenario::{self, Setup};
+use sim::world::ShelterTest;
 use sim::{Death, Rules};
 
 use crate::drive::{Driver, run_scenario};
 
 /// The sim's code tools (spec §21): the scripted planner and the
-/// tech-tree recombiner stand in for the LLM.
+/// tech-tree recombiner stand in for the LLM. As the teacher (01 §4.11)
+/// they also report the host's shelter test, set before each decision.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SimTools;
+pub struct SimTools {
+    pub shelter: Option<bool>,
+}
 
 /// Dusk, from which the planner puts shelter first (same as arm A's tree).
 pub const DUSK: f32 = 0.42;
@@ -59,6 +64,42 @@ impl ThinkTools for SimTools {
         match need {
             Need::Hunger => food_step(obs),
         }
+    }
+
+    /// The teacher shows how to build a shelter (01 §4.11, #59).
+    fn show(&mut self, goal: &str, obs: &Observation) -> Option<Recipe> {
+        (goal == SHELTER).then(|| shelter_recipe(&obs.inventory))
+    }
+
+    /// The shelter test (01 §4.11): no hostile has a path in, and a way out.
+    fn explain(&mut self, goal: &str, _obs: &Observation) -> Option<bool> {
+        if goal == SHELTER { self.shelter } else { None }
+    }
+}
+
+/// The goal the sim teacher can show and explain (01 §4.11).
+pub const SHELTER: &str = "shelter";
+
+/// The shelter recipe from what the agent holds (01 §4.11; spec §27 step
+/// 13): a hut needs 4 blocks, so chop a log and craft planks unless it
+/// holds 4 cobblestone or planks, then build.
+pub fn shelter_recipe(inv: &host_api::Inventory) -> Recipe {
+    let step = |skill, thing: &str, task| PlanStep {
+        skill,
+        thing: thing.to_string(),
+        task,
+    };
+    let mut steps = Vec::new();
+    if inv.count("cobblestone") < 4 && inv.count("oak_planks") < 4 {
+        if inv.count("oak_log") == 0 {
+            steps.push(step(Skill::Chop, "block:oak_log", TaskType::Mining));
+        }
+        steps.push(step(Skill::Craft, "item:oak_planks", TaskType::Crafting));
+    }
+    steps.push(step(Skill::Shelter, "", TaskType::Building));
+    Recipe {
+        goal: SHELTER.to_string(),
+        steps,
     }
 }
 
@@ -136,6 +177,9 @@ impl Driver for BrainDriver<'_> {
     fn log(&self) -> Option<&TickLog> {
         Some(self.brain.last_log())
     }
+    fn see_tests(&mut self, shelter: ShelterTest) {
+        self.tools.shelter = Some(shelter.passes());
+    }
 }
 
 /// Run with a brain the caller built (tests force states first).
@@ -148,7 +192,7 @@ pub fn run_with(
     let end = brain.lifespan();
     let mut d = BrainDriver {
         brain,
-        tools: SimTools,
+        tools: SimTools::default(),
     };
     run_scenario(setup, &mut d, end, seed, on_row)
 }
@@ -224,7 +268,7 @@ mod tests {
         let mut brain = Brain::new(BrainConfig::default(), 0);
         let mut d = BrainDriver {
             brain: &mut brain,
-            tools: SimTools,
+            tools: SimTools::default(),
         };
         // Run until one action has been taken and learned from.
         let mut acted = false;

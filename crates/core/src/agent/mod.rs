@@ -15,6 +15,7 @@ pub mod log;
 pub mod needs;
 mod perceive;
 mod personality;
+mod teach;
 pub mod think;
 mod triggers;
 
@@ -37,6 +38,7 @@ use crate::control::kick::StuckDetector;
 use crate::control::oracle::{CONTEXT_DIM, Context, Oracle};
 use crate::control::permeability::Permeability;
 use crate::control::subconscious::Subconscious;
+use crate::control::teacher::Lesson;
 use crate::direction::{PlanStep, ThoughtMomentum};
 use crate::memory::{InternalAction, MemoryStore, SkillTable};
 use crate::modes::{Features, Lens, Mode};
@@ -180,6 +182,10 @@ pub struct Brain {
     pub(crate) routine_bonus: [f32; 7],
     /// What relieved hunger before (01 §1.6).
     pub(crate) relief: needs::ReliefTable,
+    /// The recipe a teacher showed for the current goal (01 §4.11).
+    pub(crate) lesson: Option<Lesson>,
+    /// The goal the teacher was last asked to show, so it is asked once.
+    pub(crate) shown_for: Option<String>,
     pub(crate) r_hist: VecDeque<f32>,
     pub(crate) damage: VecDeque<(u64, f32)>,
     pub(crate) c_long: f32,
@@ -258,6 +264,8 @@ impl Brain {
             plan_tick: 0,
             routine_bonus: [0.0; 7],
             relief: needs::ReliefTable::default(),
+            lesson: None,
+            shown_for: None,
             r_hist: VecDeque::new(),
             damage: VecDeque::new(),
             c_long: config.curiosity.base,
@@ -326,6 +334,10 @@ impl Brain {
     pub fn set_goal(&mut self, goal: Option<Goal>) {
         if goal.is_some() {
             self.triggers.goal_set();
+        }
+        if self.shown_for.as_ref() != goal.as_ref().map(|g| &g.item) {
+            self.lesson = None;
+            self.shown_for = None;
         }
         self.goal = goal;
         self.step = None;
