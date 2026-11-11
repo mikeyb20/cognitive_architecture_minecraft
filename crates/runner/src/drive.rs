@@ -10,6 +10,7 @@ use sim::world::ShelterTest;
 
 use crate::FULL;
 use crate::brain::BrainResult;
+use crate::recovery::Setbacks;
 
 /// What picks the agent's actions in a scenario run.
 pub(crate) trait Driver {
@@ -47,19 +48,10 @@ pub(crate) fn run_scenario(
     let mut r = BrainResult {
         scenario: name,
         seed,
-        survived: false,
-        ticks: 0,
-        death: None,
-        decisions: 0,
-        idle: 0,
-        thoughts: 0,
-        reflexes: 0,
-        new_things: 0,
-        inventory: Vec::new(),
-        shelter_at: None,
         start_tick: world.tick,
-        firsts: Vec::new(),
+        ..BrainResult::default()
     };
+    let mut setbacks = Setbacks::default();
     while world.tick < end && world.alive() {
         if world.tick < harass_until {
             scenario::harass(&mut world);
@@ -69,6 +61,7 @@ pub(crate) fn run_scenario(
             harsh_open = false;
         }
         let test = milestones(&mut r, &world);
+        setbacks.health(world.body.health, world.tick);
         let mut obs = world.perceive();
         let mut cands = world.candidate_actions(&obs);
         player.apply(&mut obs, &mut cands);
@@ -83,6 +76,7 @@ pub(crate) fn run_scenario(
         d.see_tests(test);
         match d.decide(&obs, &cands) {
             Decision::Act(i, it) => {
+                setbacks.acted(cands[i].skill, obs.tick);
                 let out = world.execute(&cands[i], it);
                 r.new_things += out.new_things.len();
                 d.outcome(out);
@@ -102,6 +96,9 @@ pub(crate) fn run_scenario(
     }
     r.survived = world.alive();
     milestones(&mut r, &world);
+    setbacks.health(world.body.health, world.tick);
+    r.unrecovered = setbacks.unrecovered();
+    r.recoveries = setbacks.recoveries;
     r.ticks = world.tick;
     r.death = world.body.death;
     r.inventory = world.body.inv.items.clone();
@@ -168,5 +165,15 @@ mod tests {
         assert_eq!(d.shelter_at, None, "only while alive");
         milestones(&mut r, &w);
         assert_eq!(r.shelter_at, Some(7));
+    }
+
+    #[test]
+    fn a_run_names_its_scenario_seed_and_start() {
+        let mut s = crate::brain::setup("harsh", 3);
+        s.max_ticks = 0;
+        let mut b = cognitive_core::agent::Brain::new(Default::default(), 3);
+        let r = crate::brain::run_with(s, &mut b, 3, &mut |_| {});
+        assert_eq!((r.scenario, r.seed), ("harsh", 3));
+        assert_eq!(r.start_tick, sim::scenario::DAY / 2);
     }
 }
