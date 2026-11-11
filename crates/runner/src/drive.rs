@@ -123,3 +123,50 @@ fn milestones(r: &mut BrainResult, world: &sim::SimWorld) -> ShelterTest {
     }
     test
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use host_api::Pos;
+    use sim::Death;
+    use sim::map::Tile;
+
+    // Unit tests, so a mutant here fails before the slow CLI tests run.
+    #[test]
+    fn milestones_note_a_live_pass_and_each_held_item_once() {
+        let mut w = crate::brain::setup("first_night", 0).world;
+        let mut r = BrainResult::default();
+        w.body.inv.items = vec![("oak_log".into(), 2), ("stick".into(), 0)];
+        assert!(!milestones(&mut r, &w).passes(), "open ground");
+        assert_eq!(r.shelter_at, None);
+        w.tick = 7;
+        milestones(&mut r, &w);
+        assert_eq!(
+            r.firsts,
+            [("oak_log".to_string(), 0)],
+            "once; a zero is not held"
+        );
+        // A stone ring with a door around the agent passes.
+        let me = w.body.pos;
+        for dx in -2i32..=2 {
+            for dz in -2i32..=2 {
+                let p = Pos {
+                    x: me.x + dx,
+                    y: 0,
+                    z: me.z + dz,
+                };
+                let ring = dx.abs().max(dz.abs()) == 2;
+                w.map.set(p, if ring { Tile::Stone } else { Tile::Grass });
+            }
+        }
+        w.map.set(Pos { x: me.x + 2, ..me }, Tile::Door);
+        w.mobs.clear();
+        let mut dead = w.clone();
+        dead.body.death = Some(Death::Mob);
+        let mut d = BrainResult::default();
+        assert!(milestones(&mut d, &dead).passes());
+        assert_eq!(d.shelter_at, None, "only while alive");
+        milestones(&mut r, &w);
+        assert_eq!(r.shelter_at, Some(7));
+    }
+}
