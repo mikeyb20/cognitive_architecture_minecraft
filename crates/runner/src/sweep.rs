@@ -347,4 +347,30 @@ mod tests {
         assert_eq!(select("all", &ids()), ids());
         assert_eq!(select("OQ8", &ids()), vec!["OQ8"]);
     }
+
+    // Also unit tests, for the same reason: the pace table follows the
+    // results table, and the CSV has two pace columns per milestone.
+    #[test]
+    fn pace_table_and_columns() {
+        let h = pace_header();
+        assert_eq!(h.len(), 2 * PACE.len());
+        assert_eq!(
+            (h[0].as_str(), h[1].as_str()),
+            ("oak_log reached", "oak_log ticks")
+        );
+        assert_eq!(h[9], "shelter ticks");
+        let p = Pace {
+            reached: 0.5,
+            ticks: f32::NAN,
+        };
+        assert_eq!(pace_cells(&[p; 5])[..2], ["0.50", "–"]);
+        let row = Row {
+            variant: "v".into(),
+            scenario: "s".into(),
+            summary: Summary::default(),
+        };
+        let t = pace_table(std::slice::from_ref(&row));
+        assert!(t.contains("| v | s | 0.00 @ 0 |"), "{t}");
+        assert!(table(&[row], 1).ends_with(&t), "the pace table follows");
+    }
 }
