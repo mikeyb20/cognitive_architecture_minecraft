@@ -1,10 +1,11 @@
 //! Build a shelter, walk to one, and rest in it (spec §21: rest in a shelter
 //! at night counts as sleep).
 
-use host_api::{Candidate, Intensity, Skill, Target, TaskType, World};
+use host_api::{Candidate, Intensity, Pos, Skill, Target, TaskType, World};
 
 use super::{BLOCKED, Ctx, Exec, Handler, Out};
 use crate::craft;
+use crate::geom::neighbours4;
 use crate::map::Tile;
 use crate::world::SimWorld;
 
@@ -68,9 +69,31 @@ impl Handler for Sheltering {
         if !w.alive() {
             return (false, 0.0, false);
         }
+        if let Some(b) = blocks {
+            wall_in(w, here, b);
+        }
         w.map.set(here, Tile::Shelter);
         w.notice("block:shelter");
         (true, 1.0, false)
+    }
+}
+
+/// A hut built with blocks closes every open side of `here` (spec §21, step
+/// 13): the first open side gets a door, the others a wall of the blocks
+/// used, so the hut passes the shelter test (01 §4.11). A side where a mob
+/// stands stays open, as Minecraft won't place a block on a mob.
+fn wall_in(w: &mut SimWorld, here: Pos, blocks: &str) {
+    let wall = if blocks == "cobblestone" {
+        Tile::Stone
+    } else {
+        Tile::Planks
+    };
+    let open: Vec<Pos> = neighbours4(here)
+        .into_iter()
+        .filter(|q| w.map.get(*q).mob_walkable() && !w.mobs.iter().any(|m| m.pos == *q))
+        .collect();
+    for (i, q) in open.into_iter().enumerate() {
+        w.map.set(q, if i == 0 { Tile::Door } else { wall });
     }
 }
 

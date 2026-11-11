@@ -4,7 +4,7 @@
 mod common;
 
 use common::*;
-use host_api::{Pos, World};
+use host_api::{Host, Pos, Skill, World};
 use sim::SimWorld;
 use sim::map::Tile;
 use sim::mob::{Mob, MobKind};
@@ -108,4 +108,47 @@ fn zombies_do_not_open_doors() {
     assert!(m.x >= 27, "stays outside: {m:?}");
     assert_eq!(w.mobs[0].pos, p(27, 24), "waits at the door");
     assert!(w.shelter_test().passes(), "the waiting zombie is outside");
+}
+
+#[test]
+fn a_hut_built_with_blocks_passes_and_a_dug_in_one_does_not() {
+    // Step 13: blocks close every open side, a door on the first (east).
+    let mut w = flat();
+    give(&mut w, "cobblestone", 4);
+    assert!(w.execute(&act(Skill::Shelter, None), FULL).success);
+    assert_eq!(w.map.get(p(25, 24)), Tile::Door);
+    for q in [p(23, 24), p(24, 25), p(24, 23)] {
+        assert_eq!(w.map.get(q), Tile::Stone, "{q:?}");
+    }
+    assert_eq!(w.map.get(p(24, 24)), Tile::Shelter);
+    assert!(w.shelter_test().passes());
+    // Planks make plank walls; a side already walled needs no block.
+    let mut w = flat();
+    w.map.set(p(25, 24), Tile::Stone);
+    give(&mut w, "oak_planks", 4);
+    w.execute(&act(Skill::Shelter, None), FULL);
+    assert_eq!(w.map.get(p(23, 24)), Tile::Door, "first open side");
+    assert_eq!(w.map.get(p(25, 24)), Tile::Stone);
+    assert_eq!(w.map.get(p(24, 25)), Tile::Planks);
+    assert!(w.shelter_test().passes());
+    // Digging in leaves every side open.
+    let mut w = flat();
+    w.execute(&act(Skill::Shelter, None), FULL);
+    assert!(w.sheltered());
+    assert_eq!(w.shelter_test(), test(false, true));
+}
+
+#[test]
+fn a_hut_leaves_a_side_open_where_a_mob_stands() {
+    // The pig is penned in on three sides, so it stays put while we build.
+    let mut w = flat();
+    for q in [p(23, 25), p(25, 25), p(24, 26)] {
+        w.map.set(q, Tile::Stone);
+    }
+    w.mobs.push(Mob::new(MobKind::Pig, p(24, 25), 0));
+    give(&mut w, "cobblestone", 4);
+    w.execute(&act(Skill::Shelter, None), FULL);
+    assert_eq!(w.map.get(p(24, 25)), Tile::Grass);
+    assert_eq!(w.map.get(p(24, 23)), Tile::Stone);
+    assert_eq!(w.mobs[0].pos, p(24, 25), "not walled into a block");
 }

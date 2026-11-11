@@ -21,6 +21,8 @@ pub enum Tile {
     Wheat,
     /// A built hut: walkable, and hostile mobs cannot reach whoever is in it.
     Shelter,
+    /// A wall of planks, as a built hut leaves it (spec §21, step 13).
+    Planks,
     /// A door: the agent opens it and walks through; mobs cannot (spec §21,
     /// #58: as in Minecraft, zombies don't open doors).
     Door,
@@ -39,6 +41,7 @@ impl Tile {
             Tile::CaveFloor => "cave_floor",
             Tile::Wheat => "wheat",
             Tile::Shelter => "shelter",
+            Tile::Planks => "oak_planks",
             Tile::Door => "oak_door",
         }
     }
@@ -281,6 +284,7 @@ mod tests {
             Tile::Water,
             Tile::Lava,
             Tile::IronOre,
+            Tile::Planks,
             Tile::Tree { chops_left: 1 },
         ] {
             assert!(!t.walkable(), "{t:?}");
@@ -296,6 +300,7 @@ mod tests {
             Tile::Lava,
             Tile::CaveFloor,
             Tile::Wheat,
+            Tile::Planks,
             Tile::Door,
         ]
         .iter()
@@ -311,6 +316,7 @@ mod tests {
                 "lava",
                 "cave_floor",
                 "wheat",
+                "oak_planks",
                 "oak_door"
             ]
         );
