@@ -46,6 +46,12 @@ pub struct RunMetrics {
     /// Ticks into the run to each `PACE` milestone, if reached (plan §5.0
     /// progression pace).
     pub pace: [Option<u64>; 5],
+    /// Mean ticks from a setback to work again (plan §5.0 recovery); NaN
+    /// when the run had none it recovered from.
+    pub recovery: f32,
+    /// Setbacks in the run, and how many it recovered from.
+    pub setbacks: u32,
+    pub recovered: u32,
 }
 
 /// The internal actions that call the LLM tool (spec §6, #40).
@@ -128,6 +134,7 @@ impl Meter {
             },
             shelter_at: r.shelter_at,
             pace: pace(r),
+            ..recovery(r)
         }
     }
 }
@@ -155,6 +162,17 @@ pub fn pace(r: &BrainResult) -> [Option<u64>; 5] {
         }
     };
     PACE.map(|m| first(m).map(|t| t.saturating_sub(r.start_tick)))
+}
+
+/// Plan §5.0 recovery for any arm: only the recovery fields are set.
+pub fn recovery(r: &BrainResult) -> RunMetrics {
+    let n = r.recoveries.len() as u32;
+    RunMetrics {
+        recovery: finite_mean(r.recoveries.iter().map(|&t| t as f32)),
+        setbacks: n + r.unrecovered,
+        recovered: n,
+        ..RunMetrics::default()
+    }
 }
 
 /// Tech-tree goals held in an inventory (spec §21), 0..4.
@@ -189,6 +207,11 @@ pub struct Summary {
     /// Per `PACE` milestone: the share of runs that reached it and the mean
     /// ticks to it over those runs (NaN if none did).
     pub pace: [Pace; 5],
+    /// Mean over runs of each run's mean recovery ticks (runs with none
+    /// left out; NaN if no run had one), and the share of all setbacks
+    /// recovered from (NaN if there were none).
+    pub recovery: f32,
+    pub recovered: f32,
 }
 
 /// One progression-pace milestone over seeds (plan §5.0).
@@ -226,6 +249,12 @@ pub fn summarise(runs: &[RunMetrics]) -> Summary {
                     .map(|r| r.pace[i].map_or(f32::NAN, |t| t as f32)),
             ),
         }),
+        recovery: finite_mean(runs.iter().map(|r| r.recovery)),
+        recovered: {
+            let all: u32 = runs.iter().map(|r| r.setbacks).sum();
+            let back: u32 = runs.iter().map(|r| r.recovered).sum();
+            back as f32 / all as f32
+        },
     }
 }
 

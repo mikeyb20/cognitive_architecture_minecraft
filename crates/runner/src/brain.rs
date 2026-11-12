@@ -152,6 +152,10 @@ pub struct BrainResult {
     /// order (plan §5.0 progression pace). Items held at the start get the
     /// start tick.
     pub firsts: Vec<(String, u64)>,
+    /// Ticks from each setback (damage) to the next work action, and the
+    /// setbacks the run ended inside (plan §5.0 recovery).
+    pub recoveries: Vec<u64>,
+    pub unrecovered: u32,
 }
 
 /// Run one scenario with the brain. `on_row` sees every log row.

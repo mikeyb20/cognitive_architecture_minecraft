@@ -136,6 +136,8 @@ fn baseline_metrics_by_hand() {
         shelter_at: Some(700),
         start_tick: 100,
         firsts: vec![("wooden_pickaxe".into(), 100), ("wheat".into(), 400)],
+        recoveries: vec![40],
+        unrecovered: 1,
     };
     let m = baseline_metrics(&r);
     assert_eq!((m.survived, m.ticks, m.decisions), (true, 2400, 8));
@@ -155,6 +157,11 @@ fn baseline_metrics_by_hand() {
         m.pace,
         [None, None, None, Some(300), Some(600)],
         "pace for every arm, in ticks into the run"
+    );
+    assert_eq!(
+        (m.recovery, m.setbacks, m.recovered),
+        (40.0, 2, 1),
+        "recovery for every arm"
     );
     let none = baseline_metrics(&BrainResult {
         decisions: 0,

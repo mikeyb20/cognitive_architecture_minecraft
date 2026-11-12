@@ -216,15 +216,8 @@ const HEADER: [&str; 18] = [
 
 fn cells(r: &Row) -> [String; 18] {
     let s = &r.summary;
-    // A dash for a variable the arm does not have.
-    let f = |x: f32, places: usize| {
-        if x.is_nan() {
-            "–".to_string()
-        } else {
-            format!("{x:.places$}")
-        }
-    };
-    let f2 = |x: f32| f(x, 2);
+    let f = num;
+    let f2 = |x: f32| num(x, 2);
     [
         r.variant.clone(),
         r.scenario.clone(),
@@ -257,17 +250,31 @@ pub fn table(rows: &[Row], seeds: u64) -> String {
     for r in rows {
         t += &format!("| {} |\n", cells(r).join(" | "));
     }
-    t + &pace_table(rows)
+    t + &scores_table(rows)
 }
 
-/// Progression pace (plan §5.0): per milestone, the share of runs that
-/// reached it and the mean ticks into the run over those runs.
-fn pace_table(rows: &[Row]) -> String {
-    let mut t = "\nProgression pace (plan §5.0): share of runs that reached each milestone @ mean ticks into the run for those runs (a dash if none did). shelter = a shelter that passes the shelter test.\n\n".to_string();
-    t += &format!("| variant | scenario | {} |\n", PACE.join(" | "));
-    t += &format!("|{}\n", "---|".repeat(PACE.len() + 2));
+/// A number to `places`, or a dash for a variable the arm does not have
+/// (NaN).
+fn num(x: f32, places: usize) -> String {
+    if x.is_nan() {
+        "–".to_string()
+    } else {
+        format!("{x:.places$}")
+    }
+}
+
+/// Plan §5.0 scores: per pace milestone, the share of runs that reached
+/// it and the mean ticks into the run over those runs; then recovery.
+fn scores_table(rows: &[Row]) -> String {
+    let mut t = "\nPlan §5.0 scores. Pace: share of runs that reached each milestone @ mean ticks into the run for those runs (a dash if none did); shelter = a shelter that passes the shelter test. recovery = mean ticks from a setback (damage taken) to the next work action, not fleeing, sheltering, resting or eating; recovered = share of setbacks the agent got back to work from before the run ended.\n\n".to_string();
+    t += &format!(
+        "| variant | scenario | {} | recovery | recovered |\n",
+        PACE.join(" | ")
+    );
+    t += &format!("|{}\n", "---|".repeat(PACE.len() + 4));
     for r in rows {
-        let cells = r.summary.pace.map(|p| {
+        let s = &r.summary;
+        let pace = s.pace.map(|p| {
             if p.ticks.is_nan() {
                 "–".to_string()
             } else {
@@ -275,33 +282,33 @@ fn pace_table(rows: &[Row]) -> String {
             }
         });
         t += &format!(
-            "| {} | {} | {} |\n",
+            "| {} | {} | {} | {} | {} |\n",
             r.variant,
             r.scenario,
-            cells.join(" | ")
+            pace.join(" | "),
+            num(s.recovery, 0),
+            num(s.recovered, 2)
         );
     }
     t
 }
 
-/// CSV columns after `HEADER`: each pace milestone's share and ticks.
-fn pace_header() -> Vec<String> {
+/// CSV columns after `HEADER`: each pace milestone's share and ticks, then
+/// recovery.
+fn scores_header() -> Vec<String> {
     PACE.iter()
         .flat_map(|m| [format!("{m} reached"), format!("{m} ticks")])
+        .chain(["recovery".to_string(), "recovered".to_string()])
         .collect()
 }
 
-/// Each milestone's share and mean ticks; a dash for ticks when none did.
-fn pace_cells(p: &[Pace; 5]) -> Vec<String> {
-    let ticks = |t: f32| {
-        if t.is_nan() {
-            "–".to_string()
-        } else {
-            format!("{t:.0}")
-        }
-    };
-    p.iter()
-        .flat_map(|p| [format!("{:.2}", p.reached), ticks(p.ticks)])
+/// Each milestone's share and mean ticks (a dash for ticks when none did),
+/// then recovery.
+fn scores_cells(s: &Summary) -> Vec<String> {
+    s.pace
+        .iter()
+        .flat_map(|p| [num(p.reached, 2), num(p.ticks, 0)])
+        .chain([num(s.recovery, 0), num(s.recovered, 2)])
         .collect()
 }
 
@@ -312,7 +319,7 @@ pub fn markdown(s: &Sweep, rows: &[Row], seeds: u64) -> String {
 
 /// Rows as CSV, each line starting with `id` under the column `key`.
 pub fn csv_rows(key: &str, id: &str, rows: &[Row]) -> String {
-    let mut t = format!("{key},{},{}\n", HEADER.join(","), pace_header().join(","));
+    let mut t = format!("{key},{},{}\n", HEADER.join(","), scores_header().join(","));
     for r in rows {
         let c = cells(r).map(|x| {
             if x.contains(',') {
@@ -321,7 +328,7 @@ pub fn csv_rows(key: &str, id: &str, rows: &[Row]) -> String {
                 x
             }
         });
-        let p = pace_cells(&r.summary.pace);
+        let p = scores_cells(&r.summary);
         t += &format!("{id},{},{}\n", c.join(","), p.join(","));
     }
     t
@@ -348,29 +355,41 @@ mod tests {
         assert_eq!(select("OQ8", &ids()), vec!["OQ8"]);
     }
 
-    // Also unit tests, for the same reason: the pace table follows the
-    // results table, and the CSV has two pace columns per milestone.
+    // Also unit tests, for the same reason: the scores table follows the
+    // results table, and the CSV has two pace columns per milestone, then
+    // recovery.
     #[test]
-    fn pace_table_and_columns() {
-        let h = pace_header();
-        assert_eq!(h.len(), 2 * PACE.len());
+    fn scores_table_and_columns() {
+        let h = scores_header();
+        assert_eq!(h.len(), 2 * PACE.len() + 2);
         assert_eq!(
             (h[0].as_str(), h[1].as_str()),
             ("oak_log reached", "oak_log ticks")
         );
-        assert_eq!(h[9], "shelter ticks");
-        let p = Pace {
-            reached: 0.5,
-            ticks: f32::NAN,
+        assert_eq!(
+            (h[9].as_str(), h[11].as_str()),
+            ("shelter ticks", "recovered")
+        );
+        let summary = Summary {
+            pace: [Pace {
+                reached: 0.5,
+                ticks: f32::NAN,
+            }; 5],
+            recovery: 12.4,
+            recovered: f32::NAN,
+            ..Summary::default()
         };
-        assert_eq!(pace_cells(&[p; 5])[..2], ["0.50", "–"]);
+        let c = scores_cells(&summary);
+        assert_eq!(c[..2], ["0.50", "–"]);
+        assert_eq!(c[10..], ["12", "–"]);
         let row = Row {
             variant: "v".into(),
             scenario: "s".into(),
             summary: Summary::default(),
         };
-        let t = pace_table(std::slice::from_ref(&row));
+        let t = scores_table(std::slice::from_ref(&row));
         assert!(t.contains("| v | s | 0.00 @ 0 |"), "{t}");
-        assert!(table(&[row], 1).ends_with(&t), "the pace table follows");
+        assert!(t.ends_with("| 0 | 0.00 |\n"), "{t}");
+        assert!(table(&[row], 1).ends_with(&t), "the scores table follows");
     }
 }
