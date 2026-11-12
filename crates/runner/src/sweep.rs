@@ -8,7 +8,9 @@ use cognitive_core::control::oracle::Exp3;
 use sim::scenario::NAMES;
 
 use crate::brain::{run_brain, setup};
-pub use crate::metrics::{FREEZE_CONFLICT, Meter, RunMetrics, Summary, summarise, tech_held};
+pub use crate::metrics::{
+    FREEZE_CONFLICT, Meter, PACE, Pace, RunMetrics, Summary, summarise, tech_held,
+};
 
 /// One candidate answer to an open question.
 #[derive(Debug, Clone)]
@@ -255,7 +257,52 @@ pub fn table(rows: &[Row], seeds: u64) -> String {
     for r in rows {
         t += &format!("| {} |\n", cells(r).join(" | "));
     }
+    t + &pace_table(rows)
+}
+
+/// Progression pace (plan §5.0): per milestone, the share of runs that
+/// reached it and the mean ticks into the run over those runs.
+fn pace_table(rows: &[Row]) -> String {
+    let mut t = "\nProgression pace (plan §5.0): share of runs that reached each milestone @ mean ticks into the run for those runs (a dash if none did). shelter = a shelter that passes the shelter test.\n\n".to_string();
+    t += &format!("| variant | scenario | {} |\n", PACE.join(" | "));
+    t += &format!("|{}\n", "---|".repeat(PACE.len() + 2));
+    for r in rows {
+        let cells = r.summary.pace.map(|p| {
+            if p.ticks.is_nan() {
+                "–".to_string()
+            } else {
+                format!("{:.2} @ {:.0}", p.reached, p.ticks)
+            }
+        });
+        t += &format!(
+            "| {} | {} | {} |\n",
+            r.variant,
+            r.scenario,
+            cells.join(" | ")
+        );
+    }
     t
+}
+
+/// CSV columns after `HEADER`: each pace milestone's share and ticks.
+fn pace_header() -> Vec<String> {
+    PACE.iter()
+        .flat_map(|m| [format!("{m} reached"), format!("{m} ticks")])
+        .collect()
+}
+
+/// Each milestone's share and mean ticks; a dash for ticks when none did.
+fn pace_cells(p: &[Pace; 5]) -> Vec<String> {
+    let ticks = |t: f32| {
+        if t.is_nan() {
+            "–".to_string()
+        } else {
+            format!("{t:.0}")
+        }
+    };
+    p.iter()
+        .flat_map(|p| [format!("{:.2}", p.reached), ticks(p.ticks)])
+        .collect()
 }
 
 /// The sweep as a Markdown table with a short heading.
@@ -265,7 +312,7 @@ pub fn markdown(s: &Sweep, rows: &[Row], seeds: u64) -> String {
 
 /// Rows as CSV, each line starting with `id` under the column `key`.
 pub fn csv_rows(key: &str, id: &str, rows: &[Row]) -> String {
-    let mut t = format!("{key},{}\n", HEADER.join(","));
+    let mut t = format!("{key},{},{}\n", HEADER.join(","), pace_header().join(","));
     for r in rows {
         let c = cells(r).map(|x| {
             if x.contains(',') {
@@ -274,7 +321,8 @@ pub fn csv_rows(key: &str, id: &str, rows: &[Row]) -> String {
                 x
             }
         });
-        t += &format!("{id},{}\n", c.join(","));
+        let p = pace_cells(&r.summary.pace);
+        t += &format!("{id},{},{}\n", c.join(","), p.join(","));
     }
     t
 }
@@ -298,5 +346,31 @@ mod tests {
     fn select_names_all_or_one() {
         assert_eq!(select("all", &ids()), ids());
         assert_eq!(select("OQ8", &ids()), vec!["OQ8"]);
+    }
+
+    // Also unit tests, for the same reason: the pace table follows the
+    // results table, and the CSV has two pace columns per milestone.
+    #[test]
+    fn pace_table_and_columns() {
+        let h = pace_header();
+        assert_eq!(h.len(), 2 * PACE.len());
+        assert_eq!(
+            (h[0].as_str(), h[1].as_str()),
+            ("oak_log reached", "oak_log ticks")
+        );
+        assert_eq!(h[9], "shelter ticks");
+        let p = Pace {
+            reached: 0.5,
+            ticks: f32::NAN,
+        };
+        assert_eq!(pace_cells(&[p; 5])[..2], ["0.50", "–"]);
+        let row = Row {
+            variant: "v".into(),
+            scenario: "s".into(),
+            summary: Summary::default(),
+        };
+        let t = pace_table(std::slice::from_ref(&row));
+        assert!(t.contains("| v | s | 0.00 @ 0 |"), "{t}");
+        assert!(table(&[row], 1).ends_with(&t), "the pace table follows");
     }
 }

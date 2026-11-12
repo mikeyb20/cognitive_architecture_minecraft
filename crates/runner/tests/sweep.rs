@@ -4,8 +4,8 @@
 use cognitive_core::agent::{BrainConfig, TickLog};
 use runner::brain::BrainResult;
 use runner::sweep::{
-    FREEZE_CONFLICT, Meter, Row, RunMetrics, Summary, all_scenarios, csv, ids, markdown, run_one,
-    run_sweep, summarise, sweep,
+    FREEZE_CONFLICT, Meter, PACE, Pace, Row, RunMetrics, Summary, all_scenarios, csv, ids,
+    markdown, run_one, run_sweep, summarise, sweep,
 };
 use std::process::Command;
 
@@ -55,7 +55,7 @@ fn result(survived: bool, inventory: Vec<(String, u32)>) -> BrainResult {
         reflexes: 2,
         new_things: 7,
         inventory,
-        shelter_at: None,
+        ..BrainResult::default()
     }
 }
 
@@ -201,9 +201,15 @@ fn summary_averages_over_seeds() {
     );
     let none = summarise(&[]);
     assert!(none.plan_lag.is_nan());
+    assert!(
+        none.pace
+            .iter()
+            .all(|p| p.reached == 0.0 && p.ticks.is_nan())
+    );
     assert_eq!(
         Summary {
             plan_lag: 0.0,
+            pace: [Pace::default(); 5],
             ..none
         },
         Summary::default()
@@ -241,6 +247,19 @@ fn tables_have_one_line_per_row() {
                 thinking: 3.5,
                 plan_lag: f32::NAN,
                 shelter: 0.25,
+                pace: [
+                    Pace {
+                        reached: 0.5,
+                        ticks: 31.4,
+                    },
+                    Pace {
+                        reached: 0.0,
+                        ticks: f32::NAN,
+                    },
+                    Pace::default(),
+                    Pace::default(),
+                    Pace::default(),
+                ],
                 ..Summary::default()
             },
         },
@@ -257,14 +276,31 @@ fn tables_have_one_line_per_row() {
     assert!(md.starts_with("## OQ18: Oracle learner"));
     assert!(md.contains("4 seeds per cell"));
     assert!(md.contains("| EXP3 γ=0.1 | harsh | 0.50 |"), "{md}");
-    assert_eq!(md.lines().filter(|l| l.starts_with('|')).count(), 4);
+    assert_eq!(md.lines().filter(|l| l.starts_with('|')).count(), 8);
+    assert!(md.contains("\nProgression pace (plan §5.0)"), "{md}");
+    assert!(
+        md.contains(
+            "| variant | scenario | oak_log | stone_pickaxe | raw_iron | wheat | shelter |"
+        ),
+        "{md}"
+    );
+    assert!(
+        md.contains("| EXP3 γ=0.1 | harsh | 0.50 @ 31 | – | 0.00 @ 0 |"),
+        "share @ mean ticks; a dash when none reached: {md}"
+    );
     let c = csv(&s, &rows);
     let lines: Vec<&str> = c.lines().collect();
     assert_eq!(lines.len(), 3);
     assert!(lines[0].starts_with("oq,variant,scenario,survival"));
+    assert!(
+        lines[0].contains(",plan lag,shelter,oak_log reached,oak_log ticks,stone_pickaxe reached,")
+            && lines[0].ends_with(",shelter reached,shelter ticks"),
+        "{}",
+        lines[0]
+    );
     assert!(lines[1].starts_with("OQ18,EXP3 γ=0.1,harsh,0.50,"));
     assert!(
-        lines[1].ends_with(",42,0.12,3.5,–,0.25"),
+        lines[1].contains(",42,0.12,3.5,–,0.25,0.50,31,0.00,–,0.00,0,"),
         "memory whole, recall to two places, think to one, no lag, shelter: {}",
         lines[1]
     );
@@ -274,7 +310,7 @@ fn tables_have_one_line_per_row() {
         lines[1]
     );
     assert!(
-        lines[2].starts_with("OQ18,\"a, b\",open_day,") && lines[2].ends_with(",0.0,7,0.00"),
+        lines[2].starts_with("OQ18,\"a, b\",open_day,") && lines[2].contains(",0.0,7,0.00,0.00,0,"),
         "{}",
         lines[2]
     );
@@ -331,4 +367,48 @@ fn one_run_is_measured_and_every_scenario_is_listed() {
     let r = run_one(&BrainConfig::default(), "first_night", 1);
     assert!(r.survived && r.decisions > 0 && r.ticks >= 2400, "{r:?}");
     assert_eq!(all_scenarios(), sim::scenario::NAMES.to_vec());
+}
+
+#[test]
+fn pace_reads_milestones_by_hand() {
+    // Plan §5.0: wood, stone tools, iron, wheat, then a passing shelter.
+    assert_eq!(
+        PACE,
+        ["oak_log", "stone_pickaxe", "raw_iron", "wheat", "shelter"]
+    );
+    let r = BrainResult {
+        start_tick: 1200,
+        firsts: vec![
+            ("wooden_pickaxe".into(), 1200),
+            ("oak_log".into(), 1250),
+            ("raw_iron".into(), 2000),
+        ],
+        shelter_at: Some(1500),
+        ..BrainResult::default()
+    };
+    assert_eq!(
+        runner::metrics::pace(&r),
+        [Some(50), None, Some(800), None, Some(300)],
+        "ticks into the run; a milestone never reached is None"
+    );
+    let run = |pace| RunMetrics {
+        pace,
+        ..RunMetrics::default()
+    };
+    let s = summarise(&[
+        run([Some(50), None, None, None, Some(300)]),
+        run([Some(150), None, None, None, None]),
+        run([None, None, None, None, None]),
+        run([Some(100), None, None, Some(7), None]),
+    ]);
+    assert_eq!(
+        s.pace[0],
+        Pace {
+            reached: 0.75,
+            ticks: 100.0
+        }
+    );
+    assert_eq!((s.pace[3].reached, s.pace[3].ticks), (0.25, 7.0));
+    assert_eq!((s.pace[4].reached, s.pace[4].ticks), (0.25, 300.0));
+    assert!(s.pace[1].reached == 0.0 && s.pace[1].ticks.is_nan());
 }

@@ -16,7 +16,7 @@ use crate::FULL;
 use crate::brain::{BrainResult, setup};
 use crate::drive::{Driver, run_scenario};
 use crate::mc::McArm;
-use crate::metrics::{Meter, RunMetrics, summarise, tech_held};
+use crate::metrics::{Meter, RunMetrics, pace, summarise, tech_held};
 use crate::sweep::Row;
 
 /// Which arm picks the actions (spec §24).
@@ -178,6 +178,7 @@ pub fn baseline_metrics(r: &BrainResult) -> RunMetrics {
         thinking: f32::NAN,
         plan_lag: f32::NAN,
         shelter_at: r.shelter_at,
+        pace: pace(r),
     }
 }
 

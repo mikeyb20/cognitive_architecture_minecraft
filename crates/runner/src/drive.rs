@@ -57,6 +57,8 @@ pub(crate) fn run_scenario(
         new_things: 0,
         inventory: Vec::new(),
         shelter_at: None,
+        start_tick: world.tick,
+        firsts: Vec::new(),
     };
     while world.tick < end && world.alive() {
         if world.tick < harass_until {
@@ -66,10 +68,7 @@ pub(crate) fn run_scenario(
             scenario::end_harsh(&mut world);
             harsh_open = false;
         }
-        let test = world.shelter_test();
-        if test.passes() {
-            r.shelter_at.get_or_insert(world.tick);
-        }
+        let test = milestones(&mut r, &world);
         let mut obs = world.perceive();
         let mut cands = world.candidate_actions(&obs);
         player.apply(&mut obs, &mut cands);
@@ -102,11 +101,72 @@ pub(crate) fn run_scenario(
         }
     }
     r.survived = world.alive();
-    if r.survived && world.shelter_test().passes() {
-        r.shelter_at.get_or_insert(world.tick);
-    }
+    milestones(&mut r, &world);
     r.ticks = world.tick;
     r.death = world.body.death;
     r.inventory = world.body.inv.items.clone();
     r
+}
+
+/// Note the first tick of each milestone the plan §5.0 scores read: a
+/// passing shelter test (01 §4.11) while alive, and each item first held.
+/// Returns the shelter test for the driver.
+fn milestones(r: &mut BrainResult, world: &sim::SimWorld) -> ShelterTest {
+    let test = world.shelter_test();
+    if world.alive() && test.passes() {
+        r.shelter_at.get_or_insert(world.tick);
+    }
+    for (item, n) in &world.body.inv.items {
+        if *n > 0 && !r.firsts.iter().any(|(i, _)| i == item) {
+            r.firsts.push((item.clone(), world.tick));
+        }
+    }
+    test
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use host_api::Pos;
+    use sim::Death;
+    use sim::map::Tile;
+
+    // Unit tests, so a mutant here fails before the slow CLI tests run.
+    #[test]
+    fn milestones_note_a_live_pass_and_each_held_item_once() {
+        let mut w = crate::brain::setup("first_night", 0).world;
+        let mut r = BrainResult::default();
+        w.body.inv.items = vec![("oak_log".into(), 2), ("stick".into(), 0)];
+        assert!(!milestones(&mut r, &w).passes(), "open ground");
+        assert_eq!(r.shelter_at, None);
+        w.tick = 7;
+        milestones(&mut r, &w);
+        assert_eq!(
+            r.firsts,
+            [("oak_log".to_string(), 0)],
+            "once; a zero is not held"
+        );
+        // A stone ring with a door around the agent passes.
+        let me = w.body.pos;
+        for dx in -2i32..=2 {
+            for dz in -2i32..=2 {
+                let p = Pos {
+                    x: me.x + dx,
+                    y: 0,
+                    z: me.z + dz,
+                };
+                let ring = dx.abs().max(dz.abs()) == 2;
+                w.map.set(p, if ring { Tile::Stone } else { Tile::Grass });
+            }
+        }
+        w.map.set(Pos { x: me.x + 2, ..me }, Tile::Door);
+        w.mobs.clear();
+        let mut dead = w.clone();
+        dead.body.death = Some(Death::Mob);
+        let mut d = BrainResult::default();
+        assert!(milestones(&mut d, &dead).passes());
+        assert_eq!(d.shelter_at, None, "only while alive");
+        milestones(&mut r, &w);
+        assert_eq!(r.shelter_at, Some(7));
+    }
 }
