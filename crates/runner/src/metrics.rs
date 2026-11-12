@@ -330,4 +330,16 @@ mod tests {
         assert_eq!((m.hints, m.kept), (Some(1), 0.0));
         assert!(Meter::default().finish(&untimed).kept.is_nan());
     }
+
+    #[test]
+    fn a_brain_run_is_scored_for_pace() {
+        let r = BrainResult {
+            firsts: vec![("oak_log".into(), 130)],
+            shelter_at: Some(700),
+            start_tick: 100,
+            ..BrainResult::default()
+        };
+        let m = Meter::default().finish(&r);
+        assert_eq!(m.pace, [Some(30), None, None, None, Some(600)]);
+    }
 }
