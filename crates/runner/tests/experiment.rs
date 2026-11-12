@@ -410,3 +410,20 @@ fn the_transfer_score_is_computed_for_every_arm() {
     // dusk, so its hut passes (seeds 0 and 1).
     assert_eq!(rows[0].summary.shelter, 1.0);
 }
+
+#[test]
+fn the_floor_asks_every_arm_for_a_shelter_at_dusk() {
+    // Plan §5.0 shared floor, on unless an experiment sets `floor = false`.
+    let mut e = parse(SMALL).unwrap();
+    assert!(e.floor);
+    assert_eq!(header(&e)["floor"], true);
+    let c = &e.arms[1].clone();
+    // Seed 0's brain builds a passing hut once asked; unasked, it doesn't.
+    let (on, _) = runner::experiment::run_arm(&e, c, "first_night", 0, None).unwrap();
+    assert!(on.shelter_at.is_some(), "{on:?}");
+    e.floor = false;
+    let (off, _) = runner::experiment::run_arm(&e, c, "first_night", 0, None).unwrap();
+    assert_eq!(off.shelter_at, None);
+    let text = SMALL.replace("seeds = 2", "seeds = 2\nfloor = false");
+    assert!(!parse(&text).unwrap().floor);
+}

@@ -22,7 +22,7 @@ pub struct SimTools {
 }
 
 /// Dusk, from which the planner puts shelter first (same as arm A's tree).
-pub const DUSK: f32 = 0.42;
+pub use host_api::ontology::DUSK;
 /// Food level below which the planner puts food first.
 pub const HUNGRY: f32 = 0.5;
 const FOODS: [&str; 2] = ["porkchop", "bread"];
@@ -78,7 +78,7 @@ impl ThinkTools for SimTools {
 }
 
 /// The goal the sim teacher can show and explain (01 §4.11).
-pub const SHELTER: &str = "shelter";
+pub const SHELTER: &str = host_api::ontology::SHELTER_GOAL;
 
 /// The shelter recipe from what the agent holds (01 §4.11; spec §27 step
 /// 13): a hut needs 4 blocks, so chop a log and craft planks unless it

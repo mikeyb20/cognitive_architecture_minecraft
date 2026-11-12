@@ -100,6 +100,15 @@ impl TaskType {
 /// regions the same way, so region memories carry over (X17).
 pub const REGION: i32 = 8;
 
+/// Day phase (0..1) from which the routine survival tree shelters (v0.2
+/// survival tree; spec §20, arm A). The sim planner and the dusk call use
+/// it too.
+pub const DUSK: f32 = 0.42;
+
+/// The goal the teacher knows a recipe and a test for (01 §4.11, #58): a
+/// shelter that passes the host's shelter test.
+pub const SHELTER_GOAL: &str = "shelter";
+
 /// The novelty unit for the 8×8 region containing `pos` (spec §5, §21).
 pub fn region_of(pos: crate::Pos) -> crate::ThingId {
     crate::ThingId(format!(

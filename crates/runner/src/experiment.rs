@@ -78,7 +78,16 @@ pub struct Experiment {
     /// Draw a different agent per seed around the archetype (spec §19).
     #[serde(default)]
     pub per_agent: bool,
+    /// The shared survival floor (plan §5.0, #60): in every scenario the
+    /// player asks for a shelter at each dusk, for every arm. On unless set
+    /// false.
+    #[serde(default = "on")]
+    pub floor: bool,
     pub arms: Vec<ArmSpec>,
+}
+
+fn on() -> bool {
+    true
 }
 
 fn default_seeds() -> u64 {
@@ -191,7 +200,8 @@ pub fn run_arm(
     seed: u64,
     llm: Option<&Llm>,
 ) -> Result<(RunMetrics, LlmStats), String> {
-    let s = setup(scenario, seed);
+    let mut s = setup(scenario, seed);
+    s.player.dusk_call = e.floor;
     let Some(which) = arm.arm.baseline() else {
         let config = config_for(e, arm, seed)?;
         let mut m = Meter::default();
@@ -286,6 +296,7 @@ pub fn header(e: &Experiment) -> serde_json::Value {
         "seeds": e.seeds,
         "archetype": e.archetype,
         "per_agent": e.per_agent,
+        "floor": e.floor,
         "arms": arms,
         "defs_version": cognitive_core::DEFS_VERSION,
         "paper_version": cognitive_core::PAPER_VERSION,

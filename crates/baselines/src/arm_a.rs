@@ -30,7 +30,7 @@ impl Default for ArmAConfig {
     fn default() -> Self {
         Self {
             goal: "iron_pickaxe".into(),
-            dusk: 0.42,
+            dusk: host_api::ontology::DUSK,
             threat_range: 2.5,
             fight_health: 0.5,
             crowd_range: 4.0,

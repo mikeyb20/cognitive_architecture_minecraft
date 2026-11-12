@@ -14,7 +14,7 @@ use super::trips::{replace, setup};
 use super::{DAY, Setup};
 
 /// The goal the player names at the start (the sim teacher's goal).
-pub const HELD_OUT_GOAL: &str = "shelter";
+pub const HELD_OUT_GOAL: &str = host_api::ontology::SHELTER_GOAL;
 
 /// Held-out terrain: the seed's map with every tree turned to stone (the
 /// same tiles stay blocked, so paths are unchanged), a wooden pickaxe in
