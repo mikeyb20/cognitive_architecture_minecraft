@@ -36,8 +36,19 @@ fn consolidation_reports_what_it_pruned() {
     obs.tick = 1_000_000;
     let before = b.mem.len();
     let r = b.think(InternalAction::Consolidate, 1.0, &obs, &mut NoTools);
-    assert!(r.success && r.pruned > 0, "{r:?}");
+    assert!(r.success && r.pruned > 0 && r.o_decision, "{r:?}");
     assert_eq!(b.mem.len(), before - r.pruned as usize);
+}
+
+#[test]
+fn a_consolidation_that_changes_nothing_is_not_a_decision() {
+    let mut b = brain();
+    let r = think(&mut b, InternalAction::Consolidate, &mut NoTools);
+    assert_eq!(
+        (r.success, r.pruned, r.o_decision),
+        (true, 0, false),
+        "{r:?}"
+    );
 }
 
 #[test]

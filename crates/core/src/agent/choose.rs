@@ -85,7 +85,7 @@ impl Brain {
         x
     }
 
-    fn extras(&self, obs: &Observation, stakes: f32) -> InternalExtras {
+    pub(super) fn extras(&self, obs: &Observation, stakes: f32) -> InternalExtras {
         let recent: Vec<bool> = self
             .episodes
             .iter()

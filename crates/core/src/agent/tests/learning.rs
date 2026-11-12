@@ -36,9 +36,12 @@ fn an_informative_visit_habituates_the_target_less() {
         };
         learn_at(&mut b, p, 0);
         let t = b.mem.get("block:x").unwrap();
-        b.mem.habituation(t, 0)
+        let sk = b.mem.get("skill:test:Mining").unwrap();
+        (b.mem.habituation(t, 0), b.mem.habituation(sk, 0))
     };
-    assert!(h(true) < h(false), "{} vs {}", h(true), h(false));
+    let (new, old) = (h(true), h(false));
+    assert!(new.0 < old.0, "target {new:?} vs {old:?}");
+    assert!(new.1 < old.1, "and the skill: {new:?} vs {old:?}");
 }
 
 #[test]
