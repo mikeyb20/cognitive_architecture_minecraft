@@ -45,6 +45,7 @@ fn main() {
         Some("theory") => theory(&args),
         Some("mc") => mc(&args),
         Some("run") => experiment(&args),
+        Some("bench") => bench(&args),
         _ => {}
     }
 }
@@ -157,6 +158,24 @@ fn publish(args: &[String], id: &str, md: &str, csv: &str) {
         let p = std::path::Path::new(dir);
         std::fs::write(p.join(format!("{id}.md")), md).expect("write failed");
         std::fs::write(p.join(format!("{id}.csv")), csv).expect("write failed");
+    }
+}
+
+/// Psychology benchmarks (decision #60; benchmarks spec v0.1).
+fn bench(args: &[String]) {
+    use runner::bench::{csv, ids, markdown, run};
+    let which = args.get(1).map_or("all", String::as_str);
+    for id in runner::sweep::select(which, &ids()) {
+        let Some(rows) = run(id, seeds(args)) else {
+            eprintln!("unknown benchmark {id}; known: {:?}", ids());
+            std::process::exit(2);
+        };
+        publish(
+            args,
+            &format!("BENCH-{id}"),
+            &markdown(id, &rows),
+            &csv(&rows),
+        );
     }
 }
 
