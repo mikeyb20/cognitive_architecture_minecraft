@@ -28,8 +28,10 @@ pub const PATH_RADIUS: i32 = 20;
 
 mod path;
 mod shelter;
+mod shock;
 pub use path::Reach;
 pub use shelter::ShelterTest;
+pub use shock::Shock;
 
 /// What killed the agent, as the world reports it. Outcome first (#43): the
 /// cause behind the cause is worked out later from the log, never guessed here.
@@ -37,6 +39,8 @@ pub use shelter::ShelterTest;
 pub enum Death {
     Starved,
     Mob,
+    /// A shock bout (benchmark B3).
+    Shock,
 }
 
 /// Food items and how much each restores.
@@ -66,6 +70,8 @@ pub struct SimWorld {
     pub tick: u64,
     pub body: Body,
     pub mobs: Vec<Mob>,
+    /// Shock bouts, if the scenario has them (benchmark B3).
+    pub shock: Option<Shock>,
     known: HashSet<String>,
     region_visits: Vec<u32>,
     pending_new: Vec<ThingId>,
@@ -89,6 +95,7 @@ impl SimWorld {
                 death: None,
             },
             mobs: Vec::new(),
+            shock: None,
             known: HashSet::new(),
             region_visits: Vec::new(),
             pending_new: Vec::new(),
@@ -268,9 +275,10 @@ impl SimWorld {
         }
     }
 
-    /// One world tick: body, spawns, despawns, mobs.
+    /// One world tick: body, shock, spawns, despawns, mobs.
     fn tick_once(&mut self) {
         self.tick += 1;
+        self.shock_tick();
         let food_decay = self.rules.food_decay;
         self.body.food = (self.body.food - food_decay).max(0.0);
         if self.body.food <= 0.0 {

@@ -37,6 +37,9 @@ impl Handler for Travelling {
         let Some(goal) = target_pos(a) else {
             return BLOCKED;
         };
+        if a.skill == Skill::Flee {
+            w.shock_lever();
+        }
         // Fleeing is always at full speed, once there is effort to walk.
         let effort = if a.skill == Skill::Flee && it.effort >= w.rules.min_effort {
             1.0

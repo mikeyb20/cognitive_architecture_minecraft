@@ -1,6 +1,7 @@
 //! Flee from and fight hostiles (spec §20: fleeing before health is
 //! critical is a brain choice). Fleeing runs in `travelling`, attacking in
-//! `hunting`.
+//! `hunting`. During a shock bout with no hostile near, flee is offered as
+//! the lever (benchmark B3).
 
 use host_api::{Pos, Skill, Target, TaskType};
 
@@ -16,6 +17,9 @@ pub(crate) struct Threats;
 impl Handler for Threats {
     fn candidates(&self, w: &SimWorld, cx: &Ctx, out: &mut Out) {
         let Some(i) = w.nearest_mob(|m| m.kind.hostile(), THREAT_RANGE) else {
+            if w.in_shock_bout() {
+                lever(w, cx, out);
+            }
             return;
         };
         let reach = &cx.reach;
@@ -45,6 +49,21 @@ impl Handler for Threats {
             );
         }
     }
+}
+
+/// Flee as the shock lever (benchmark B3): one step to the first tile one
+/// step away, or on the spot if there is none.
+fn lever(w: &SimWorld, cx: &Ctx, out: &mut Out) {
+    let (p, steps) = square(cx.me, 1)
+        .find(|p| cx.reach.steps(*p) == Some(1))
+        .map_or((cx.me, 0), |p| (p, 1));
+    out.add(
+        Skill::Flee,
+        Some(Target::Pos(p)),
+        TaskType::Travel,
+        w.cost(steps, 0.1),
+        0.2,
+    );
 }
 
 /// Distance from `p` to the nearest of `hostiles`.

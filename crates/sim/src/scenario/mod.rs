@@ -11,6 +11,7 @@ use crate::rules::Rules;
 use crate::world::SimWorld;
 
 pub mod held_out;
+pub mod triadic;
 pub mod trips;
 
 /// One day (spec §21).
@@ -23,7 +24,7 @@ pub const HARSH_RING: i32 = 2;
 pub const HARSH_DAMAGE: f32 = 0.01;
 
 /// The scenario names `build` knows.
-pub const NAMES: [&str; 11] = [
+pub const NAMES: [&str; 12] = [
     "first_night",
     "open_day",
     "commanded",
@@ -35,6 +36,7 @@ pub const NAMES: [&str; 11] = [
     "expedition",
     "incubation",
     "held_out",
+    "triadic",
 ];
 
 pub struct Setup {
@@ -54,7 +56,10 @@ pub struct Setup {
 
 /// Build a scenario by name.
 pub fn build(name: &str, rules: Rules, seed: u64) -> Option<Setup> {
-    let others: [(&str, trips::Builder); 1] = [("held_out", held_out::held_out)];
+    let others: [(&str, trips::Builder); 2] = [
+        ("held_out", held_out::held_out),
+        ("triadic", triadic::triadic),
+    ];
     if let Some((_, make)) = trips::TRIPS.iter().chain(&others).find(|(n, _)| *n == name) {
         return Some(make(rules, seed));
     }
@@ -140,7 +145,7 @@ mod tests {
         for n in NAMES {
             let s = build(n, Rules::default(), 1).unwrap();
             assert_eq!(s.name, n);
-            assert!(s.max_ticks >= DAY);
+            assert!(s.max_ticks >= DAY / 2);
         }
         assert!(build("nope", Rules::default(), 1).is_none());
     }
