@@ -48,4 +48,16 @@ exclude_re = [
     # Speed gate `rate < gate` vs `<=`: a measured wall-clock rate never
     # equals the gate exactly.
     "replace < with <= in speed",
+    # Bench B1 arming draw `rng < q` vs `<= q`: differs only when a random
+    # f64 equals q exactly (probability ~2^-53 per draw).
+    "replace < with <= in run_seed",
+    # Bench B2 H2: the recovered share (after − floor) ÷ (first − floor) is
+    # the same whatever tick the floor is read at, because h decays
+    # geometrically; so moving `end_t` cannot change it.
+    "replace - with [+/] in h2",
+    # Bench B2 H4 loop guards: the cap (`n < MAX_SERIES` vs `<=`) is reached
+    # only by a model whose response never halves, and `r > half` vs `>=`
+    # differs only when a float response lands exactly on half its start.
+    "replace < with <= in halving_counts",
+    "replace > with >= in halving_counts",
 ]

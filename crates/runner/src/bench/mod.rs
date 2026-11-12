@@ -93,6 +93,12 @@ mod tests {
     }
 
     #[test]
+    fn run_dispatches_by_id() {
+        assert_eq!(run(habituation::ID, 1).unwrap().len(), 6);
+        assert_eq!(run(matching::ID, 1).unwrap().len(), 9);
+    }
+
+    #[test]
     fn unknown_id_is_none() {
         assert!(run("nope", 1).is_none());
         assert_eq!(ids(), vec!["matching", "habituation"]);
