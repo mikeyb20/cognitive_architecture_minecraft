@@ -79,6 +79,7 @@ Files already over the limit are listed in `scripts/size-budget.txt` with a cap 
 - **Small and often.** Refactor in the PR that first feels the pain, or in a dedicated PR right after. Never save it up.
 - **Refactors don't change behaviour.** A refactor PR changes no test expectations and leaves golden traces identical. If a trace changes, it isn't a refactor.
 - **One concern per PR.** Feature or refactor, not both. Aim for under ~400 changed non-test lines.
+- **Short stacks.** New work starts from `main`; a PR is stacked on another only when it needs that one's code, three deep at most. Merge from the bottom and delete each merged branch, so GitHub retargets the next PR onto `main`. Why: by step 16 a 49-PR stack had grown with nothing on `main`, and PRs merged into stack branches that no longer led anywhere stranded their changes until they were rolled up (#55).
 - **Tests are the safety net.** Property, exact-value and golden-trace tests plus mutation testing exist so that refactors are cheap. Keep them that way: test behaviour through public APIs, not private details, so a refactor doesn't break tests that should still pass.
 - **Schemas change additively** (spec §31.6): configs and logs gain fields, never repurpose them, so old runs stay readable.
 
