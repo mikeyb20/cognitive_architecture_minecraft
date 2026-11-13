@@ -38,7 +38,7 @@ use crate::control::kick::StuckDetector;
 use crate::control::oracle::{CONTEXT_DIM, Context, Oracle};
 use crate::control::permeability::Permeability;
 use crate::control::subconscious::Subconscious;
-use crate::control::teacher::Lesson;
+use crate::control::teacher::{Lesson, Recipe};
 use crate::direction::{PlanStep, ThoughtMomentum};
 use crate::memory::{InternalAction, MemoryStore, SkillTable};
 use crate::modes::{Features, Lens, Mode};
@@ -46,7 +46,7 @@ use host_api::{Candidate, Intensity, Inventory, Observation, Outcome, Skill, Tas
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 
 /// The active goal (spec §13). Player commands come first (01 §4.6).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -186,6 +186,9 @@ pub struct Brain {
     pub(crate) lesson: Option<Lesson>,
     /// The goal the teacher was last asked to show, so it is asked once.
     pub(crate) shown_for: Option<String>,
+    /// The steps of each shown recipe, by goal: the content of its
+    /// `recipe:<goal>` procedural item (01 §4.11, §5.2).
+    pub(crate) recipes: BTreeMap<String, Recipe>,
     pub(crate) r_hist: VecDeque<f32>,
     pub(crate) damage: VecDeque<(u64, f32)>,
     pub(crate) c_long: f32,
@@ -266,6 +269,7 @@ impl Brain {
             relief: needs::ReliefTable::default(),
             lesson: None,
             shown_for: None,
+            recipes: BTreeMap::new(),
             r_hist: VecDeque::new(),
             damage: VecDeque::new(),
             c_long: config.curiosity.base,

@@ -121,9 +121,18 @@ fn brain(rho_pre: f32, teacher: TeacherParams) -> Brain {
 
 /// Run `n` ticks; every action succeeds. Returns (chosen, shown bonus,
 /// recipe step) per tick that acted.
-fn run(b: &mut Brain, t: &mut Teacher, n: u64) -> Vec<(usize, f32, Option<String>)> {
+fn run(b: &mut Brain, t: &mut dyn ThinkTools, n: u64) -> Vec<(usize, f32, Option<String>)> {
+    run_from(b, t, 0, n)
+}
+
+fn run_from(
+    b: &mut Brain,
+    t: &mut dyn ThinkTools,
+    from: u64,
+    n: u64,
+) -> Vec<(usize, f32, Option<String>)> {
     let mut out = vec![];
-    for tick in 0..n {
+    for tick in from..from + n {
         if let Decision::Act(i, _) = b.step(&obs(tick), &cands(), t) {
             let l = b.last_log();
             out.push((i, l.shown, l.recipe_step.clone()));
@@ -310,4 +319,59 @@ fn a_test_the_agent_was_never_taught_does_not_count() {
         shows: 0,
     };
     assert_eq!(until_done(&mut b, &mut t, 0, 50), None);
+}
+
+/// Shows the shelter recipe the first time it is asked, then is silent
+/// (the teacher has stopped, plan §5.0 teachability).
+struct Once {
+    asked: u32,
+}
+
+impl ThinkTools for Once {
+    fn plan(&mut self, _: &str, _: &Observation) -> Option<PlanStep> {
+        None
+    }
+    fn progress(&mut self, _: &str, _: &Observation) -> f32 {
+        0.0
+    }
+    fn propose_goal(&mut self, _: &Observation) -> Option<String> {
+        None
+    }
+    fn show(&mut self, _: &str, _: &Observation) -> Option<Recipe> {
+        self.asked += 1;
+        (self.asked == 1).then(recipe)
+    }
+    fn explain(&mut self, _: &str, _: &Observation) -> Option<bool> {
+        None
+    }
+}
+
+#[test]
+fn a_recipe_kept_in_memory_is_followed_when_the_teacher_is_silent() {
+    // 01 §4.11: a shown recipe is stored as a procedural memory item. When
+    // the goal comes back and the teacher shows nothing, the agent follows
+    // its own copy, with the same fading bonus.
+    let mut b = brain(0.0, TeacherParams::default());
+    let mut t = Once { asked: 0 };
+    let _ = b.step(&obs(0), &cands(), &mut t);
+    assert_eq!(
+        b.last_log().recipe_step.as_deref(),
+        Some("Chop:block:oak_log")
+    );
+    b.set_goal(None);
+    b.set_goal(Some(Goal {
+        item: "shelter".into(),
+        commanded: true,
+    }));
+    let acts = run_from(&mut b, &mut t, 1, 400);
+    assert_eq!(t.asked, 2, "asked again; it showed nothing");
+    let firsts: Vec<usize> = acts
+        .iter()
+        .filter(|(_, bonus, _)| *bonus > 0.0)
+        .map(|(i, _, _)| *i)
+        .collect();
+    assert_eq!(&firsts[..3], &[0, 1, 2], "{acts:?}");
+    let m = b.memory();
+    let r = m.get("recipe:shelter").unwrap();
+    assert_eq!(m.entry(r).item.access_count, 4, "one recall, three steps");
 }

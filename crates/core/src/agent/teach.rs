@@ -1,10 +1,13 @@
 //! Asking the teacher (01 §4.11, #59): while there is a goal, the teacher
 //! shows a recipe for it once and explains its test every tick. Both are
 //! stored as taught memory items (source `Teacher`); the recipe's next step
-//! gets a choice bonus that fades with ρ, the test never fades.
+//! gets a choice bonus that fades with ρ, the test never fades. When the
+//! teacher shows nothing, a recipe still held in procedural memory is
+//! followed instead (01 §4.11 "stored as a procedural memory item", §5.2),
+//! and following its steps keeps the item fresh (§5.3).
 
 use super::{Brain, Pending};
-use crate::control::teacher::{Lesson, shown, step_matches};
+use crate::control::teacher::{Lesson, Recipe, shown, step_matches};
 use crate::direction::target_key;
 use crate::memory::{PriorityInputs, Source, Tier};
 use host_api::{Candidate, Observation, Outcome};
@@ -23,8 +26,11 @@ impl Brain {
         if self.shown_for.as_ref() != Some(&goal) {
             self.shown_for = Some(goal.clone());
             if let Some(r) = tools.show(&goal, obs) {
-                self.remember_taught(&format!("recipe:{goal}"), Tier::Procedural, obs.tick);
+                self.remember_taught(&recipe_key(&goal), Tier::Procedural, obs.tick);
+                self.keep_recipe(&goal, &r);
                 self.lesson = Some(Lesson::new(r));
+            } else {
+                self.lesson = self.recall_recipe(&goal, obs.tick).map(Lesson::new);
             }
         }
         self.log.goal_test = tools.explain(&goal, obs);
@@ -44,9 +50,35 @@ impl Brain {
             .map(|s| format!("{:?}:{}", s.skill, s.thing));
     }
 
+    /// Keep a shown recipe's steps as its memory item's content. The
+    /// longest one shown for a goal is kept: it starts from the least and
+    /// so covers the most situations (my reading; the sim's recipes only
+    /// drop the steps for what is already held).
+    pub(crate) fn keep_recipe(&mut self, goal: &str, r: &Recipe) {
+        let longer = self
+            .recipes
+            .get(goal)
+            .is_none_or(|old| r.steps.len() > old.steps.len());
+        if longer {
+            self.recipes.insert(goal.to_string(), r.clone());
+        }
+    }
+
+    /// The agent's own copy of a recipe for `goal`, if its procedural item
+    /// is still alive (01 §4.11, §5.2). Recalling it is an access (§5.3).
+    pub(crate) fn recall_recipe(&mut self, goal: &str, now: u64) -> Option<Recipe> {
+        let r = self.recipes.get(goal)?.clone();
+        let id = self.mem.get(&recipe_key(goal))?;
+        if !self.mem.is_alive(id) {
+            return None;
+        }
+        self.mem.access(id, now);
+        Some(r)
+    }
+
     /// Taught items start from the base priority: they come from the
     /// teacher, not from the agent's state (01 §4.11, §5.3).
-    fn remember_taught(&mut self, key: &str, tier: Tier, now: u64) {
+    pub(crate) fn remember_taught(&mut self, key: &str, tier: Tier, now: u64) {
         let x = PriorityInputs::default();
         self.mem.encode(key, tier, x, now, Source::Teacher);
     }
@@ -80,10 +112,24 @@ impl Brain {
         }
     }
 
-    /// A successful action that was the recipe's next step moves it on.
+    /// A successful action that was the recipe's next step moves it on,
+    /// and is an access of the recipe's memory item (01 §5.3).
     pub(crate) fn learn_lesson(&mut self, p: &Pending, out: &Outcome) {
-        if let (Some(l), Some(skill)) = (self.lesson.as_mut(), p.skill) {
-            l.record(skill, p.target.as_deref(), out.success);
+        let (Some(l), Some(skill)) = (self.lesson.as_mut(), p.skill) else {
+            return;
+        };
+        let before = l.next;
+        l.record(skill, p.target.as_deref(), out.success);
+        if l.next > before {
+            let key = recipe_key(&l.recipe.goal);
+            if let Some(id) = self.mem.get(&key) {
+                self.mem.access(id, p.tick);
+            }
         }
     }
+}
+
+/// The memory key of the recipe for `goal` (01 §4.11).
+fn recipe_key(goal: &str) -> String {
+    format!("recipe:{goal}")
 }

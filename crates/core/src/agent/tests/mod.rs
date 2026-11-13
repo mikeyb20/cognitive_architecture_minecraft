@@ -1,7 +1,8 @@
 //! Unit tests for the brain loop's internals, split by responsibility:
 //! learning writes (spec §14, §7.1) and the reflex lesson (spec §20) in
 //! `learning`, the choice helpers and log tags (spec §8, §25) in `choice`,
-//! and the internal actions (spec §6) in `thinking`.
+//! the internal actions (spec §6) in `thinking`, and recipes kept in
+//! memory (01 §4.11, §5) in `teaching`.
 
 use super::choose::{HAZARD, Scored, dominant, hazard_vetoed, leads, preferences};
 use super::learn::EPISODES_KEPT;
@@ -16,6 +17,7 @@ use host_api::{Candidate, Skill, Target, TaskType, ThingId};
 
 mod choice;
 mod learning;
+mod teaching;
 mod thinking;
 
 pub(super) fn pending(choice: Choice) -> Pending {
