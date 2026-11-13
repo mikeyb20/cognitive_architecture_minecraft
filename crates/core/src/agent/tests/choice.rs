@@ -187,3 +187,89 @@ fn sensing_averages_long_run_c_and_fades_rehearsal() {
     let faded = 0.5 * ROUTINE_FADE.powi(500);
     assert!(b.routine_bonus.iter().all(|r| (r - faded).abs() < 1e-5));
 }
+
+#[test]
+fn a_plan_is_valid_until_its_ttl_runs_out() {
+    let mut b = brain();
+    let mut obs = test_obs();
+    b.step = Some(crate::direction::PlanStep {
+        skill: Skill::Chop,
+        thing: "block:oak_log".into(),
+        task: TaskType::Building,
+    });
+    b.plan_inv = Some(obs.inventory.clone());
+    b.plan_tick = 10;
+    obs.tick = 10 + PLAN_TTL - 1;
+    assert!(b.extras(&obs, 0.0).plan_valid, "last valid tick");
+    obs.tick = 10 + PLAN_TTL;
+    assert!(!b.extras(&obs, 0.0).plan_valid, "expired");
+}
+
+#[test]
+fn the_stuck_trigger_flips_the_dominant_modes_scores() {
+    let scores = |stuck: bool| {
+        let mut b = brain();
+        let cands = [
+            cand(Skill::Chop, None),
+            cand(Skill::Explore, Some(Target::Pos(host_api::Pos::default()))),
+        ];
+        let s = perceive::Sensed {
+            stuck,
+            ..Default::default()
+        };
+        let _ = b.choose(&test_obs(), &cands, &s, &mut NoTools);
+        assert_eq!(b.log.stuck_kick, stuck);
+        let mut v: Vec<(String, f32)> = b
+            .log
+            .top5
+            .iter()
+            .map(|c| (c.action.clone(), c.score))
+            .collect();
+        v.sort_by(|a, b| a.0.cmp(&b.0));
+        v
+    };
+    let (calm, stuck) = (scores(false), scores(true));
+    assert_eq!(calm.len(), stuck.len());
+    assert!(
+        calm.iter()
+            .zip(&stuck)
+            .any(|(a, b)| (a.1 - b.1).abs() > 1e-6),
+        "{calm:?} vs {stuck:?}"
+    );
+}
+
+#[test]
+fn things_first_seen_near_the_end_of_life_get_urgent_priority() {
+    use crate::agent::config::Horizon;
+    // Same hidden lifespan; the estimate says life ends now (U = 1) or a
+    // whole horizon away (U = 0) (spec §15).
+    let priority = |estimate: f32| {
+        let mut b = Brain::new(
+            BrainConfig {
+                horizon: Some(Horizon { ticks: 1000.0 }),
+                ..BrainConfig::default()
+            },
+            0,
+        );
+        b.lifespan = Some((100.0, estimate));
+        b.force_state(Some(0.5), Some((-0.8, 0.0)));
+        let mut obs = test_obs();
+        obs.tick = 100;
+        obs.visible = vec![host_api::Seen {
+            thing: ThingId("block:x".into()),
+            kind: host_api::SeenKind::Block,
+            pos: host_api::Pos::default(),
+            distance: 1.0,
+        }];
+        let _ = b.sense(&obs);
+        let item = &b.mem.entry(b.mem.get("block:x").unwrap()).item;
+        (b.urgency(100), item.priority, item.v_enc)
+    };
+    let (u0, calm, v) = priority(1100.0);
+    let (u1, urgent, _) = priority(100.0);
+    assert_eq!((u0, u1, v), (0.0, 1.0, -0.8));
+    // P_init's urgency term is 0.2·U·|V_enc| (spec §17) = 0.2 · 1 · 0.8.
+    // C_enc moves a little with U before encoding (its 0.1 weight shifts P
+    // by under 0.01 here), so the gap is close to 0.16, not exact.
+    assert!((urgent - calm - 0.16).abs() < 0.01, "{calm} vs {urgent}");
+}

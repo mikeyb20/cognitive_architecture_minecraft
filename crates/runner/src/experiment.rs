@@ -227,7 +227,7 @@ pub fn baseline_metrics(r: &BrainResult) -> RunMetrics {
         mean_d: f32::NAN,
         mean_v: f32::NAN,
         freeze: f32::NAN,
-        stuck_kicks: 0,
+        // No stuck kicks: `recovery` leaves them at 0.
         reflexes: r.reflexes,
         new_things: r.new_things,
         tech: tech_held(&r.inventory),
