@@ -165,6 +165,9 @@ pub struct BrainResult {
     /// for (plan §5.0 teachability).
     pub nights: Nights,
     pub teach_days: Option<u64>,
+    /// The shock bouts as they happened, (start tick, ticks of damage), if
+    /// the scenario has them (benchmark B3: a yoked arm replays these).
+    pub shocks: Vec<(u64, u64)>,
 }
 
 /// Run one scenario with the brain. `on_row` sees every log row.

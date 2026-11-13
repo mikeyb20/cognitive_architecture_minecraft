@@ -140,6 +140,7 @@ fn baseline_metrics_by_hand() {
         unrecovered: 1,
         nights: runner::teachability::Nights::default(),
         teach_days: None,
+        shocks: vec![],
     };
     let m = baseline_metrics(&r);
     assert_eq!((m.survived, m.ticks, m.decisions), (true, 2400, 8));

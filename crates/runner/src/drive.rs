@@ -110,6 +110,11 @@ pub(crate) fn run_scenario(
     r.ticks = world.tick;
     r.death = world.body.death;
     r.inventory = world.body.inv.items.clone();
+    r.shocks = world
+        .shock
+        .as_ref()
+        .map(sim::world::Shock::bouts)
+        .unwrap_or_default();
     r
 }
 
@@ -192,6 +197,19 @@ mod tests {
         let r = run(day / 2);
         let n = &r.nights.0;
         assert_eq!((n.len(), n[0].day, n[0].asked), (1, 0, true), "{n:?}");
+    }
+
+    #[test]
+    fn a_run_reports_its_shock_bouts() {
+        let run = |name: &str| {
+            let mut s = crate::brain::setup(name, 0);
+            s.max_ticks = 100;
+            let mut b = cognitive_core::agent::Brain::new(Default::default(), 0);
+            crate::brain::run_with(s, &mut b, 0, &mut |_| {}).shocks
+        };
+        let b = run("triadic");
+        assert_eq!(b.first().map(|(t, _)| *t), Some(30), "{b:?}");
+        assert!(run("first_night").is_empty());
     }
 
     #[test]
