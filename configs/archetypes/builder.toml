@@ -1,0 +1,40 @@
+# Builder (spec §19, #44; numbers proposed until the sim pilot).
+# Steady and persistent, ≈ conscientiousness. Means only; each agent is drawn
+# around them (Normal, sd 10% of the mean).
+tenacity_ab = [[1.0, 1.0], [1.0, 1.0], [3.0, 1.0], [1.0, 1.0]]
+tenacity_gamma = 0.99
+oracle_bias = [0.0, -0.3, 0.8, 0.2]
+lens_lr = [1.0, 0.8, 1.2, 1.0]
+tm_k = 7
+tm_tau = 100.0
+beta_u = 0.1
+beta_c = 0.1
+eps_ext = 0.40
+aging_rate = 1e-6
+
+[curiosity]
+base = 0.35
+rate = 0.06
+
+[k]
+novelty = 0.20
+learning_progress = 0.40
+energy = -0.20
+threat = -0.40
+habituation = -0.15
+social = 0.15
+
+[permeability]
+base = 0.25
+
+[kick]
+p_base = 0.03
+theta = 0.95
+n = 500
+kappa = 0.10
+
+# Performing's competence weight +2.0 instead of +1.5.
+[[lens_priors]]
+mode = 2
+feature = 4
+weight = 2.0

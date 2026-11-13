@@ -19,7 +19,7 @@ fn default_rules_are_pinned() {
     assert_eq!((r.mob_move_ticks, r.chase_radius), (6, 16));
     assert_eq!((r.mob_damage, r.mob_hit_ticks), (0.1, 20));
     assert_eq!((r.meat_food, r.bread_food), (0.3, 0.5));
-    assert_eq!((r.shelter_ticks_blocks, r.shelter_ticks_dig), (20, 60));
+    assert_eq!((r.shelter_ticks_blocks, r.shelter_ticks_dig), (20, 6));
     assert_eq!(
         (r.base_success, r.tree_chops, r.animal_density),
         (0.95, 3, 1.0)

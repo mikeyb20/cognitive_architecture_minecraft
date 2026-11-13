@@ -1,0 +1,29 @@
+# Plan §5.1 with the LLM arms (spec §24): needs an LLM tier. Run with
+#   runner run --experiment configs/experiments/baselines-llm.toml --tier local
+# (Ollama) or --tier cheap / strong (ANTHROPIC_API_KEY). Add
+# --cache runs/llm.jsonl to record replies, and --replay to rerun from them.
+# LLM runs go one at a time, so keep seeds low for a first look.
+id = "BASELINES-LLM"
+question = "What does the architecture add over a plain LLM agent, and over a novelty bonus? (plan §5.1)"
+scenarios = ["first_night", "open_day", "commanded"]
+seeds = 5
+
+[[arms]]
+label = "A (behaviour tree)"
+arm = "a"
+expected = "Survives; holds most tech goals; finds the fewest new things on open_day."
+
+[[arms]]
+label = "B (LLM loop)"
+arm = "b"
+expected = "Follows commands well (tech on commanded close to A); explores little on open_day without a goal."
+
+[[arms]]
+label = "B+N (LLM loop + novelty bonus)"
+arm = "bn"
+expected = "More new things than B on open_day: the key steelman of \"C is just a novelty bonus\"."
+
+[[arms]]
+label = "C (brain)"
+arm = "c"
+expected = "More self-started actions than B on open_day; until the hunger fix, lower survival than every other arm."

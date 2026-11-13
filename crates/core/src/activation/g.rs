@@ -1,5 +1,7 @@
 //! Activation function g(C) (01 §1.4; spec §16; OQ8) and external drive (#41).
 
+use serde::{Deserialize, Serialize};
+
 /// g maps C to how much movement happens. 01 §1.4 fixes only g(0) = 0 and
 /// "increasing"; the form is open (OQ8), so it is a trait.
 pub trait Activation {
@@ -36,6 +38,25 @@ impl Activation for LogActivation {
     }
 }
 
+/// Which g(C) form a brain uses (OQ8 sweep handle, spec §16).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GShape {
+    /// `C^α` (spec §16 default).
+    #[default]
+    Power,
+    /// `log(1 + kC) / log(1 + k)`.
+    Log,
+}
+
+/// Build the g(C) a config asks for (spec §16; OQ8).
+pub fn build_activation(shape: GShape, alpha: f32, k: f32) -> Box<dyn Activation> {
+    match shape {
+        GShape::Power => Box::new(PowerActivation { alpha }),
+        GShape::Log => Box::new(LogActivation { k }),
+    }
+}
+
 /// Effort for a commanded step: `max(g(C), ε_ext·(1 − D))` (spec §16, #41).
 /// Self-generated actions use plain g(C), so g(0) = 0 still means no
 /// self-generated movement (01 §1.4, §1.5 drift).
@@ -55,6 +76,15 @@ mod tests {
             Box::new(PowerActivation { alpha: 3.0 }),
             Box::new(LogActivation { k: 10.0 }),
         ]
+    }
+
+    #[test]
+    fn build_picks_the_form() {
+        let p = build_activation(GShape::Power, 3.0, 10.0);
+        assert!((p.g(0.5) - 0.125).abs() < 1e-6);
+        let l = build_activation(GShape::Log, 3.0, 10.0);
+        assert!((l.g(0.5) - 6f32.ln() / 11f32.ln()).abs() < 1e-6);
+        assert_eq!(GShape::default(), GShape::Power);
     }
 
     #[test]

@@ -1,0 +1,40 @@
+# Guardian (spec §19, #44; numbers proposed until the sim pilot).
+# Cautious and watchful, ≈ neuroticism + extraversion (01 §4.10). Means only;
+# each agent is drawn around them (Normal, sd 10% of the mean).
+tenacity_ab = [[1.0, 1.0], [1.0, 1.0], [2.0, 1.0], [1.0, 1.0]]
+tenacity_gamma = 0.98
+oracle_bias = [0.0, 0.0, 0.3, 0.5]
+lens_lr = [1.0, 1.0, 1.0, 1.2]
+tm_k = 7
+tm_tau = 50.0
+beta_u = 0.2
+beta_c = 0.1
+eps_ext = 0.40
+aging_rate = 1e-6
+
+[curiosity]
+base = 0.40
+rate = 0.10
+
+[k]
+novelty = 0.30
+learning_progress = 0.25
+energy = -0.20
+threat = -0.60
+habituation = -0.30
+social = 0.45
+
+[permeability]
+base = 0.50
+
+[kick]
+p_base = 0.05
+theta = 0.9
+n = 300
+kappa = 0.15
+
+# Optimizing's risk weight −2.5 instead of −2.0: more cautious.
+[[lens_priors]]
+mode = 3
+feature = 7
+weight = -2.5

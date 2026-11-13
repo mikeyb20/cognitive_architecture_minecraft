@@ -12,6 +12,11 @@ host-api.workspace = true
 cognitive-core.workspace = true
 sim.workspace = true
 baselines = { path = "../baselines" }
+llm.workspace = true
+minecraft.workspace = true
+serde.workspace = true
+serde_json = "1"
+toml = "1.2.1"
 
 [lints]
 workspace = true

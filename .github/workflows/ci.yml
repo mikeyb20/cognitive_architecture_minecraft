@@ -26,6 +26,17 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: cargo run -q -p runner
+      # The TypeScript contract is generated from host-api (debt D3); fail if
+      # the checked-in copy in bot/src/generated is stale.
+      - run: cargo test -q -p host-api --features ts
+      - run: |
+          if [ -n "$(git status --porcelain -- bot/src/generated)" ]; then
+            git status --porcelain -- bot/src/generated
+            echo "::error::bot/src/generated is stale; run 'cargo test -p host-api --features ts' and commit it"
+            exit 1
+          fi
+      # Build step 4 gate: the brain runs at >= 5,000 world ticks/s (spec §21).
+      - run: cargo run --release -q -p runner -- speed 20
 
   coverage:
     name: coverage (>= 95% of lines)
@@ -87,13 +98,15 @@ jobs:
           cargo mutants --in-diff pr.diff --no-shuffle -j 2 --timeout 120 --shard ${{ matrix.shard }}/4
 
   bot:
-    name: bot (tsc)
+    name: bot (tsc, tests, coverage, mutation)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: bot
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -101,3 +114,15 @@ jobs:
           cache-dependency-path: bot/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      # Unit tests with line, branch and function coverage floors. The thin
+      # Mineflayer glue in src/mineflayer/ needs a live server and is covered
+      # by the acceptance tests instead (spec §27 step 6).
+      - run: npm test
+      # Mutation testing on the TypeScript files this PR changed, as for Rust.
+      - name: stryker (changed files)
+        if: github.event_name == 'pull_request'
+        run: |
+          files=$(git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}...HEAD -- src \
+            | sed 's|^bot/||' | grep -E '\.ts$' | grep -vE '\.test(-util)?\.ts$|^src/generated/|^src/mineflayer/' | paste -sd, -)
+          if [ -z "$files" ]; then echo "No mutable TypeScript changed."; exit 0; fi
+          npx stryker run --mutate "$files"

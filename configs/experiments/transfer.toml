@@ -1,0 +1,21 @@
+# Plan §5.0 transfer (spec §27 step 15; #58): on held-out terrain the shown
+# shelter recipe fails (no trees), but the shelter test can still be met
+# (a wooden pickaxe and stone make a cobblestone hut). The score is the
+# `shelter` column: the share of runs that stood in a passing shelter.
+# Every arm gets the same terrain, command, test and teacher, and is
+# re-run with the teacher off (plan §5.0).
+id = "TRANSFER"
+question = "Does the agent meet the shelter test where the taught recipe fails? (plan §5.0)"
+scenarios = ["held_out", "first_night"]
+seeds = 50
+teacher_off = true
+
+[[arms]]
+label = "A (behaviour tree)"
+arm = "a"
+expected = "Shelter share near 0 on held_out and first_night: its tree digs in at dusk, which fails the test, and it never builds a hut."
+
+[[arms]]
+label = "C (brain)"
+arm = "c"
+expected = "Shelter share above A on held_out: the recipe's chop step has nothing to act on, so a hut comes only from mining stone and building on its own. Lower than on first_night, where the recipe works."

@@ -17,7 +17,9 @@ use cognitive_core::control::tenacity::Tenacity;
 use cognitive_core::control::time::{age, plasticity, urgency};
 use cognitive_core::derived::is_creative;
 use cognitive_core::direction::ThoughtMomentum;
-use cognitive_core::memory::{MemoryItem, MemoryParams, PriorityInputs, Tier, initial_priority};
+use cognitive_core::memory::{
+    MemoryItem, MemoryParams, MemoryStore, PriorityInputs, Source, Tier, initial_priority,
+};
 use cognitive_core::modes::{Lens, Mode, ModeNetwork, N_FEATURES, feature, score};
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -348,6 +350,56 @@ fn development_schedules_exact() {
     assert_eq!(Development::new(0.2).stage(), Stage::RapidDevelopment);
     assert_eq!(Development::new(0.6).stage(), Stage::Maturation);
     assert_eq!(Development::new(0.199).stage(), Stage::Initialization);
+}
+
+#[test]
+fn rho_is_the_useful_share_of_retained_memory() {
+    // 01 §4.7 (#61): ρ = useful retained / retained, 0 while memory is empty.
+    let mut m = MemoryStore::new(MemoryParams::default());
+    let mut d = Development::new(0.0);
+    let sync = |m: &MemoryStore, d: &mut Development| {
+        d.observe_memory(m.useful_len(), m.len());
+        d.rho()
+    };
+    assert_eq!(sync(&m, &mut d), 0.0, "empty memory");
+    let ids: Vec<usize> = (0..4)
+        .map(|i| {
+            let x = PriorityInputs::default();
+            m.encode(&format!("k{i}"), Tier::Semantic, x, 0, Source::Perception)
+                .0
+        })
+        .collect();
+    assert_eq!(sync(&m, &mut d), 0.0, "nothing useful yet");
+    assert!(
+        m.mark_useful(ids[0]) && !m.mark_useful(ids[0]),
+        "counts once"
+    );
+    close(sync(&m, &mut d), 0.25);
+    assert!(m.mark_useful(ids[1]));
+    close(sync(&m, &mut d), 0.5);
+    // Pruning a plain item raises ρ (2/3); pruning a useful one lowers it (1/2).
+    assert!(m.prune(ids[3]));
+    close(sync(&m, &mut d), 2.0 / 3.0);
+    assert!(
+        m.prune(ids[0]) && !m.mark_useful(ids[0]),
+        "dead items don't count"
+    );
+    close(sync(&m, &mut d), 0.5);
+    // Re-learning a pruned item starts it as not useful: 1 useful of 3.
+    m.encode(
+        "k0",
+        Tier::Semantic,
+        PriorityInputs::default(),
+        5,
+        Source::Perception,
+    );
+    close(sync(&m, &mut d), 1.0 / 3.0);
+    // ρ no longer counts experiences, so it does not fall with age.
+    for _ in 0..1000 {
+        d.record_experience();
+    }
+    close(sync(&m, &mut d), 1.0 / 3.0);
+    assert_eq!(d.experiences(), 1000);
 }
 
 #[test]

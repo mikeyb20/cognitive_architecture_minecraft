@@ -1,0 +1,114 @@
+# Plan §5.2 ablations, one config change each (spec §24 C−X).
+# The table's columns stand in for each ablation's primary metric; the
+# expected text names the column to read.
+id = "ABLATIONS"
+question = "Which 01 components change behaviour when removed? (plan §5.2)"
+scenarios = ["open_day", "commanded", "harsh", "long_horizon"]
+seeds = 50
+
+[[arms]]
+label = "C (full)"
+arm = "c"
+expected = "The reference row."
+
+[[arms]]
+label = "static C"
+arm = "c"
+config = { curiosity = { rate = 0.0 } }
+expected = "C stays at C_base: no rise on open_day novelty and no drop in harsh, so the C column is flat across scenarios; fewer new things on open_day."
+
+[[arms]]
+label = "no D"
+arm = "c"
+config = { affect = { d_rise = 0.0 } }
+expected = "D column 0; after the harsh episode C and activity recover faster than the full brain (higher C and active on harsh)."
+
+[[arms]]
+label = "no kick"
+arm = "c"
+config = { kick_enabled = false }
+expected = "stuck column 0 and more time in repeated decisions; fewer new things on open_day."
+
+[[arms]]
+label = "fixed Oracle"
+arm = "c"
+config = { oracle_eta = 0.0 }
+expected = "Worse task fit across scenarios: fewer tech goals on commanded."
+
+[[arms]]
+label = "no floor"
+arm = "c"
+config = { oracle_floor = 0.0 }
+expected = "A mode can starve: more freeze or less activity late in long_horizon."
+
+[[arms]]
+label = "no TM"
+arm = "c"
+config = { tm_k = 0 }
+expected = "Less coherent multi-step behaviour: fewer tech goals on commanded."
+
+[[arms]]
+label = "no subconscious"
+arm = "c"
+config = { subconscious = { b_base = 0.0 } }
+expected = "Slower memory quality: fewer new things and tech goals over long_horizon."
+
+[[arms]]
+label = "flat tenacity"
+arm = "c"
+config = { tenacity_ab = [[1e6, 1e6], [1e6, 1e6], [1e6, 1e6], [1e6, 1e6]] }
+expected = "T held at 0.5 for every task: gives up as early on commanded tasks as on others; fewer tech goals on commanded."
+
+[[arms]]
+label = "fixed π low"
+arm = "c"
+config = { permeability = { base = 0.1, rate = 0.0 } }
+expected = "No choking; little effect without the lava bridge (stakes) scenario."
+
+[[arms]]
+label = "fixed π high"
+arm = "c"
+config = { permeability = { base = 0.9, rate = 0.0 } }
+expected = "Choking on high-stakes steps; little effect without the lava bridge scenario."
+
+[[arms]]
+label = "no urgency"
+arm = "c"
+config = { beta_u = 0.0 }
+expected = "OQ22: differs only on long_horizon. 00 predicts less exploring near the horizon without urgency (lower new); SST predicts the opposite."
+
+[[arms]]
+label = "frozen lenses"
+arm = "c"
+config = { lens_frozen = [true, true, true, true] }
+expected = "Modes don't adapt (00 §7.7): worse after context changes, most visible on harsh and commanded."
+
+[[arms]]
+label = "flat memory"
+arm = "c"
+config = { memory = { flat = true } }
+expected = "Memory bloat: the memory column is higher in every scenario, because nothing decays and nothing is pruned. Plan §5.2 also expects worse recall of important items; the recall column counts any linked fact recalled, so it shows whether recall changes, not its precision."
+
+[[arms]]
+label = "fixed-trigger thinking"
+arm = "c"
+config = { fixed_thinking = { on = true } }
+expected = "Thinking stops tracking C and context (00 §2.2, §3.4). The think column is higher where little changes (open_day), since calls run on the timer whether or not anything is new. Plan lag falls to about 0, because a new goal triggers a plan at once; the late plans plan §5.2 expects show instead as stale steps between timer ticks, so fewer tech goals on commanded."
+
+[[arms]]
+label = "no felt need"
+arm = "c"
+config = { needs = { on = false } }
+expected = "01 §1.6 (#47): without felt hunger a low-C agent has no push toward food, so it eats less, starves sooner and is less active once C falls (lower survival and active share, most visible on open_day and long_horizon)."
+
+[[arms]]
+label = "teacher stays"
+arm = "c"
+config = { needs = { fades = false } }
+expected = "01 §1.6: the teacher's hints keep full strength as ρ rises. Survival is at least as good as the default, but the agent relies on the hint, not on what it learned relieved hunger; the gap grows with ρ, so it shows on long_horizon."
+
+[[arms]]
+label = "need as floor only"
+arm = "c"
+config = { needs = { steer = 0.0 } }
+expected = "01 v3 before #51: the need only sets an effort floor. Survival about as the default on quiet scenarios (the default brain is mostly idle, so the floor does most of the work) and lower on harsh, where the agent is busier."

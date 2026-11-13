@@ -64,6 +64,12 @@ impl Affect {
     }
 
     /// `V_target = clamp(0.6·R̄_20 − 0.3·threat − 0.5·damage + 0.2·mean(V_enc over TM), −1, 1)`
+    /// Set V and D directly (scenarios that reproduce 01 §1.5 states).
+    pub fn force(&mut self, v: f32, d: f32) {
+        self.v = v.clamp(-1.0, 1.0);
+        self.d = d.clamp(0.0, 1.0);
+    }
+
     pub fn v_target(x: ValenceInputs) -> f32 {
         (0.6 * x.r_mean_20 - 0.3 * x.threat - 0.5 * x.damage + 0.2 * x.tm_valence).clamp(-1.0, 1.0)
     }
@@ -106,6 +112,15 @@ mod tests {
         }
         assert!(a.d() < d_peak);
         assert!(d_peak - a.d() < d_peak * 0.2, "recovery should be slow");
+    }
+
+    #[test]
+    fn force_clamps() {
+        let mut a = Affect::default();
+        a.force(-2.0, 1.5);
+        assert_eq!((a.v(), a.d()), (-1.0, 1.0));
+        a.force(0.5, -1.0);
+        assert_eq!((a.v(), a.d()), (0.5, 0.0));
     }
 
     proptest! {

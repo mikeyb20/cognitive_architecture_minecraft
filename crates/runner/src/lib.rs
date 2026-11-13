@@ -3,6 +3,20 @@
 //! Each decision: perceive → candidates → emergency reflex (shared by every
 //! arm, #42) or the arm's choice → execute.
 
+pub mod archetype;
+pub mod brain;
+pub(crate) mod drive;
+pub mod experiment;
+pub mod mc;
+pub mod metrics;
+pub(crate) mod par;
+pub mod recovery;
+pub mod sweep;
+pub(crate) mod taught;
+pub mod teachability;
+pub mod theory;
+pub mod think;
+
 use baselines::Policy;
 use host_api::reflex::{ReflexThresholds, emergency_reflex};
 use host_api::{Host, Intensity, World};

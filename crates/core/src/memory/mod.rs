@@ -1,6 +1,11 @@
 //! 01 §5 Memory: items, tiers, strength σ, priority P and habituation h
-//! (spec §17). The store, association index and subconscious jobs arrive with
-//! the brain loop in build step 4.
+//! (spec §17), the store with its association index, and the skill table.
+
+pub mod skills;
+pub mod store;
+
+pub use skills::{ActionKey, InternalAction, SkillTable};
+pub use store::{MemoryStore, Source};
 
 use serde::{Deserialize, Serialize};
 
@@ -29,7 +34,21 @@ pub struct MemoryParams {
     pub sensory: TierParams,
     /// Reinforcement coefficient c_r in `c_r·ln(1+n)`.
     pub c_r: f32,
+    /// Flat memory (plan §5.2 ablation): every item gets the same tier
+    /// retention, the same priority and no decay.
+    #[serde(default)]
+    pub flat: bool,
 }
+
+/// Retention of every item under flat memory: no decay, full base.
+pub const FLAT_TIER: TierParams = TierParams {
+    lambda: 0.0,
+    base: 1.0,
+};
+
+/// Priority of every item under flat memory: the middle of [0, 1]
+/// (proposed).
+pub const FLAT_PRIORITY: f32 = 0.5;
 
 impl Default for MemoryParams {
     /// Spec §17 (proposed).
@@ -41,18 +60,30 @@ impl Default for MemoryParams {
             episodic: t(1e-4, 0.6),
             sensory: t(1e-2, 0.2),
             c_r: 0.05,
+            flat: false,
         }
     }
 }
 
 impl MemoryParams {
+    /// Decay and retention of a tier (01 §5.2), or `FLAT_TIER` for all
+    /// tiers under flat memory.
     pub fn tier(&self, tier: Tier) -> TierParams {
+        if self.flat {
+            return FLAT_TIER;
+        }
         match tier {
             Tier::Procedural => self.procedural,
             Tier::Semantic => self.semantic,
             Tier::Episodic => self.episodic,
             Tier::Sensory => self.sensory,
         }
+    }
+
+    /// The priority memory acts on (01 §5.3): the item's own, or
+    /// `FLAT_PRIORITY` under flat memory.
+    pub fn priority(&self, own: f32) -> f32 {
+        if self.flat { FLAT_PRIORITY } else { own }
     }
 
     /// Check the one ordering 01 §5.2 fixes: procedural decays slowest,
@@ -90,7 +121,7 @@ impl MemoryItem {
     pub fn strength(&self, now: u64, p: &MemoryParams) -> f32 {
         let tp = p.tier(self.tier);
         let dt = now.saturating_sub(self.t_last_access) as f32;
-        self.priority * tp.base * (-tp.lambda * dt).exp()
+        p.priority(self.priority) * tp.base * (-tp.lambda * dt).exp()
             + p.c_r * (1.0 + self.access_count as f32).ln()
     }
 
@@ -177,6 +208,26 @@ mod tests {
             });
             prop_assert!((0.0..=1.0).contains(&p));
         }
+    }
+
+    #[test]
+    fn flat_memory_has_one_tier_one_priority_and_no_decay() {
+        let p = MemoryParams {
+            flat: true,
+            ..MemoryParams::default()
+        };
+        let mut low = item(Tier::Sensory);
+        low.priority = 0.05;
+        // σ = 0.5·1·e^0 + 0.05·ln(1) at any age, whatever the tier and P.
+        for it in [item(Tier::Procedural), item(Tier::Episodic), low] {
+            assert_eq!(it.strength(10_000_000, &p), 0.5);
+        }
+        assert_eq!((p.tier(Tier::Sensory), p.priority(0.9)), (FLAT_TIER, 0.5));
+        let d = MemoryParams::default();
+        assert_eq!((d.tier(Tier::Sensory), d.priority(0.9)), (d.sensory, 0.9));
+        // Hand-worked default: 0.7·0.2·e^(−0.01·100) = 0.14·0.3679.
+        let s = item(Tier::Sensory).strength(100, &d);
+        assert!((s - 0.051_503).abs() < 1e-5, "{s}");
     }
 
     #[test]

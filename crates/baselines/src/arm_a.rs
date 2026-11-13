@@ -1,9 +1,10 @@
-//! Arm A: a behaviour tree (spec §24). Priority order: survive → plan step →
-//! nearest resource → explore. It uses the same candidates and code tools as
+//! Arm A: a behaviour tree (spec §24). Priority order: danger → the
+//! player's or teacher's commanded step (plan §5.0) → dusk and hunger →
+//! plan step → nearest resource → explore. It uses the same candidates and code tools as
 //! every other arm; it just never learns.
 
+use host_api::planner::{self, Resource, Step};
 use host_api::{Candidate, Observation, Pos, SeenKind, Skill, Target, TaskType};
-use sim::planner::{self, Resource, Step};
 
 use crate::Policy;
 
@@ -30,7 +31,7 @@ impl Default for ArmAConfig {
     fn default() -> Self {
         Self {
             goal: "iron_pickaxe".into(),
-            dusk: 0.42,
+            dusk: host_api::ontology::DUSK,
             threat_range: 2.5,
             fight_health: 0.5,
             crowd_range: 4.0,
@@ -85,8 +86,18 @@ fn has_food(obs: &Observation) -> bool {
     obs.inventory.count("bread") + obs.inventory.count("porkchop") > 0
 }
 
+/// The cheapest candidate that passes `pred`.
+fn cheapest(c: &[Candidate], pred: impl Fn(&Candidate) -> bool) -> Option<usize> {
+    c.iter()
+        .enumerate()
+        .filter(|(_, x)| pred(x))
+        .min_by(|a, b| a.1.est_cost.total_cmp(&b.1.est_cost))
+        .map(|(i, _)| i)
+}
+
 impl ArmA {
-    fn survive(&self, obs: &Observation, c: &[Candidate]) -> Option<usize> {
+    /// A close hostile, or hunger with food in hand.
+    fn danger(&self, obs: &Observation, c: &[Candidate]) -> Option<usize> {
         let cfg = &self.config;
         if !obs.sheltered && obs.nearest_hostile().is_some_and(|d| d <= cfg.threat_range) {
             let fight = obs.health > cfg.fight_health && hostiles_within(obs, cfg.crowd_range) <= 1;
@@ -102,10 +113,14 @@ impl ArmA {
             }
         }
         if obs.food < cfg.eat_below {
-            if let Some(i) = find(c, |x| x.skill == Skill::Eat) {
-                return Some(i);
-            }
+            return find(c, |x| x.skill == Skill::Eat);
         }
+        None
+    }
+
+    /// Dusk, and hunger with no food in hand.
+    fn survive(&self, obs: &Observation, c: &[Candidate]) -> Option<usize> {
+        let cfg = &self.config;
         if obs.day_phase >= cfg.dusk {
             return if obs.sheltered {
                 find(c, |x| x.skill == Skill::Rest)
@@ -146,14 +161,14 @@ impl ArmA {
 
 impl Policy for ArmA {
     fn choose(&mut self, obs: &Observation, c: &[Candidate]) -> Option<usize> {
-        self.survive(obs, c)
+        self.danger(obs, c)
+            .or_else(|| cheapest(c, |x| x.commanded))
+            .or_else(|| self.survive(obs, c))
             .or_else(|| self.plan_step(obs, c))
             .or_else(|| {
-                c.iter()
-                    .enumerate()
-                    .filter(|(_, x)| matches!(x.skill, Skill::Chop | Skill::Mine | Skill::Farm))
-                    .min_by(|a, b| a.1.est_cost.total_cmp(&b.1.est_cost))
-                    .map(|(i, _)| i)
+                cheapest(c, |x| {
+                    matches!(x.skill, Skill::Chop | Skill::Mine | Skill::Farm)
+                })
             })
             .or_else(|| find(c, |x| x.skill == Skill::Explore))
             .or(if c.is_empty() { None } else { Some(0) })

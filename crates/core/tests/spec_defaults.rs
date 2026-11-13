@@ -2,11 +2,15 @@
 //! silent change to a default breaks a test. If a default changes on purpose,
 //! change the spec (and log the decision) and then this file.
 
-use cognitive_core::activation::{AffectParams, CuriosityParams, PowerActivation};
+use cognitive_core::activation::{
+    AffectParams, CuriosityParams, GShape, PowerActivation, SignalWeights,
+};
+use cognitive_core::agent::{BrainConfig, BudgetPolicy};
 use cognitive_core::control::kick::KickParams;
 use cognitive_core::control::oracle::Oracle;
 use cognitive_core::control::permeability::PermeabilityParams;
-use cognitive_core::memory::MemoryParams;
+use cognitive_core::control::subconscious::SubconsciousParams;
+use cognitive_core::memory::{FLAT_PRIORITY, FLAT_TIER, MemoryParams, Source};
 use cognitive_core::modes::{Lens, LensParams, Mode, ModeNetwork};
 
 #[test]
@@ -66,6 +70,12 @@ fn memory_defaults_match_spec_17() {
     assert_eq!((m.episodic.lambda, m.episodic.base), (1e-4, 0.6));
     assert_eq!((m.sensory.lambda, m.sensory.base), (1e-2, 0.2));
     assert_eq!(m.c_r, 0.05);
+    // Flat memory is an ablation (plan §5.2), off by default.
+    assert!(!m.flat);
+    assert_eq!(
+        (FLAT_TIER.lambda, FLAT_TIER.base, FLAT_PRIORITY),
+        (0.0, 1.0, 0.5)
+    );
 }
 
 #[test]
@@ -91,7 +101,97 @@ fn lens_rates_and_randomness_match_spec_7() {
 }
 
 #[test]
+fn signal_weights_match_spec_5() {
+    let k = SignalWeights::default();
+    assert_eq!(
+        (
+            k.novelty,
+            k.learning_progress,
+            k.energy,
+            k.threat,
+            k.habituation,
+            k.social
+        ),
+        (0.40, 0.30, -0.20, -0.40, -0.30, 0.20)
+    );
+}
+
+#[test]
+fn subconscious_defaults_match_spec_17() {
+    let p = SubconsciousParams::default();
+    assert_eq!(
+        (
+            p.b_base,
+            p.sigma_min,
+            p.flag_threshold,
+            p.nudge_threshold,
+            p.nudge
+        ),
+        (4.0, 0.05, 0.5, 0.6, 0.05)
+    );
+    assert_eq!((p.mix, p.rescore_rate), ([0.4, 0.3, 0.3], 0.05));
+}
+
+#[test]
+fn brain_defaults_match_spec_19() {
+    let b = BrainConfig::default();
+    assert!(b.kick_enabled && b.threat_drive && b.horizon.is_none());
+    // Thinking is chosen (#40); fixed triggers are an ablation (plan §5.2).
+    // Felt hunger is on and steers choice (01 §1.6, #47, #51); its values
+    // are proposed.
+    let n = b.needs;
+    assert!(n.on && n.fades);
+    assert_eq!((n.food_at, n.relief_step, n.steer), (0.9, 0.5, 1.0));
+    // The teacher shows and explains (01 §4.11, #59); w_R is proposed.
+    assert!(b.teacher.show);
+    assert_eq!(b.teacher.weight, 1.0);
+    assert_eq!(Source::Teacher.confidence(), Source::Llm.confidence());
+    assert_eq!(Source::Teacher.confidence(), 0.6);
+    let f = b.fixed_thinking;
+    assert_eq!((f.on, f.every, f.effort), (false, 120, 0.5));
+    assert_eq!((b.tenacity_ab, b.tenacity_gamma), ([(1.0, 1.0); 4], 0.98));
+    assert_eq!(
+        (b.oracle_bias, b.oracle_eta, b.oracle_floor),
+        ([0.0; 4], 0.05, 0.02)
+    );
+    assert!(b.lens_priors.is_empty());
+    assert_eq!((b.lens_lr, b.lens_frozen), ([1.0; 4], [false; 4]));
+    assert_eq!((b.tm_k, b.tm_tau), (7, 50.0));
+    assert_eq!((b.beta_u, b.beta_c, b.eps_ext), (0.2, 0.1, 0.40));
+    assert_eq!(
+        (b.aging_rate, b.age_per_tick, b.age_per_experience),
+        (1e-6, 1.0, 0.0)
+    );
+    assert_eq!(
+        (b.alpha, b.tau_scale, b.k_goal, b.rho_pre),
+        (2.0, 1.0, 0.5, 0.0)
+    );
+    assert_eq!(
+        (b.thr_l, b.thr_e, b.thr_p),
+        ((0.1, 0.4), (0.1, 0.5), (0.3, 0.9))
+    );
+    assert_eq!((b.g_shape, b.g_k), (GShape::Power, 10.0));
+    assert_eq!(
+        (b.budget_policy, b.oracle_exp3),
+        (BudgetPolicy::RestBoost, None)
+    );
+    // The nested params are the module defaults pinned above.
+    assert_eq!(b.curiosity, CuriosityParams::default());
+    assert_eq!(b.k, SignalWeights::default());
+    assert_eq!(b.subconscious, SubconsciousParams::default());
+}
+
+#[test]
 fn version_constants() {
-    assert_eq!(cognitive_core::DEFS_VERSION, "01 v2");
+    assert_eq!(
+        cognitive_core::DEFS_VERSION,
+        "01 v3.1",
+        "v3 adds felt needs (#47); v3.1 lets them steer choice (#51)"
+    );
     assert_eq!(cognitive_core::SPEC_VERSION, "0.2");
+}
+
+#[test]
+fn personality_spread_is_ten_percent_spec_19() {
+    assert_eq!(cognitive_core::agent::Spread::default().sd_frac, 0.10);
 }

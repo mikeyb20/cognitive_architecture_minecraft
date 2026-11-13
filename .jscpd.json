@@ -3,7 +3,7 @@
   "minTokens": 70,
   "format": ["rust", "typescript"],
   "path": ["crates", "bot/src", "bindings"],
-  "ignore": ["**/target/**", "**/node_modules/**", "**/dist/**"],
+  "ignore": ["**/target/**", "**/node_modules/**", "**/dist/**", "bot/src/generated/**"],
   "reporters": ["console"],
   "absolute": false,
   "gitignore": true

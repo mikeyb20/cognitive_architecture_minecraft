@@ -10,7 +10,7 @@ fn runner_prints_versions() {
         .expect("runner should start");
     assert!(out.status.success());
     let text = String::from_utf8(out.stdout).unwrap();
-    assert!(text.contains("defs 01 v2"), "{text}");
+    assert!(text.contains("defs 01 v3.1"), "{text}");
     assert!(text.contains("spec 0.2"), "{text}");
 }
 

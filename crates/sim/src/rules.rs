@@ -8,8 +8,8 @@ pub struct Rules {
     pub map_size: i32,
     /// Ticks per day (spec §21: 2,400). Night is phase 0.5–1.0.
     pub day_ticks: u64,
-    /// Food lost per tick. Spec §21 proposed 1/600; the sim uses 1/2400 (one
-    /// full bar per day) because 1/600 needs ~13 meals a day. Flagged in PR #3.
+    /// Food lost per tick: 1/2400, one full bar per day (spec §21, decision
+    /// #50; 1/600 was proposed first and needs ~13 meals a day).
     pub food_decay: f32,
     /// Health lost per tick while food is 0.
     pub starve_damage: f32,
@@ -41,7 +41,9 @@ pub struct Rules {
     /// Food restored by eating.
     pub meat_food: f32,
     pub bread_food: f32,
-    /// Ticks to build a shelter with and without 4 blocks in hand.
+    /// Ticks to build a shelter with and without 4 blocks in hand. Digging in
+    /// is 6 since #62 (was 60, about 30 s): Minecraft dirt breaks in 0.75 s
+    /// by hand, so a dig-in takes a few seconds, and a sim tick is 0.5 s.
     pub shelter_ticks_blocks: u32,
     pub shelter_ticks_dig: u32,
     /// Base skill success before focus and threat.
@@ -50,8 +52,9 @@ pub struct Rules {
     pub tree_chops: u8,
     /// Animals per 100 plains tiles at world creation.
     pub animal_density: f32,
-    /// Below this effort the agent does not move or act: g(0) = 0 means no
-    /// self-generated movement (01 §1.4).
+    /// Below this effort the agent does not walk (spec §16 "stay put"); it
+    /// can still eat, craft or rest where it stands. Effort 0 does nothing
+    /// at all: g(0) = 0 (01 §1.4).
     pub min_effort: f32,
     /// Effort at or above which the agent sprints.
     pub sprint_effort: f32,
@@ -100,7 +103,7 @@ impl Default for Rules {
             meat_food: 0.3,
             bread_food: 0.5,
             shelter_ticks_blocks: 20,
-            shelter_ticks_dig: 60,
+            shelter_ticks_dig: 6,
             base_success: 0.95,
             tree_chops: 3,
             animal_density: 1.0,

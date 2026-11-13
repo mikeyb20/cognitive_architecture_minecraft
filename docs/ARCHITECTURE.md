@@ -9,25 +9,30 @@ The aim is simple: **no big rewrites.** We get there by paying small costs conti
 Dependencies point one way. A crate may use only the crates below it.
 
 ```
-            runner                     CLI: scenarios x arms x seeds -> logs
-     ┌────────┼─────────┐
- baselines    │        llm             comparison arms; LLM client
-     │        │         │
-    sim  cognitive-core │              the world; the brain
-     └────────┼─────────┘
-          host-api                     the contract: World, Host, ontology
+                        runner                   CLI: scenarios x arms x seeds -> logs
+     ┌──────────┬─────────┴┬──────────┬──────────┐
+    sim  minecraft  cognitive-core  baselines ─► llm  worlds; the brain; comparison arms; LLM client
+     └──────────┴─────────┬┴──────────┴──────────┘
+                       host-api                  the contract: World, Host, ontology, tech tree
 ```
 
 | Crate | May depend on | Why |
 |---|---|---|
-| `host-api` | nothing in the workspace | It is the contract. Everything else agrees on it. |
+| `host-api` | nothing in the workspace | It is the contract. Everything else agrees on it. It also holds the tech tree (`craft`) and its planner, which are Minecraft knowledge shared by every world and arm. |
 | `cognitive-core` | `host-api` | The brain must not know which world it is in (spec §2). |
 | `sim` | `host-api` | A world implements the contract and knows nothing about brains. |
+| `minecraft` | `host-api` | The Rust side of the Minecraft world: place memory and candidates from what the TypeScript bot sees. Like `sim`, it knows nothing about brains. |
 | `llm` | `host-api` | A tool the brain calls through a trait, never directly. |
-| `baselines` | `host-api`, `sim`, `llm` | See debt D1. |
+| `baselines` | `host-api`, `llm` | Arms run in any world, like the brain. (Tests use `sim` as a dev-dependency.) |
 | `runner` | everything | The only place that wires parts together. |
 
 `scripts/check-architecture.sh` fails CI on any edge not in this table. Adding a crate means adding a row here and in the script, so its place is a decision, not an accident.
+
+Inside the bot, only `bot/src/mineflayer/` talks to Mineflayer. It copies what it reads into plain data (for example `perceive/observation.ts`'s `Snapshot`) and calls the library; every decision about that data lives in plain modules that are unit-tested, held to the coverage floors and mutation-tested like the Rust. The glue is checked by the live acceptance tests instead, so keep it thin.
+
+In Minecraft the runner drives and the bot serves: `runner::mc` sends `host_api::link::LinkRequest`s (hello with the bot's settings, perceive, execute, say) as JSON lines over TCP, and the bot answers each with a `LinkReply`. Candidates, place memory and player commands are worked out in Rust (`minecraft`, `host_api::command`), so every arm sees the same choices in both worlds; the bot keeps only the body and the survival interrupt. The bot's tuning lives in the Rust defaults and is sent at connect.
+
+The TypeScript bot does not copy these types by hand: `bot/src/generated/` is written from `host-api` by ts-rs (`cargo test -p host-api --features ts`), and CI fails if the committed copy is stale. To change the contract, change the Rust type and regenerate.
 
 **Why it matters:** the day `cognitive-core` imports `sim`, the brain can no longer move to Minecraft without a rewrite. The same check keeps the TypeScript bot replaceable (spec §31.8).
 
@@ -45,20 +50,37 @@ Most sprawl comes from one central function that every new feature edits: a `mat
 |---|---|---|
 | Open questions with candidate answers (OQ8, OQ18, ...) | a trait in `core`, one impl per candidate, picked by config (spec §31.2) | in place for `g(C)` (`Activation`) |
 | Modes (sub-networks) | `ModeNetwork` trait in `core::modes` | in place |
-| Skills | one handler per skill, implementing a trait, registered in a table | **not yet**, see D2 |
+| Skills | one handler per skill group, implementing `Handler` in `sim::skills`, registered in the `HANDLERS` table (table order is candidate order) | in place |
 | Worlds (sim, Minecraft) | `World` + `Host` traits | in place |
 | Arms (A, B, B+N, brain) | `Policy` trait | in place |
-| LLM providers and tiers | a provider trait in `llm` | step 4 or 6 |
-| Archetypes, scenarios, experiments | TOML in `configs/`, no code | step 7 |
+| Thinking tools (plan, progress, own goals) | `ThinkTools` trait in `core::agent::think`; the sim's code tools implement it (`runner::brain::SimTools`) | in place; LLM tiers implement it in step 6 |
+| LLM providers and tiers | a provider trait in `llm` | step 6 |
+| Scenarios | `sim::scenario::build` by name | in place (moves to TOML with archetypes, step 7) |
+| Archetypes, scenarios, experiments | TOML in `configs/`, no code | in place for archetypes (`runner::archetype`, drawn per agent by `core::agent::draw`); scenarios and experiments later |
 
 Rule: if a change needs a new branch in a function that already branches on the same thing, add a seam instead.
 
 ## 4. Single source of truth
 
-- **Names** (skills, items, blocks, task types) live once, in `host-api::ontology`. The TypeScript bot must not hand-copy them: generate its types from Rust (debt D3).
+- **Names** (skills, items, blocks, task types) live once, in `host-api::ontology`. The TypeScript bot must not hand-copy them: its types are generated from Rust into `bot/src/generated/`.
 - **Spec numbers** live once, as a default in a params struct, pinned by a test in `tests/spec_defaults.rs`. No literal spec value appears twice.
 - **Formulas** live once, in the module that mirrors their 01 section. Other code calls them; it never re-derives them.
 - **Duplication** is checked by jscpd (more than 3% of code in copied blocks of 70+ tokens fails CI). Below that, use the rule of three: the second copy is allowed, the third gets extracted. Extract to the lowest crate both callers already depend on; never add a dependency just to share a helper.
+
+### Where the brain loop lives
+
+`cognitive-core::agent` wires the 01 modules into one tick (spec §4). Each file is one phase, so a rule change has one home:
+
+| Phase | File | Spec |
+|---|---|---|
+| Config and defaults | `agent/config.rs` | §19 |
+| Learn from the last outcome (success, R, lenses, Oracle, tenacity, memory writes) | `agent/learn.rs` | §7.1, §8, §10, §13, §17 |
+| Sense (chat goals, signals, C/V/D/π drift over dt, subconscious, recall) | `agent/perceive.rs` | §5, §11, §12, §14, §17 |
+| Choose (scores, kicks, starts, softmax, intensity) | `agent/choose.rs` | §3, §9, §16 |
+| Internal actions and their tools | `agent/think.rs` | §6 |
+| Log row | `agent/log.rs` | §25 |
+
+The formulas themselves stay in the module that mirrors their 01 section (`activation`, `control`, `modes`, `memory`, `direction`); the agent files only call them.
 
 ## 5. Size budgets
 
@@ -100,7 +122,5 @@ Known shortcuts, each with the point by which it must be paid.
 
 | ID | Debt | Pay before | Plan |
 |---|---|---|---|
-| D1 | `baselines` (Arm A) uses `sim::planner`, so Arm A cannot run in Minecraft. | Step 6 (Minecraft adapter) | Move the planner onto `Observation` data in `host-api` terms, or into `baselines`, then drop the `sim` edge. |
-| D2 | `sim::world` has one function arm per skill in `exec_inner` and `candidate_actions` (both over 100 lines); `sim/tests/world.rs` mirrors it. Every new skill edits both. | Step 6, before more skills arrive | A `SkillHandler` trait with `candidates()` and `execute()`, one file per skill under `sim/src/skills/`, registered in a table. Split the tests the same way. |
-| D3 | The ontology will be needed in TypeScript; hand-copied names will drift. | Step 6 | Generate TS types from the Rust ontology (napi-rs typings or `ts-rs`), checked in CI. |
 | D4 | Public items lack doc comments (about 300). | Rolling | Enable `missing_docs` on `host-api` first (the contract), then crate by crate. |
+| D6 | Arm B picks only from external candidates; spec §24 also offers it the internal ones (plan, reflect, imagine). Those need the LLM thinking tools. | Step 6 gate | When 6f-3 adds the LLM `ThinkTools`, list the internal actions after the external ones in arm B's prompt. |

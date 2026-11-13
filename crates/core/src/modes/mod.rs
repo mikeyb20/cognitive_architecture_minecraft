@@ -3,9 +3,11 @@
 
 mod aggregate;
 mod lens;
+pub mod success;
 
 pub use aggregate::{f_sign, score};
 pub use lens::{Features, Lens, LensParams, ModeNetwork, N_FEATURES, f as feature};
+pub use success::{OutcomeView, Thresholds, all_success};
 
 use serde::{Deserialize, Serialize};
 

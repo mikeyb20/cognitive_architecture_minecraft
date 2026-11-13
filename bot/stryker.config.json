@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the bot (CLAUDE.md: every mutant on changed lines must be killed). CI passes --mutate with the changed files.",
+  "testRunner": "tap",
+  "tap": {
+    "testFiles": ["dist/**/*.test.js"]
+  },
+  "buildCommand": "tsc -p .",
+  "mutate": ["src/**/*.ts", "!src/**/*.test.ts", "!src/**/*.test-util.ts", "!src/generated/**", "!src/mineflayer/**"],
+  "coverageAnalysis": "perTest",
+  "thresholds": { "high": 100, "low": 100, "break": 100 },
+  "reporters": ["clear-text", "progress"],
+  "tempDirName": "../target/stryker-tmp",
+  "cleanTempDir": "always"
+}

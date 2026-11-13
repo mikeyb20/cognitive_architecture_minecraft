@@ -9,6 +9,12 @@ rust-version.workspace = true
 
 [dependencies]
 serde.workspace = true
+# Only for generating the TypeScript contract (debt D3); off in normal builds.
+ts-rs = { workspace = true, optional = true }
+
+[features]
+# `cargo test -p host-api --features ts` writes bot/src/generated/*.ts.
+ts = ["dep:ts-rs"]
 
 [lints]
 workspace = true

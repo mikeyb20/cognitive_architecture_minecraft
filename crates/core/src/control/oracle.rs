@@ -30,6 +30,38 @@ pub struct Oracle {
     pub r_bar: f32,
     /// EMA rate for R̄.
     pub r_bar_rate: f32,
+    /// OQ18 alternative learner: `Some` replaces Θ·x with EXP3 weights.
+    #[serde(default)]
+    pub exp3: Option<Exp3>,
+}
+
+/// EXP3-style learner (Auer et al. 2002), context-free: one log-weight per
+/// mode. The credited mode's log-weight grows by `γ·r̂/(4·w_i*)`, with
+/// `r̂ = clamp((R + 1)/2, 0, 1)` and w the Oracle weights it was chosen
+/// under, so rarely used modes get larger steps (importance weighting).
+/// Exploration comes from the Oracle floor (OQ18).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Exp3 {
+    pub gamma: f32,
+    pub log_w: [f32; 4],
+}
+
+impl Exp3 {
+    pub fn new(gamma: f32) -> Self {
+        Self {
+            gamma,
+            log_w: [0.0; 4],
+        }
+    }
+
+    fn update(&mut self, w: &[f32; 4], credited: Mode, r: f32) {
+        let i = credited.index();
+        let r_hat = ((r + 1.0) / 2.0).clamp(0.0, 1.0);
+        self.log_w[i] += self.gamma * r_hat / (4.0 * w[i].max(1e-3));
+        // Shift so the largest is 0: same weights, no overflow.
+        let max = self.log_w.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        self.log_w = self.log_w.map(|v| v - max);
+    }
 }
 
 impl Default for Oracle {
@@ -40,6 +72,7 @@ impl Default for Oracle {
             eta: 0.05,
             r_bar: 0.0,
             r_bar_rate: 0.01,
+            exp3: None,
         }
     }
 }
@@ -47,7 +80,10 @@ impl Default for Oracle {
 impl Oracle {
     /// `[w_L, w_E, w_P, w_O]`, Σw = 1 and each w ≥ floor (01 §4.1).
     pub fn weights(&self, x: &Context, adj: WeightAdjust) -> [f32; 4] {
-        let pref: [f32; 4] = std::array::from_fn(|i| dot(&self.theta[i], x));
+        let pref: [f32; 4] = match &self.exp3 {
+            Some(e) => e.log_w,
+            None => std::array::from_fn(|i| dot(&self.theta[i], x)),
+        };
         let mut v = softmax(&pref);
         v[Mode::Exploring.index()] += adj.urgency_bias.max(0.0);
         let p = Mode::Performing.index();
@@ -83,6 +119,11 @@ impl Oracle {
         r: f32,
         tenacity: &[f32; 4],
     ) {
+        if let Some(e) = self.exp3.as_mut() {
+            e.update(w, credited, r);
+            self.track(r);
+            return;
+        }
         let adv = r - self.r_bar;
         for (i, row) in self.theta.iter_mut().enumerate() {
             let ind = if i == credited.index() { 1.0 } else { 0.0 };
@@ -94,6 +135,11 @@ impl Oracle {
                 *t += step * xi;
             }
         }
+        self.track(r);
+    }
+
+    /// R̄ ← R̄ + rate·(R − R̄): the bandit baseline (spec §8).
+    fn track(&mut self, r: f32) {
         self.r_bar += self.r_bar_rate * (r - self.r_bar);
     }
 }
@@ -126,6 +172,36 @@ pub fn with_floor(v: [f32; 4], floor: f32) -> [f32; 4] {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    #[test]
+    fn exp3_rewards_the_credited_mode_and_ignores_context() {
+        let mut o = Oracle {
+            exp3: Some(Exp3::new(0.1)),
+            ..Oracle::default()
+        };
+        let x = [1.0; CONTEXT_DIM];
+        assert_eq!(o.weights(&x, WeightAdjust::default()), [0.25; 4]);
+        let w = [0.25; 4];
+        o.update(&x, &w, Mode::Performing, 1.0, &[0.0; 4]);
+        // r̂ = 1, step = 0.1·1/(4·0.25) = 0.1; shifted so the max is 0.
+        let e = o.exp3.unwrap();
+        assert_eq!(e.log_w, [-0.1, -0.1, 0.0, -0.1]);
+        assert_eq!(o.theta, Oracle::default().theta, "Θ untouched");
+        assert!((o.r_bar - 0.01).abs() < 1e-7);
+        // R̄ keeps tracking under EXP3: 0.01 + 0.01·(0.5 − 0.01) = 0.0149.
+        let mut o2 = o.clone();
+        o2.update(&x, &w, Mode::Performing, 0.5, &[0.0; 4]);
+        assert!((o2.r_bar - 0.0149).abs() < 1e-6, "{}", o2.r_bar);
+        let after = o.weights(&[0.0; CONTEXT_DIM], WeightAdjust::default());
+        assert!(after[2] > after[0] && (after.iter().sum::<f32>() - 1.0).abs() < 1e-6);
+        // R = −1 gives r̂ = 0: no step. A rarely used mode gets a bigger step.
+        let mut e = Exp3::new(0.1);
+        e.update(&w, Mode::Learning, -1.0);
+        assert_eq!(e.log_w, [0.0; 4]);
+        e.update(&[0.1, 0.3, 0.3, 0.3], Mode::Learning, 0.0);
+        // r̂ = 0.5: 0.1·0.5/(4·0.1) = 0.125.
+        assert!((e.log_w[1] + 0.125).abs() < 1e-6, "{:?}", e.log_w);
+    }
 
     fn ctx(vals: [f32; CONTEXT_DIM]) -> Context {
         vals
