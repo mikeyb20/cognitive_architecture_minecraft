@@ -39,6 +39,7 @@ scripts/check-architecture.sh
 ```
 
 - One concern per PR: a feature or a refactor, not both. Aim for under ~400 changed non-test lines.
+- Base new work on `main`. Stack a PR on another only when it needs that one's code, and keep a stack to three PRs at most. When a stack's bottom PR merges, delete its branch so GitHub moves the next PR onto `main`.
 - A refactor changes no test expectations and no golden traces.
 - If you added a shortcut, add it to the debt register with the step by which it must be paid. If you paid one, delete its row and any `#[expect]` or size-budget line that referred to it.
 - At the end of a build step, do the maintenance checkpoint in `docs/ARCHITECTURE.md` §7.
