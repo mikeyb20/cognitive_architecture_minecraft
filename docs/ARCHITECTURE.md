@@ -123,5 +123,5 @@ Known shortcuts, each with the point by which it must be paid.
 
 | ID | Debt | Pay before | Plan |
 |---|---|---|---|
-| D4 | Public items lack doc comments (about 300). | Rolling | Enable `missing_docs` on `host-api` first (the contract), then crate by crate. |
+| D4 | Public items lack doc comments. `host-api` is done (`#![warn(missing_docs)]`, 14 Nov 2026). | Rolling | Crate by crate, smallest first. Items left on 14 Nov 2026: `minecraft` 1, `llm` 27, `baselines` 35, `sim` 78, `cognitive-core` 282, `runner` 535 (counts may include crates each one builds). |
 | D6 | Arm B picks only from external candidates; spec §24 also offers it the internal ones (plan, reflect, imagine). Those need the LLM thinking tools. | Step 6 gate | When 6f-3 adds the LLM `ThinkTools`, list the internal actions after the external ones in arm B's prompt. |

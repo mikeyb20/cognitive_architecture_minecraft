@@ -3,4 +3,12 @@
 /**
  * The survival interrupt's thresholds, as the bot reads them.
  */
-export type Thresholds = { criticalHealth: number, starvingFood: number, };
+export type Thresholds = { 
+/**
+ * Health (0..1) at or below which a hostile nearby is an emergency.
+ */
+criticalHealth: number, 
+/**
+ * Food (0..1) at or below which eating is an emergency.
+ */
+starvingFood: number, };

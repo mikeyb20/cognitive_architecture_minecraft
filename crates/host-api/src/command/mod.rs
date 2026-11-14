@@ -18,7 +18,12 @@ pub use queue::{CommandQueue, QueueParams, Task};
 pub enum Command {
     /// Hold `count` more of `item` (mine, chop, craft, ...). `None` means no
     /// number was given: "more" repeats the last count for that item.
-    Get { item: String, count: Option<u32> },
+    Get {
+        /// Item name.
+        item: String,
+        /// How many more, if a number was given.
+        count: Option<u32>,
+    },
     /// Follow the speaker until told to stay.
     Follow,
     /// Stop following.
@@ -36,6 +41,7 @@ pub enum Command {
 /// How one chat line reads.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Parsed {
+    /// A command the agent understood.
     Command(Command),
     /// Looked like a command but could not be read; the text says why.
     Unknown(String),

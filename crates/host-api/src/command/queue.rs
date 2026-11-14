@@ -37,11 +37,22 @@ impl Default for QueueParams {
 pub enum Task {
     /// Gain `count` of `item`. Asking for a block counts what it drops
     /// ("mine iron ore" counts `raw_iron`).
-    Get { item: String, count: u32 },
+    Get {
+        /// Item name.
+        item: String,
+        /// How many to gain.
+        count: u32,
+    },
     /// Stay near `player` until told to stay; any new task replaces it.
-    Follow { player: String },
+    Follow {
+        /// Who to follow.
+        player: String,
+    },
     /// Walk to `player` once.
-    Come { player: String },
+    Come {
+        /// Who to walk to.
+        player: String,
+    },
 }
 
 impl Task {
@@ -82,6 +93,7 @@ fn player_distance(obs: &Observation, player: &str) -> Option<f32> {
 }
 
 impl CommandQueue {
+    /// An empty queue.
     pub fn new(params: QueueParams) -> Self {
         Self {
             params,

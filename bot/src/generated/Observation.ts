@@ -8,7 +8,15 @@ import type { Seen } from "./Seen.js";
 /**
  * One agent's view of the world for one tick (spec §2).
  */
-export type Observation = { agent: AgentId, tick: number, 
+export type Observation = { 
+/**
+ * Whose view this is.
+ */
+agent: AgentId, 
+/**
+ * World tick it was taken at.
+ */
+tick: number, 
 /**
  * 0..1 through the day; night is >= 0.5.
  */
@@ -20,7 +28,27 @@ health: number,
 /**
  * 0..1
  */
-food: number, position: Pos, inventory: Inventory, visible: Array<Seen>, chat: Array<ChatMsg>, damage_taken: number, 
+food: number, 
+/**
+ * Where the agent stands.
+ */
+position: Pos, 
+/**
+ * What it carries.
+ */
+inventory: Inventory, 
+/**
+ * What it sees, nearest first.
+ */
+visible: Array<Seen>, 
+/**
+ * Chat heard since the last observation.
+ */
+chat: Array<ChatMsg>, 
+/**
+ * Health lost since the last observation, as a fraction of full health.
+ */
+damage_taken: number, 
 /**
  * In bed or otherwise safely resting.
  */
