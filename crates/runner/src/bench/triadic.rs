@@ -45,6 +45,14 @@ pub fn test_escape(bouts: &[(u64, u64)]) -> (f64, f64) {
     (escaped / n, test.iter().sum::<u64>() as f64 / n)
 }
 
+/// The brain B3 tests: defaults with learned control on, since 01 §1.2
+/// models controllability only through κ (#64).
+pub fn config() -> BrainConfig {
+    let mut c = BrainConfig::default();
+    c.affect.control.enabled = true;
+    c
+}
+
 /// D and V at the last decision row (tick, D, V) before the test phase;
 /// zero when there is none.
 pub fn pre_state(rows: &[(u64, f32, f32)]) -> (f64, f64) {
@@ -71,7 +79,7 @@ fn run_arm(seed: u64, pre: Option<Vec<(u64, u64)>>) -> (ArmStats, BrainResult) {
         s.world.shock = Some(yoked(schedule));
     }
     let mut rows = Vec::new();
-    let r = run_brain(s, BrainConfig::default(), seed, |row| {
+    let r = run_brain(s, config(), seed, |row| {
         rows.push((row.tick, row.d, row.v));
     });
     let (d_pre, v_pre) = pre_state(&rows);
@@ -277,6 +285,15 @@ mod tests {
         );
         assert!(!far[3].pass);
         assert!(far[2].pass);
+    }
+
+    #[test]
+    fn b3_runs_with_learned_control_on() {
+        assert!(config().affect.control.enabled);
+        assert_eq!(
+            config().affect.control.rate,
+            BrainConfig::default().affect.control.rate
+        );
     }
 
     #[test]
