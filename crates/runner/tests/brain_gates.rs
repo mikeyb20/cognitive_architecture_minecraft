@@ -69,7 +69,9 @@ fn drift_goes_where_commands_push_it() {
         let mean_v = day.iter().map(|r| r.v.abs()).sum::<f32>() / day.len() as f32;
         assert!(mean_v < 0.15, "V near 0: {mean_v}");
         assert_eq!(self_generated(&rows), 0, "no self-generated movement");
-        assert!(rows.iter().filter(|r| r.external_drive).count() > 20);
+        // Seed 1 needs only 18 commanded decisions since zombies spawn 24+
+        // tiles out (14 Nov sim audit): nothing cuts its errands short.
+        assert!(rows.iter().filter(|r| r.external_drive).count() > 10);
         let has = |item: &str| r.inventory.iter().any(|(i, _)| i == item);
         assert!(has("wooden_pickaxe"), "commands still get done: {r:?}");
     }
@@ -130,12 +132,12 @@ fn shutdown_barely_responds() {
     // so it barely responds rather than not at all: seeds 0–2 make 0.67 of
     // a command step against the drifting agent's 3.
     assert!(progress.0 < 0.5 * progress.1, "barely: {progress:?}");
-    // Naturally: a drifting agent left alone through the first night
-    // (open_day, seed 0) has nothing to lift V, so V sits below the D
-    // threshold and D climbs toward shutdown (01 §1.3, §1.5). Since #62
-    // zombies path round obstacles, so the chase ends before D passes 0.7
-    // (no seed of 12 in any scenario gets there); it peaks at 0.66.
-    let (rows, _) = run("open_day", 0, Brain::new(drift_config(), 0));
+    // Naturally: a drifting agent left alone at night has nothing to lift
+    // V, so V sits below the D threshold and D climbs toward shutdown
+    // (01 §1.3, §1.5). Since zombies spawn 24+ tiles out (14 Nov sim
+    // audit) few runs meet enough of them for that; incubation seed 8
+    // does, peaking at 0.65 (open_day seed 0, used before, now 0.09).
+    let (rows, _) = run("incubation", 8, Brain::new(drift_config(), 8));
     let peak = rows.iter().max_by(|a, b| a.d.total_cmp(&b.d)).unwrap();
     assert!(peak.d > 0.6, "D at its peak: {}", peak.d);
     assert!(peak.c < 0.01 && peak.v < -0.25, "{peak:?}");
@@ -209,8 +211,8 @@ fn golden_commanded_run_counts_reflexes_and_new_things() {
     assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");
 }
 
-const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (93, 13, 37, 3, 33);
-const GOLDEN_COUNTS: (u32, u32, u32) = (237, 172, 5);
-const GOLDEN_HASH: u64 = 13_957_761_032_102_615_939;
+const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (87, 0, 39, 2, 46);
+const GOLDEN_COUNTS: (u32, u32, u32) = (271, 215, 6);
+const GOLDEN_HASH: u64 = 10_045_750_641_262_712_682;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).
-const GOLDEN_SUMS: [f64; 5] = [34.6586, 16.7005, -6.5816, 44.0441, 152.0453];
+const GOLDEN_SUMS: [f64; 5] = [32.2030, 21.0975, -19.1509, 34.1270, 186.6109];
