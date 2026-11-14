@@ -7,7 +7,8 @@
 #   MC_HOST, MC_PORT, MC_VERSION pass through to the bots.
 #   ARM=a runs the behaviour tree instead of the brain.
 #
-# Needs: cd bot && npm ci; cargo build --release -p runner. Ctrl-C stops all.
+# Needs: a server (scripts/mc-server.sh), cd bot && npm ci, and
+# cargo build --release -p runner. Ctrl-C stops all.
 set -euo pipefail
 
 n=${1:-1}
@@ -23,6 +24,10 @@ mkdir -p "$out"
 runner="$root/target/release/runner"
 [[ -x $runner ]] || (cd "$root" && cargo build --release -p runner)
 (cd "$root/bot" && npx tsc -p .)
+
+# Record the server's difficulty and time with the logs, if RCON is on
+# (scripts/mc-server.sh turns it on).
+python3 -I "$root/scripts/rcon.py" difficulty "time query daytime" >"$out/server.txt" 2>&1 || true
 
 pids=()
 runs=()

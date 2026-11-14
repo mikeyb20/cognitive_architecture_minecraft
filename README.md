@@ -33,7 +33,15 @@ cd bot && npm ci && npm run typecheck && npm test
 
 ## Run in Minecraft
 
-Needs a Minecraft Java 1.21.11 server you can join (a LAN world works). Two terminals:
+Needs a Minecraft Java 1.21.11 server you can join (a LAN world works), or a local one from the script below. Running it means accepting [Mojang's EULA](https://aka.ms/MinecraftEULA); the script writes `eula=true` only with `ACCEPT_EULA=1`. Lower difficulty (`peaceful`, `easy`) suits teaching skills; `normal` nights are the survival check.
+
+```sh
+ACCEPT_EULA=1 scripts/mc-server.sh runs/server easy   # offline mode, RCON on 127.0.0.1:25575
+scripts/rcon.py "difficulty normal" "time set 12000"  # change a running server
+scripts/mc-bots.sh 3 2000                             # 1-5 brain bots; logs in runs/mc-<time>/
+```
+
+Or by hand, in two terminals:
 
 ```sh
 # 1. The bot joins the server and waits for the runner on 127.0.0.1:7878.
