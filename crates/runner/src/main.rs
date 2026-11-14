@@ -16,7 +16,7 @@
 //!   helplessness), printed and written the same way.
 //! - `runner run --experiment FILE [--seeds N] [--out DIR]`: arms ×
 //!   scenarios × seeds from `configs/experiments` (spec §26, plan §5).
-//! - `runner mc <a|b|bn> [--tier local|cheap|strong] [--addr HOST:PORT]
+//! - `runner mc <a|b|bn|c> [--tier local|cheap|strong] [--addr HOST:PORT]
 //!   [--decisions N] [--log FILE] [--cache FILE [--replay]]`: run an arm in
 //!   Minecraft through the bot (`npm start` in bot/ first). Reads
 //!   `ANTHROPIC_API_KEY` and `OLLAMA_BASE_URL` from the environment.
@@ -246,24 +246,64 @@ fn experiment(args: &[String]) {
     publish(args, &e.id, &markdown(&e, &res), &csv);
 }
 
+/// Connect to the bot at `--addr` and say hello (spec §22).
+fn mc_host(args: &[String]) -> runner::mc::McHost {
+    use runner::mc::{Link, McHost};
+    let addr = flag(args, "--addr").unwrap_or("127.0.0.1:7878");
+    let link = Link::tcp(addr).unwrap_or_else(|e| fail(format!("no bot at {addr}: {e}")));
+    let config = host_api::link::BotConfig::default();
+    let params = minecraft::McParams::default();
+    McHost::connect(link, config, params)
+        .unwrap_or_else(|e| fail(format!("the bot did not say hello: {e:?}")))
+}
+
+/// The `--log FILE` writer, if asked for.
+fn mc_log(args: &[String]) -> Option<std::io::BufWriter<std::fs::File>> {
+    flag(args, "--log").map(|p| {
+        std::io::BufWriter::new(std::fs::File::create(p).expect("cannot create the log file"))
+    })
+}
+
+/// Arm C in Minecraft: the default brain drives the bot (spec §22, §26).
+fn mc_brain(args: &[String]) {
+    use cognitive_core::agent::{Brain, BrainConfig};
+    let seed = flag(args, "--seed")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    let mut brain = Brain::new(BrainConfig::default(), seed);
+    let mut host = mc_host(args);
+    let mut out = mc_log(args);
+    let n = flag(args, "--decisions").and_then(|d| d.parse().ok());
+    let tick = std::time::Duration::from_millis(50);
+    let counts = runner::mc::run_brain(
+        &mut host,
+        &mut brain,
+        n.unwrap_or(u32::MAX),
+        host_api::reflex::ReflexThresholds::default(),
+        || std::thread::sleep(tick),
+        |s| {
+            if let Some(f) = out.as_mut() {
+                writeln!(f, "{}", runner::mc::row(s)).expect("log write failed");
+            }
+        },
+    );
+    println!("{counts:?}; link error: {:?}", host.error);
+}
+
 fn mc(args: &[String]) {
-    use runner::mc::{Link, McArm, McHost, arm, row, run};
+    use runner::mc::{McArm, arm, row, run};
+    if args.get(1).map(String::as_str) == Some("c") {
+        return mc_brain(args);
+    }
     let which = args.get(1).and_then(|a| McArm::parse(a));
-    let which = which.unwrap_or_else(|| fail("usage: runner mc <a|b|bn> [flags]".into()));
+    let which = which.unwrap_or_else(|| fail("usage: runner mc <a|b|bn|c> [flags]".into()));
     let (level, make) = llm_setup(args);
     let llm = which
         .needs_llm()
         .then(|| make().unwrap_or_else(|e| fail(e)));
     let mut policy = arm(which, level, llm).unwrap_or_else(|e| fail(e));
-    let addr = flag(args, "--addr").unwrap_or("127.0.0.1:7878");
-    let link = Link::tcp(addr).unwrap_or_else(|e| fail(format!("no bot at {addr}: {e}")));
-    let config = host_api::link::BotConfig::default();
-    let params = minecraft::McParams::default();
-    let mut host = McHost::connect(link, config, params)
-        .unwrap_or_else(|e| fail(format!("the bot did not say hello: {e:?}")));
-    let mut out = flag(args, "--log").map(|p| {
-        std::io::BufWriter::new(std::fs::File::create(p).expect("cannot create the log file"))
-    });
+    let mut host = mc_host(args);
+    let mut out = mc_log(args);
     let n = flag(args, "--decisions").and_then(|d| d.parse().ok());
     let thresholds = host_api::reflex::ReflexThresholds::default();
     let made = run(

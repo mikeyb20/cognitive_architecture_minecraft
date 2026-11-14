@@ -2,6 +2,7 @@
 // logic is in link/ and unit-tested there. Settings come from the runner's
 // hello; only where to connect comes from the environment:
 //   MC_HOST, MC_PORT, MC_USER   the Minecraft server (default localhost:25565, "curious")
+//   MC_VERSION                  game version (default the pinned 1.21.11)
 //   LINK_PORT                   where the runner connects (default 7878, localhost only)
 
 import { BotServer } from "../link/server.js";
@@ -19,7 +20,7 @@ const bot = await connect({
   host: env.MC_HOST ?? DEFAULT_SERVER.host,
   port: Number(env.MC_PORT ?? DEFAULT_SERVER.port),
   username: env.MC_USER ?? DEFAULT_SERVER.username,
-  version: DEFAULT_SERVER.version,
+  version: env.MC_VERSION ?? DEFAULT_SERVER.version,
 });
 const perception = new Perception(bot, VIEW_RADIUS);
 const isFood = (name: string) => bot.registry.foodsByName[name] !== undefined;
