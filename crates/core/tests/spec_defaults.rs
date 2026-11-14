@@ -114,6 +114,9 @@ fn signal_weights_match_spec_5() {
         ),
         (0.40, 0.30, -0.20, -0.40, -0.30, 0.20)
     );
+    // Threat's own scales (spec §5; pain since #63).
+    use cognitive_core::activation::signals::{LAVA_THREAT, PAIN_THREAT, THREAT_SCALE};
+    assert_eq!((THREAT_SCALE, LAVA_THREAT, PAIN_THREAT), (8.0, 0.5, 100.0));
 }
 
 #[test]

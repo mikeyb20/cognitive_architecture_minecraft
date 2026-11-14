@@ -1,6 +1,6 @@
 //! Craft what the inventory allows (spec §21 tech tree).
 
-use host_api::{Candidate, Intensity, Skill, Target, TaskType, World};
+use host_api::{Candidate, Intensity, Skill, Target, TaskType};
 
 use super::{BLOCKED, Ctx, Exec, Handler, Out, target_item};
 use crate::craft;
@@ -31,10 +31,14 @@ impl Handler for Crafting {
         let Some(r) = target_item(a).and_then(craft::recipe) else {
             return BLOCKED;
         };
+        let before = w.body.inv.clone();
         if !craft::craft(&mut w.body.inv, r) {
             return BLOCKED;
         }
-        w.step_world(w.rules.craft_ticks);
+        if !w.wait(w.rules.craft_ticks) {
+            w.body.inv = before;
+            return (false, 0.0, false);
+        }
         w.notice(&format!("recipe:{}", r.output));
         w.notice(&format!("item:{}", r.output));
         (true, 1.0, false)

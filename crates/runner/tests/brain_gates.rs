@@ -202,15 +202,15 @@ fn golden_trace_is_stable() {
 /// things. Change only on a deliberate behaviour change.
 #[test]
 fn golden_commanded_run_counts_reflexes_and_new_things() {
-    // Seed 2 since #62: with zombies pathing round obstacles, seed 0 dies
-    // to a mob before any reflex fires.
-    let (_, r) = run("commanded", 2, Brain::new(BrainConfig::default(), 2));
+    // Seed 3 since decision #63 (pain feeds threat): seed 2 no longer
+    // fires a reflex, and seed 3 is the shortest run that does.
+    let (_, r) = run("commanded", 3, Brain::new(BrainConfig::default(), 3));
     let got = (r.decisions, r.idle, r.thoughts, r.reflexes, r.new_things);
     assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");
 }
 
-const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (93, 13, 37, 3, 33);
-const GOLDEN_COUNTS: (u32, u32, u32) = (237, 172, 5);
-const GOLDEN_HASH: u64 = 13_957_761_032_102_615_939;
+const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (136, 18, 64, 2, 42);
+const GOLDEN_COUNTS: (u32, u32, u32) = (259, 187, 5);
+const GOLDEN_HASH: u64 = 6_667_829_185_622_548_883;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).
-const GOLDEN_SUMS: [f64; 5] = [34.6586, 16.7005, -6.5816, 44.0441, 152.0453];
+const GOLDEN_SUMS: [f64; 5] = [38.5038, 19.7494, -8.9356, 45.629, 170.2646];
