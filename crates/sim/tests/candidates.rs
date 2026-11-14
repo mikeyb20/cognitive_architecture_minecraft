@@ -139,11 +139,13 @@ fn threats_offer_flee_away_and_attack() {
         Some(Target::Pos(p(24, 16))),
         "on top: four tiles tie at 8; the first in scan order (north) wins"
     );
-    w.mobs[0].pos = p(31, 24);
+    w.mobs[0].pos = p(32, 24);
+    assert_eq!(w.candidate_actions(&o)[0].skill, Skill::Flee, "8 tiles is");
+    w.mobs[0].pos = p(33, 24);
     assert_ne!(
         w.candidate_actions(&o)[0].skill,
         Skill::Flee,
-        "7 tiles is not a threat"
+        "9 tiles is not a threat"
     );
 }
 

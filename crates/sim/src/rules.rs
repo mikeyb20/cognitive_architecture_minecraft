@@ -36,6 +36,11 @@ pub struct Rules {
     /// It was `spawn_min` (6) until spawns moved out; kept at 6 so the test
     /// is unchanged.
     pub shelter_radius: i32,
+    /// How close a hostile must be, in tiles, to offer flee and fight and to
+    /// cut a calm action short. 8 since 14 Nov 2026 (was 6), to match the
+    /// Minecraft side's `CandidateParams::threat_range` (decision of Michael
+    /// in the codebase health check).
+    pub threat_range: i32,
     /// Most hostiles alive at once. 10 since the sim audit fixes (14 Nov
     /// 2026; was 6): with spawns 24+ tiles out and danger interrupts, a
     /// wanderer that never shelters lived through 88 of 100 first nights at
@@ -108,6 +113,7 @@ impl Default for Rules {
             spawn_min: 24,
             spawn_max: 40,
             shelter_radius: 6,
+            threat_range: 8,
             max_hostiles: 10,
             mob_move_ticks: 6,
             chase_radius: 40,

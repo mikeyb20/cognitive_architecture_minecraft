@@ -132,9 +132,9 @@ fn night_chop(d: i32) -> SimWorld {
 
 #[test]
 fn a_hostile_coming_near_cuts_a_calm_action_short() {
-    // 9 tiles out it steps in at once, then every 6 ticks: within 6 (the
+    // 11 tiles out it steps in at once, then every 6 ticks: within 8 (the
     // threat range) at tick 13 of a 30-tick chop.
-    let mut w = night_chop(9);
+    let mut w = night_chop(11);
     assert!(!w.in_danger());
     let o = w.execute(&at(Skill::Chop, 23, 24), FULL);
     cut(&o, 13);
