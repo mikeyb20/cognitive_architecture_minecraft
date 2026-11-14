@@ -398,6 +398,50 @@ fn shelters_take_6_ticks_to_dig_or_20_with_four_blocks() {
 }
 
 #[test]
+fn digging_in_needs_soil_or_a_pickaxe_on_stone() {
+    let on = |tile: Tile| {
+        let mut w = flat();
+        w.map.set(p(24, 24), tile);
+        w
+    };
+    let offered = |w: &mut SimWorld| {
+        let o = w.perceive();
+        w.candidate_actions(&o)
+            .iter()
+            .any(|c| c.skill == Skill::Shelter)
+    };
+    // Farmland digs like grass.
+    let mut w = on(Tile::Wheat);
+    assert!(offered(&mut w));
+    assert_eq!(
+        w.execute(&act(Skill::Shelter, None), FULL).duration_ticks,
+        6
+    );
+    // A cave's stone floor: not by hand, and as long as mining with a pick.
+    let mut w = on(Tile::CaveFloor);
+    assert!(!offered(&mut w));
+    let o = w.execute(&act(Skill::Shelter, None), FULL);
+    assert!(o.blocked && !w.sheltered());
+    for (pick, ticks) in [
+        ("wooden_pickaxe", 40),
+        ("stone_pickaxe", 30),
+        ("iron_pickaxe", 20),
+    ] {
+        let mut w = on(Tile::CaveFloor);
+        give(&mut w, pick, 1);
+        assert!(offered(&mut w), "{pick}");
+        let o = w.execute(&act(Skill::Shelter, None), FULL);
+        assert_eq!((o.success, o.duration_ticks), (true, ticks), "{pick}");
+        assert!(w.sheltered());
+    }
+    // In a doorway nothing digs, but four blocks still build.
+    let mut w = on(Tile::Door);
+    assert!(!offered(&mut w));
+    give(&mut w, "oak_planks", 4);
+    assert!(offered(&mut w));
+}
+
+#[test]
 fn rest_needs_shelter_and_ends_at_dawn() {
     let mut w = flat();
     assert!(w.execute(&act(Skill::Rest, None), FULL).blocked);

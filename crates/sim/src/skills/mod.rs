@@ -15,6 +15,8 @@ mod sheltering;
 mod threats;
 mod travelling;
 
+pub(crate) use threats::THREAT_RANGE;
+
 /// What running an action did: (success, progress, blocked).
 pub(crate) type Exec = (bool, f32, bool);
 

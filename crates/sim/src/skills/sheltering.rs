@@ -24,14 +24,16 @@ impl Handler for Sheltering {
         let has_blocks = SHELTER_BLOCKS
             .iter()
             .any(|b| w.body.inv.count(b) >= BLOCKS_PER_SHELTER);
-        let cost = if has_blocks { 0.1 } else { 0.25 };
-        out.add(
-            Skill::Shelter,
-            None,
-            TaskType::Building,
-            cost,
-            w.risk_at(cx.me),
-        );
+        if has_blocks || dig_ticks(w).is_some() {
+            let cost = if has_blocks { 0.1 } else { 0.25 };
+            out.add(
+                Skill::Shelter,
+                None,
+                TaskType::Building,
+                cost,
+                w.risk_at(cx.me),
+            );
+        }
         let shelter = w
             .nearest_tile(&cx.reach, |t| t == Tile::Shelter)
             .and_then(|(p, _)| cx.reach.steps(p).map(|d| (p, d)));
@@ -58,12 +60,13 @@ impl Handler for Sheltering {
         let blocks = SHELTER_BLOCKS
             .into_iter()
             .find(|b| w.body.inv.count(b) >= BLOCKS_PER_SHELTER);
-        let ticks = match blocks {
-            Some(b) => {
+        let ticks = match (blocks, dig_ticks(w)) {
+            (Some(b), _) => {
                 craft::take(&mut w.body.inv, b, BLOCKS_PER_SHELTER);
                 w.rules.shelter_ticks_blocks
             }
-            None => w.rules.shelter_ticks_dig,
+            (None, Some(t)) => t,
+            (None, None) => return BLOCKED,
         };
         if !w.wait(ticks) {
             if let Some(b) = blocks {
@@ -77,6 +80,21 @@ impl Handler for Sheltering {
         w.map.set(here, Tile::Shelter);
         w.notice("block:shelter");
         (true, 1.0, false)
+    }
+}
+
+/// Ticks to dig in where the agent stands, if it can (sim audit, 14 Nov
+/// 2026): soil (grass, farmland) by hand in `shelter_ticks_dig`; a cave's
+/// stone floor only with a pickaxe, as long as mining stone with it; never
+/// anywhere else. Minecraft stone needs a pickaxe to dig usefully.
+fn dig_ticks(w: &SimWorld) -> Option<u32> {
+    match w.map.get(w.body.pos) {
+        Tile::Grass | Tile::Wheat => Some(w.rules.shelter_ticks_dig),
+        Tile::CaveFloor => {
+            let tier = craft::pick_tier(&w.body.inv);
+            (tier >= 1).then(|| w.rules.mine_ticks[usize::from(tier - 1)])
+        }
+        _ => None,
     }
 }
 

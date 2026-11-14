@@ -114,7 +114,7 @@ fn night_spawns_zombies_in_a_ring_up_to_the_cap() {
     assert!((24..=40).contains(&d), "spawned {d} tiles away");
     assert_eq!(w.mobs[0].kind, MobKind::Zombie);
     w.step_world(30);
-    assert_eq!(w.mobs.len(), 6, "max_hostiles");
+    assert_eq!(w.mobs.len(), 10, "max_hostiles");
 }
 
 #[test]

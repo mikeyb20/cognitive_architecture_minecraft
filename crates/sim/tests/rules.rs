@@ -15,7 +15,7 @@ fn default_rules_are_pinned() {
     assert_eq!(r.view_radius, 8);
     assert_eq!((r.walk_ticks, r.sprint_ticks, r.max_move), (4, 2, 8));
     assert_eq!((r.night_spawn, r.cave_spawn), (0.02, 0.005));
-    assert_eq!((r.spawn_min, r.spawn_max, r.max_hostiles), (24, 40, 6));
+    assert_eq!((r.spawn_min, r.spawn_max, r.max_hostiles), (24, 40, 10));
     assert_eq!(r.shelter_radius, 6);
     assert_eq!((r.mob_move_ticks, r.chase_radius), (6, 40));
     assert_eq!((r.mob_damage, r.mob_hit_ticks), (0.1, 20));

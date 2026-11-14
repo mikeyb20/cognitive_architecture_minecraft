@@ -26,6 +26,7 @@ pub use host_api::ontology::REGION;
 /// Furthest a path search looks from the agent, in tiles.
 pub const PATH_RADIUS: i32 = 20;
 
+mod danger;
 mod path;
 mod shelter;
 mod shock;
@@ -74,6 +75,8 @@ pub struct SimWorld {
     pub shock: Option<Shock>,
     /// Something cut the current action short (a shock bout began, B3).
     interrupted: bool,
+    /// The current action began with no hostile near (see `danger`).
+    calm_start: bool,
     known: HashSet<String>,
     region_visits: Vec<u32>,
     pending_new: Vec<ThingId>,
@@ -99,6 +102,7 @@ impl SimWorld {
             mobs: Vec::new(),
             shock: None,
             interrupted: false,
+            calm_start: false,
             known: HashSet::new(),
             region_visits: Vec::new(),
             pending_new: Vec::new(),
@@ -334,6 +338,7 @@ impl SimWorld {
                 self.hurt(self.rules.mob_damage, Death::Mob);
             }
         }
+        self.check_danger();
     }
 
     /// Success roll: base × focus, less under threat (spec §21).
@@ -513,6 +518,7 @@ impl Host for SimWorld {
     fn execute(&mut self, a: &Candidate, it: Intensity) -> Outcome {
         self.action_damage = 0.0;
         self.interrupted = false;
+        self.calm_start = !self.in_danger();
         self.body.resting = false;
         let start_tick = self.tick;
         let before = self.body.inv.clone();
