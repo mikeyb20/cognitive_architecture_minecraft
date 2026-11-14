@@ -158,6 +158,9 @@ pub struct Brain {
     pub(crate) rng: ChaCha8Rng,
     pub(crate) curiosity: Curiosity,
     pub(crate) affect: Affect,
+    /// The last decision taken in pain, for learned control (01 §1.2,
+    /// #64): was it an escape attempt, and the pain rate it met.
+    pub(crate) in_pain: Option<(bool, f32)>,
     pub(crate) act: Box<dyn Activation>,
     pub(crate) fatigue: Fatigue,
     pub(crate) tm: ThoughtMomentum,
@@ -245,6 +248,7 @@ impl Brain {
         Self {
             curiosity: Curiosity::new(config.curiosity.clone()),
             affect: Affect::new(config.affect.clone()),
+            in_pain: None,
             act: build_activation(config.g_shape, config.alpha, config.g_k),
             fatigue: Fatigue::default(),
             tm: ThoughtMomentum::new(config.tm_k, config.tm_tau),
@@ -374,12 +378,35 @@ impl Brain {
         self.learn(obs, tools);
         self.observe_memory();
         let s = self.sense(obs);
+        let pain = pain_rate(obs.damage_taken, s.dt);
+        self.score_escape(pain);
         let triggered = self.run_triggers(obs, tools);
         self.observe_memory();
         let d = self.choose(obs, cands, &s, tools);
+        self.note_escape(pain);
         self.log.triggered = triggered;
         self.fill_state(obs, &s, cands);
         d
+    }
+
+    /// Learned control (01 §1.2, #64): the decision taken in pain last
+    /// time earns relief if the pain rate (damage per tick) has fallen.
+    fn score_escape(&mut self, pain: f32) {
+        if let Some((fled, before)) = self.in_pain.take() {
+            self.affect.observe_control(fled, pain < before);
+        }
+    }
+
+    /// Remember a decision taken in pain and whether it was an escape
+    /// attempt: fleeing or digging in (01 §1.2, #64).
+    fn note_escape(&mut self, pain: f32) {
+        if pain > 0.0 {
+            let fled = self
+                .pending
+                .as_ref()
+                .is_some_and(|p| matches!(p.skill, Some(Skill::Flee | Skill::Shelter)));
+            self.in_pain = Some((fled, pain));
+        }
     }
 
     /// Refresh ρ from the memory store after it changed (01 §4.7, #61).
@@ -394,6 +421,12 @@ impl Brain {
             p.outcome = Some(out);
         }
     }
+}
+
+/// Damage per tick since the last decision: the pain rate learned control
+/// compares across decisions (01 §1.2, #64).
+pub(crate) fn pain_rate(damage: f32, dt: u64) -> f32 {
+    damage / dt as f32
 }
 
 #[cfg(test)]

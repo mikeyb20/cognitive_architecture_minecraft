@@ -129,9 +129,15 @@ pub const THREAT_SCALE: f32 = 8.0;
 pub const LAVA_NEAR: f32 = 1.5;
 pub const LAVA_THREAT: f32 = 0.5;
 
-/// `clamp(Σ_hostile e^(−d/8) + lava_near + fall_risk, 0, 1)` (spec §5).
-/// The sim has no falls, so fall risk is 0 until the Minecraft adapter
-/// reports it.
+/// Pain's weight in threat (#63, proposed): damage since the last decision,
+/// as a share of full health, times this. 0.01 (a fifth of a heart in
+/// Minecraft) reads as threat 1.
+pub const PAIN_THREAT: f32 = 100.0;
+
+/// `clamp(Σ_hostile e^(−d/8) + lava_near + fall_risk + k_pain·damage, 0, 1)`
+/// (spec §5; pain since #63). Pain counts sheltered or not: a hurt with no
+/// visible cause is still a threat. The sim has no falls, so fall risk is 0
+/// until the Minecraft adapter reports it.
 pub fn threat(obs: &Observation) -> f32 {
     let mut t = 0.0;
     for s in &obs.visible {
@@ -145,6 +151,7 @@ pub fn threat(obs: &Observation) -> f32 {
             _ => {}
         }
     }
+    t += PAIN_THREAT * obs.damage_taken;
     f32::clamp(t, 0.0, 1.0)
 }
 
@@ -280,6 +287,45 @@ mod tests {
         let mut safe = obs(vec![seen("entity:zombie", z, 1.0)]);
         safe.sheltered = true;
         assert_eq!(threat(&safe), 0.0, "hostiles can't reach a sheltered agent");
+    }
+
+    fn hurt(damage: f32) -> Observation {
+        Observation {
+            damage_taken: damage,
+            ..obs(vec![])
+        }
+    }
+
+    #[test]
+    fn pain_is_threat_by_hand() {
+        // #63: k_pain · damage, added to the rest and clamped.
+        assert_eq!(PAIN_THREAT, 100.0);
+        assert!((threat(&hurt(0.003)) - 0.3).abs() < 1e-6);
+        assert_eq!(threat(&hurt(0.01)), 1.0);
+        assert_eq!(threat(&hurt(0.1)), 1.0, "clamped");
+        let mut both = hurt(0.002);
+        both.visible = vec![seen("block:lava", SeenKind::Block, 1.0)];
+        assert!((threat(&both) - (LAVA_THREAT + 0.2)).abs() < 1e-6);
+        let mut sheltered = hurt(0.004);
+        sheltered.sheltered = true;
+        assert!((threat(&sheltered) - 0.4).abs() < 1e-6, "pain gets in");
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn threat_stays_in_range_and_rises_with_pain(
+            damage in 0.0f32..=1.0,
+            more in 0.0f32..=0.1,
+            d in 0.0f32..=20.0,
+        ) {
+            let z = SeenKind::Entity { hostile: true };
+            let mut o = hurt(damage);
+            o.visible = vec![seen("entity:zombie", z, d)];
+            let t = threat(&o);
+            proptest::prop_assert!((0.0..=1.0).contains(&t));
+            o.damage_taken += more;
+            proptest::prop_assert!(threat(&o) >= t);
+        }
     }
 
     #[test]
