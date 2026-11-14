@@ -40,10 +40,14 @@ Needs a Minecraft Java 1.21.11 server you can join (a LAN world works). Two term
 #    MC_HOST, MC_PORT, MC_USER and LINK_PORT override the defaults.
 cd bot && npm ci && MC_HOST=localhost MC_PORT=25565 npm start
 
-# 2. The runner drives it: arm a (behaviour tree), b (LLM loop) or bn (LLM + novelty).
+# 2. The runner drives it: arm a (behaviour tree), b (LLM loop), bn (LLM + novelty)
+#    or c (the curiosity brain with the sim's code tools; --seed N, no LLM).
 set -a; . ./.env; set +a; mkdir -p runs   # keys stay in your local .env
 cargo run -p runner -- mc b --tier local --decisions 200 --log runs/mc-b.jsonl
+cargo run -p runner -- mc c --seed 1 --decisions 200 --log runs/mc-c.jsonl
 ```
+
+`MC_VERSION` overrides the pinned game version for a test server that runs another version.
 
 `--tier local` uses Ollama (`OLLAMA_BASE_URL`); `cheap` and `strong` need `ANTHROPIC_API_KEY`. Add `--cache runs/llm.jsonl` to record LLM replies and `--replay` to rerun from them without calls.
 

@@ -8,6 +8,7 @@ use std::sync::mpsc::{Receiver, channel};
 use std::thread;
 
 use baselines::ArmA;
+use cognitive_core::agent::{Brain, BrainConfig};
 use host_api::link::BotConfig;
 use host_api::reflex::ReflexThresholds;
 use host_api::{
@@ -16,7 +17,7 @@ use host_api::{
 };
 use minecraft::McParams;
 use runner::FULL;
-use runner::mc::{Link, LinkError, McHost, run};
+use runner::mc::{BrainCounts, Link, LinkError, McHost, McStep, run, run_brain};
 use serde_json::{Value, json};
 
 /// A fake bot: answers with `reply(request)`; `None` hangs up.
@@ -216,6 +217,148 @@ fn the_loop_uses_reflexes_and_the_arm() {
     let (reflex, chosen) = chose.unwrap();
     assert!(!reflex);
     assert!(chosen.is_some());
+}
+
+/// The brain on a fake bot for `n` decisions: counts, steps, waits.
+fn brain_run(seen: Observation, n: u32) -> (BrainCounts, Vec<McStep>, u32, Brain) {
+    let (addr, _got) = good_bot(seen);
+    let mut h = connect(&addr).unwrap();
+    let mut brain = Brain::new(BrainConfig::default(), 7);
+    let (mut steps, mut waits) = (Vec::new(), 0);
+    let counts = run_brain(
+        &mut h,
+        &mut brain,
+        n,
+        ReflexThresholds::default(),
+        || waits += 1,
+        |s| steps.push(s.clone()),
+    );
+    (counts, steps, waits, brain)
+}
+
+#[test]
+fn the_brain_drives_the_bot() {
+    let (counts, steps, waits, brain) = brain_run(obs(&[]), 40);
+    assert_eq!(counts.decisions(), 40);
+    assert_eq!(steps.len(), 40);
+    assert_eq!(counts.reflexes, 0);
+    assert!(counts.acts > 0, "{counts:?}");
+    assert_eq!(waits, counts.thoughts + counts.idle, "the game moves on");
+    let acted = steps.iter().filter(|s| s.chosen.is_some()).count();
+    assert_eq!(acted as u32, counts.acts);
+    for s in &steps {
+        assert!(!s.reflex && s.llm.is_none());
+        assert_eq!(s.chosen.is_some(), s.outcome.is_some());
+    }
+    assert!(!brain.memory().is_empty(), "outcomes reach the brain");
+}
+
+#[test]
+fn outcomes_reach_the_brain() {
+    let run_with = |success: bool| {
+        let (addr, _got) = bot(move |req| {
+            Some(match req["op"].as_str().unwrap() {
+                "hello" => json!({"reply": "ready", "names": []}).to_string(),
+                "perceive" => observed(&obs(&[])),
+                _ => done(success),
+            })
+        });
+        let mut h = connect(&addr).unwrap();
+        let mut brain = Brain::new(BrainConfig::default(), 7);
+        run_brain(
+            &mut h,
+            &mut brain,
+            40,
+            ReflexThresholds::default(),
+            || {},
+            |_| {},
+        );
+        (brain.c(), brain.v(), brain.memory().len())
+    };
+    assert_ne!(
+        run_with(true),
+        run_with(false),
+        "success and failure differ"
+    );
+}
+
+#[test]
+fn the_cli_runs_the_brain_on_a_bot() {
+    let (addr, got) = good_bot(obs(&[]));
+    let log = std::env::temp_dir().join(format!("mc-c-{}.jsonl", std::process::id()));
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_runner"))
+        .args([
+            "mc",
+            "c",
+            "--seed",
+            "2",
+            "--decisions",
+            "4",
+            "--addr",
+            &addr,
+        ])
+        .arg("--log")
+        .arg(&log)
+        .output()
+        .expect("runner should start");
+    let text = String::from_utf8(out.stdout).unwrap();
+    assert!(out.status.success(), "{text}");
+    assert!(text.contains("link error: None"), "{text}");
+    let rows = std::fs::read_to_string(&log).unwrap();
+    assert_eq!(rows.lines().count(), 4);
+    assert_eq!(got.recv().unwrap()["op"], "hello");
+    std::fs::remove_file(log).unwrap();
+}
+
+#[test]
+fn reflexes_come_before_the_brain() {
+    let mut weak = obs(&[]);
+    weak.health = 0.1;
+    weak.visible.push(Seen {
+        thing: ThingId("entity:zombie".into()),
+        kind: SeenKind::Entity { hostile: true },
+        pos: Pos { x: 2, y: 64, z: 0 },
+        distance: 2.0,
+    });
+    let (counts, steps, waits, _) = brain_run(weak, 3);
+    let want = BrainCounts {
+        reflexes: 3,
+        ..BrainCounts::default()
+    };
+    assert_eq!(counts, want);
+    assert_eq!(counts.decisions(), 3);
+    assert_eq!(waits, 0);
+    assert!(steps.iter().all(|s| s.reflex && s.outcome.is_some()));
+    assert_eq!(steps[0].chosen.as_ref().unwrap().skill, Skill::Flee);
+}
+
+#[test]
+fn the_brain_stops_on_a_broken_link() {
+    let mut n = 0;
+    let (addr, _got) = bot(move |req| {
+        n += 1;
+        match (n, req["op"].as_str().unwrap()) {
+            (1, _) => Some(json!({"reply": "ready", "names": []}).to_string()),
+            (2, _) => Some(observed(&obs(&[]))),
+            _ => None,
+        }
+    });
+    let mut h = connect(&addr).unwrap();
+    let mut brain = Brain::new(BrainConfig::default(), 0);
+    let counts = run_brain(
+        &mut h,
+        &mut brain,
+        5,
+        ReflexThresholds::default(),
+        || {},
+        |_| {},
+    );
+    assert_eq!(
+        counts.decisions(),
+        1,
+        "the failed look still counts as one pass"
+    );
+    assert_eq!(h.error, Some(LinkError::Closed));
 }
 
 #[test]

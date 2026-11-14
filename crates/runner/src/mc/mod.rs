@@ -1,11 +1,14 @@
 //! Runs an arm in Minecraft (spec §22, §26): the runner decides, the bot
 //! acts. Each decision: perceive → candidates (with player commands) →
-//! emergency reflex (#42) or the arm's choice → execute on the bot.
+//! emergency reflex (#42) or the arm's choice → execute on the bot. Arms A,
+//! B and B+N choose through `Policy`; the brain (arm C) runs in `run_brain`.
 
+mod brain;
 mod host;
 mod link;
 mod setup;
 
+pub use brain::{BrainCounts, run_brain};
 pub use host::McHost;
 pub use link::{Link, LinkError};
 pub use setup::{McArm, arm, provider, tier};

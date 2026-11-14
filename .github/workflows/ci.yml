@@ -88,14 +88,16 @@ jobs:
       # survives every test. Equivalent mutants are listed in
       # .cargo/mutants.toml with reasons. Memory and disk are printed once a
       # minute alongside, so if the runner is lost the log shows what the
-      # machine looked like just before.
+      # machine looked like just before. The 300 s test timeout must exceed
+      # one clean run of the slowest package's tests: runner's take ~120 s on
+      # CI, so a 120 s timeout failed the unmutated baseline (PR #70).
       - name: cargo mutants
         run: |
           while true; do
             echo "[resources] $(date -u +%T) $(free -m | awk '/Mem/{print "mem_used_mb=" $3, "mem_avail_mb=" $7}') $(df -m / | awk 'NR==2{print "disk_free_mb=" $4}')"
             sleep 60
           done &
-          cargo mutants --in-diff pr.diff --no-shuffle -j 2 --timeout 120 --shard ${{ matrix.shard }}/4
+          cargo mutants --in-diff pr.diff --no-shuffle -j 2 --timeout 300 --shard ${{ matrix.shard }}/4
 
   bot:
     name: bot (tsc, tests, coverage, mutation)
