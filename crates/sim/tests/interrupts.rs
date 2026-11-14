@@ -117,3 +117,49 @@ fn only_a_bout_starting_interrupts() {
     let o = w.execute(&at(Skill::MoveTo, 34, 24), FULL);
     assert_eq!((o.success, o.duration_ticks), (true, 20));
 }
+
+// ---------- danger (sim audit 14 Nov 2026, fix 3) ----------
+
+/// Night on a flat plain, a tree to chop next to the agent and a zombie
+/// `d` tiles east.
+fn night_chop(d: i32) -> SimWorld {
+    let mut w = flat();
+    w.tick = 1200;
+    w.map.set(p(23, 24), Tile::Tree { chops_left: 3 });
+    zombie(&mut w, 24 + d, 24);
+    w
+}
+
+#[test]
+fn a_hostile_coming_near_cuts_a_calm_action_short() {
+    // 9 tiles out it steps in at once, then every 6 ticks: within 6 (the
+    // threat range) at tick 13 of a 30-tick chop.
+    let mut w = night_chop(9);
+    assert!(!w.in_danger());
+    let o = w.execute(&at(Skill::Chop, 23, 24), FULL);
+    cut(&o, 13);
+    assert!(w.in_danger());
+    assert_eq!(w.body.inv.count("oak_log"), 0);
+    // Chosen again with the zombie in view, the chop runs in full.
+    let o = w.execute(&at(Skill::Chop, 23, 24), FULL);
+    assert_eq!((o.success, o.duration_ticks), (true, 30), "{o:?}");
+}
+
+#[test]
+fn danger_already_near_or_a_shelter_does_not_interrupt() {
+    let mut w = night_chop(6);
+    assert!(w.in_danger());
+    let o = w.execute(&at(Skill::Chop, 23, 24), FULL);
+    assert_eq!((o.success, o.duration_ticks), (true, 30), "{o:?}");
+    // In a hut, a zombie walking up is no danger.
+    let mut w = night_chop(9);
+    w.map.set(p(24, 24), Tile::Shelter);
+    assert!(!w.in_danger());
+    let o = w.execute(&act(Skill::Rest, None), FULL);
+    assert!(o.success && o.duration_ticks > 13, "{o:?}");
+    // A pig is no danger either.
+    let mut w = flat();
+    let t = w.tick;
+    w.mobs.push(Mob::new(MobKind::Pig, p(25, 24), t));
+    assert!(!w.in_danger());
+}
