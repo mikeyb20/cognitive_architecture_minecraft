@@ -26,6 +26,8 @@ fn only_decisions_in_pain_are_scored() {
     assert_eq!(b.in_pain, Some((true, 0.005)));
     decided(&mut b, Some(Skill::Explore), 0.005);
     assert_eq!(b.in_pain, Some((false, 0.005)));
+    decided(&mut b, Some(Skill::Shelter), 0.005);
+    assert_eq!(b.in_pain, Some((true, 0.005)), "digging in is an escape");
     b.pending = None;
     b.note_escape(0.005);
     assert_eq!(b.in_pain, Some((false, 0.005)), "no action is no escape");

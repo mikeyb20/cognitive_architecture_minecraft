@@ -397,13 +397,14 @@ impl Brain {
         }
     }
 
-    /// Remember a decision taken in pain and whether it was an escape.
+    /// Remember a decision taken in pain and whether it was an escape
+    /// attempt: fleeing or digging in (01 §1.2, #64).
     fn note_escape(&mut self, pain: f32) {
         if pain > 0.0 {
             let fled = self
                 .pending
                 .as_ref()
-                .is_some_and(|p| p.skill == Some(Skill::Flee));
+                .is_some_and(|p| matches!(p.skill, Some(Skill::Flee | Skill::Shelter)));
             self.in_pain = Some((fled, pain));
         }
     }
