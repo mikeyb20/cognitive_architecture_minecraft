@@ -5,6 +5,7 @@
 
 pub mod habituation;
 pub mod matching;
+pub mod triadic;
 
 /// One measured signature and whether the model shows it.
 #[derive(Debug, Clone, PartialEq)]
@@ -18,7 +19,7 @@ pub struct Check {
 
 /// Benchmark ids, in report order.
 pub fn ids() -> Vec<&'static str> {
-    vec![matching::ID, habituation::ID]
+    vec![matching::ID, habituation::ID, triadic::ID]
 }
 
 /// Run one benchmark by id over `seeds` seeds (benchmarks spec v0.1).
@@ -26,6 +27,7 @@ pub fn run(id: &str, seeds: u64) -> Option<Vec<Check>> {
     match id {
         matching::ID => Some(matching::checks(seeds)),
         habituation::ID => Some(habituation::checks()),
+        triadic::ID => Some(triadic::checks(seeds)),
         _ => None,
     }
 }
@@ -101,6 +103,6 @@ mod tests {
     #[test]
     fn unknown_id_is_none() {
         assert!(run("nope", 1).is_none());
-        assert_eq!(ids(), vec!["matching", "habituation"]);
+        assert_eq!(ids(), vec!["matching", "habituation", "triadic"]);
     }
 }

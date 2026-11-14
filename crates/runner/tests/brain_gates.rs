@@ -202,8 +202,8 @@ fn golden_trace_is_stable() {
 /// things. Change only on a deliberate behaviour change.
 #[test]
 fn golden_commanded_run_counts_reflexes_and_new_things() {
-    // Seed 4 since danger interrupts actions (14 Nov sim audit): seeds 0–3
-    // now run without a reflex.
+    // Seed 4 since danger interrupts actions (14 Nov sim audit): seeds 1–3
+    // now run without a reflex, and seed 4 is the shortest run that does.
     let (_, r) = run("commanded", 4, Brain::new(BrainConfig::default(), 4));
     let got = (r.decisions, r.idle, r.thoughts, r.reflexes, r.new_things);
     assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");

@@ -31,6 +31,10 @@ fn affect_defaults_match_spec_12() {
         (p.v_rate, p.d_threshold, p.d_rise, p.d_recover),
         (0.2, -0.3, 0.01, 0.0005)
     );
+    // Learned control (01 §1.2, #64): off by default, rates proposed.
+    let c = &p.control;
+    assert!(!c.enabled);
+    assert_eq!((c.rate, c.pain_gain, c.recover), (0.2, 20.0, 0.005));
 }
 
 #[test]
@@ -114,6 +118,9 @@ fn signal_weights_match_spec_5() {
         ),
         (0.40, 0.30, -0.20, -0.40, -0.30, 0.20)
     );
+    // Threat's own scales (spec §5; pain since #63).
+    use cognitive_core::activation::signals::{LAVA_THREAT, PAIN_THREAT, THREAT_SCALE};
+    assert_eq!((THREAT_SCALE, LAVA_THREAT, PAIN_THREAT), (8.0, 0.5, 100.0));
 }
 
 #[test]
