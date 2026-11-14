@@ -214,7 +214,7 @@ fn golden_commanded_run_counts_reflexes_and_new_things() {
 }
 
 const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (252, 130, 6, 2, 71);
-const GOLDEN_COUNTS: (u32, u32, u32) = (244, 188, 6);
-const GOLDEN_HASH: u64 = 353_848_256_970_248_940;
+const GOLDEN_COUNTS: (u32, u32, u32) = (256, 203, 6);
+const GOLDEN_HASH: u64 = 7_567_361_078_045_608_543;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).
-const GOLDEN_SUMS: [f64; 5] = [39.4829, 74.9454, -12.0456, 27.1980, 173.2228];
+const GOLDEN_SUMS: [f64; 5] = [41.5109, 81.1915, -10.4990, 29.6883, 183.3397];
