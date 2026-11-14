@@ -9,14 +9,11 @@ use super::{Ctx, Handler, Out};
 use crate::geom::{cheb, dist, square};
 use crate::world::{Reach, SimWorld};
 
-/// How close a hostile must be to offer flee and fight, in tiles.
-pub(crate) const THREAT_RANGE: i32 = 6;
-
 pub(crate) struct Threats;
 
 impl Handler for Threats {
     fn candidates(&self, w: &SimWorld, cx: &Ctx, out: &mut Out) {
-        let Some(i) = w.nearest_mob(|m| m.kind.hostile(), THREAT_RANGE) else {
+        let Some(i) = w.nearest_mob(|m| m.kind.hostile(), w.rules.threat_range) else {
             if w.in_shock_bout() {
                 lever(w, cx, out);
             }
