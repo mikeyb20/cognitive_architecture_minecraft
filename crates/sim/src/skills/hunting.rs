@@ -1,6 +1,6 @@
 //! Attack a mob: pigs for food, or a hostile (offered by `threats`).
 
-use host_api::{Candidate, Intensity, Skill, Target, TaskType, World};
+use host_api::{Candidate, Intensity, Skill, Target, TaskType};
 use rand::Rng;
 
 use super::{BLOCKED, Ctx, Exec, Handler, Out, target_pos};
@@ -47,8 +47,7 @@ impl Handler for Hunting {
             if !w.walk_to(at, true, it.effort) {
                 return (false, 0.0, w.alive());
             }
-            w.step_world(w.rules.swing_ticks);
-            if !w.alive() {
+            if !w.wait(w.rules.swing_ticks) {
                 return (false, 0.0, false);
             }
             // The mob list may have changed (despawns); find it again.

@@ -3,7 +3,7 @@
 
 use std::collections::VecDeque;
 
-use host_api::{Pos, World};
+use host_api::Pos;
 
 use super::{PATH_RADIUS, SimWorld};
 use crate::geom::{cheb, neighbours4, offset, ring, square};
@@ -158,8 +158,7 @@ impl SimWorld {
         let per = self.tile_ticks(effort);
         for p in path {
             self.enter(p);
-            self.step_world(per);
-            if !self.alive() {
+            if !self.wait(per) {
                 return false;
             }
         }

@@ -11,9 +11,9 @@
 //!   `--out`, writes `<OQ>.md` and `<OQ>.csv` there.
 //! - `runner theory <ID|all> [--seeds N] [--out DIR]`: a theory test (spec
 //!   §29, step 5d), printed and written the same way.
-//! - `runner bench <matching|habituation|all> [--seeds N] [--out DIR]`:
-//!   psychology benchmarks B1–B2 (matching law, habituation), printed and
-//!   written the same way.
+//! - `runner bench <matching|habituation|triadic|all> [--seeds N] [--out DIR]`:
+//!   psychology benchmarks B1–B3 (matching law, habituation, triadic
+//!   helplessness), printed and written the same way.
 //! - `runner run --experiment FILE [--seeds N] [--out DIR]`: arms ×
 //!   scenarios × seeds from `configs/experiments` (spec §26, plan §5).
 //! - `runner mc <a|b|bn> [--tier local|cheap|strong] [--addr HOST:PORT]

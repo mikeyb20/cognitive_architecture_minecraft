@@ -139,7 +139,13 @@ impl Brain {
         for (i, c) in cands.iter().enumerate() {
             let forced = c.commanded || (threatened && c.skill == Skill::Flee);
             let need = self.need_push(obs, c, felt);
-            let push = if forced { 1.0 } else { need };
+            let push = if c.commanded {
+                1.0
+            } else if forced {
+                self.affect.flee_push()
+            } else {
+                need
+            };
             let mut sc = self.scored(Choice::External(i), fi.external(c), push);
             sc.need = need;
             sc.shown = self.shown_bonus(obs, c);

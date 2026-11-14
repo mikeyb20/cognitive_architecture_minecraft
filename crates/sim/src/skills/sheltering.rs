@@ -1,7 +1,7 @@
 //! Build a shelter, walk to one, and rest in it (spec §21: rest in a shelter
 //! at night counts as sleep).
 
-use host_api::{Candidate, Intensity, Pos, Skill, Target, TaskType, World};
+use host_api::{Candidate, Intensity, Pos, Skill, Target, TaskType};
 
 use super::{BLOCKED, Ctx, Exec, Handler, Out};
 use crate::craft;
@@ -68,8 +68,10 @@ impl Handler for Sheltering {
             (None, Some(t)) => t,
             (None, None) => return BLOCKED,
         };
-        w.step_world(ticks);
-        if !w.alive() {
+        if !w.wait(ticks) {
+            if let Some(b) = blocks {
+                craft::give(&mut w.body.inv, b, BLOCKS_PER_SHELTER);
+            }
             return (false, 0.0, false);
         }
         if let Some(b) = blocks {
@@ -129,6 +131,6 @@ fn rest(w: &mut SimWorld) -> Exec {
     } else {
         w.rules.rest_ticks
     };
-    w.step_world(ticks);
-    (true, 1.0, false)
+    let rested = w.wait(ticks);
+    (rested, if rested { 1.0 } else { 0.0 }, false)
 }

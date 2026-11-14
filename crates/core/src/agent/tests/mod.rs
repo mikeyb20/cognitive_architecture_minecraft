@@ -16,6 +16,7 @@ use crate::modes::{ModeNetwork, N_FEATURES};
 use host_api::{Candidate, Skill, Target, TaskType, ThingId};
 
 mod choice;
+mod control;
 mod learning;
 mod teaching;
 mod thinking;

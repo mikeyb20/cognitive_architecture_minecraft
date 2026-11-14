@@ -1,6 +1,6 @@
 //! Chop, mine and farm the nearest resource in view (spec §21 tech tree).
 
-use host_api::{Candidate, Intensity, Pos, Skill, Target, TaskType, World};
+use host_api::{Candidate, Intensity, Pos, Skill, Target, TaskType};
 
 use super::{BLOCKED, Ctx, Exec, Handler, Out, target_pos};
 use crate::craft;
@@ -67,8 +67,10 @@ impl Handler for Gathering {
         if !w.walk_to(goal, true, it.effort) {
             return (false, 0.0, w.alive());
         }
-        w.step_world(ticks);
-        if !w.alive() || !w.roll(it.focus) {
+        if !w.wait(ticks) {
+            return (false, 0.0, false);
+        }
+        if !w.roll(it.focus) {
             return (false, 0.5, false);
         }
         harvest(w, goal, tile);
