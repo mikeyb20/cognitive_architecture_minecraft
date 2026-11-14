@@ -127,12 +127,12 @@ impl Map {
                         30..33 => Tile::Stone,
                         _ => Tile::Grass,
                     },
-                    Biome::Hills => match r {
-                        0..45 => Tile::Stone,
-                        45..48 => Tile::IronOre,
-                        48..50 => Tile::Lava,
-                        _ => Tile::Grass,
-                    },
+                    // Hills are walkable slopes with rock outcrops: a quarter
+                    // blocked, so the open ground stays connected (2-D site
+                    // percolation needs > 59% open). At 50% blocked they were
+                    // a maze of pockets (sim audit, 14 Nov 2026); in
+                    // Minecraft a 1-block step is climbable.
+                    Biome::Hills => hill_tile(r),
                     Biome::Cave => match r {
                         0..30 => Tile::Stone,
                         30..38 => Tile::IronOre,
@@ -225,10 +225,51 @@ impl Map {
     }
 }
 
+/// A hills tile from a 0..100 roll (spec §21; sim audit 14 Nov 2026).
+fn hill_tile(r: u32) -> Tile {
+    match r {
+        0..20 => Tile::Stone,
+        20..23 => Tile::IronOre,
+        23..25 => Tile::Lava,
+        _ => Tile::Grass,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use rand::SeedableRng;
+
+    #[test]
+    fn hills_are_a_quarter_rock_and_stay_open() {
+        // 20% stone, 3% ore, 2% lava: about 25% blocked, well under the
+        // 41% at which 4-way open ground stops percolating.
+        let (mut blocked, mut all) = (0u32, 0u32);
+        for seed in 0..8 {
+            let m = Map::generate(96, 3, &mut ChaCha8Rng::seed_from_u64(seed));
+            for z in 0..96 {
+                for x in 0..96 {
+                    let q = Pos { x, y: 0, z };
+                    if m.biome(q) == Biome::Hills {
+                        all += 1;
+                        blocked += u32::from(!m.get(q).walkable());
+                    }
+                }
+            }
+        }
+        let share = f64::from(blocked) / f64::from(all);
+        assert!(
+            all > 5000 && (0.22..0.28).contains(&share),
+            "{share} of {all}"
+        );
+        let only = hill_tile;
+        assert_eq!(only(19), Tile::Stone);
+        assert_eq!(only(20), Tile::IronOre);
+        assert_eq!(only(22), Tile::IronOre);
+        assert_eq!(only(23), Tile::Lava);
+        assert_eq!(only(24), Tile::Lava);
+        assert_eq!(only(25), Tile::Grass);
+    }
 
     #[test]
     fn same_seed_same_map() {
