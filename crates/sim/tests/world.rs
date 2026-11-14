@@ -97,15 +97,21 @@ fn food_floor_is_zero() {
 
 #[test]
 fn night_spawns_zombies_in_a_ring_up_to_the_cap() {
-    let mut w = flat_with(Rules {
-        night_spawn: 1.0,
-        ..exact()
-    });
+    // A plain big enough for the whole 24–40 ring.
+    let mut w = SimWorld::with_map(
+        Rules {
+            night_spawn: 1.0,
+            ..exact()
+        },
+        1,
+        Map::filled(96, Tile::Grass, Biome::Plains),
+        p(48, 48),
+    );
     w.tick = 1200;
     w.step_world(1);
     assert_eq!(w.mobs.len(), 1);
     let d = sim::geom::cheb(w.mobs[0].pos, w.body.pos);
-    assert!((6..=12).contains(&d), "spawned {d} tiles away");
+    assert!((24..=40).contains(&d), "spawned {d} tiles away");
     assert_eq!(w.mobs[0].kind, MobKind::Zombie);
     w.step_world(30);
     assert_eq!(w.mobs.len(), 6, "max_hostiles");
@@ -123,7 +129,7 @@ fn no_spawns_by_day_outside_caves() {
 
 #[test]
 fn caves_spawn_by_day() {
-    let mut map = Map::filled(48, Tile::CaveFloor, Biome::Cave);
+    let mut map = Map::filled(96, Tile::CaveFloor, Biome::Cave);
     map.set_biome(p(0, 0), Biome::Plains);
     let mut w = SimWorld::with_map(
         Rules {
@@ -132,7 +138,7 @@ fn caves_spawn_by_day() {
         },
         1,
         map,
-        p(24, 24),
+        p(48, 48),
     );
     w.step_world(1);
     assert_eq!(w.mobs.len(), 1);
@@ -517,29 +523,34 @@ fn path_search_reaches_exactly_twenty_tiles() {
 }
 
 #[test]
-fn zombies_spawn_all_around_between_6_and_12_tiles() {
+fn zombies_spawn_all_around_between_24_and_40_tiles() {
     // Mobs are frozen after their first step, which comes in the tick they
-    // spawn: a zombie spawned 6–12 tiles out is found 5–12 tiles out (a
-    // diagonal step-in on one axis can leave it at 12).
-    let mut fresh = flat_with(Rules {
-        night_spawn: 1.0,
-        max_hostiles: 1000,
-        mob_move_ticks: 1_000_000,
-        ..exact()
-    });
+    // spawn: a zombie spawned 24–40 tiles out is found 23–40 tiles out (a
+    // diagonal step-in on one axis can leave it at 40).
+    let mut fresh = SimWorld::with_map(
+        Rules {
+            night_spawn: 1.0,
+            max_hostiles: 1000,
+            mob_move_ticks: 1_000_000,
+            ..exact()
+        },
+        1,
+        Map::filled(96, Tile::Grass, Biome::Plains),
+        p(48, 48),
+    );
     fresh.tick = 1200;
     fresh.step_world(400);
     let rel: Vec<(i32, i32)> = fresh
         .mobs
         .iter()
-        .map(|m| (m.pos.x - 24, m.pos.z - 24))
+        .map(|m| (m.pos.x - 48, m.pos.z - 48))
         .collect();
     let ring: Vec<i32> = rel.iter().map(|(x, z)| x.abs().max(z.abs())).collect();
     assert!(
-        ring.contains(&5) && ring.contains(&12),
+        ring.contains(&23) && ring.contains(&39),
         "both ends of the ring: {ring:?}"
     );
-    assert!(ring.iter().all(|r| (5..=12).contains(r)), "{ring:?}");
+    assert!(ring.iter().all(|r| (23..=40).contains(r)), "{ring:?}");
     for (sx, sz) in [(1, 1), (1, -1), (-1, 1), (-1, -1)] {
         assert!(
             rel.iter()
@@ -583,31 +594,31 @@ fn pigs_wander_every_way_and_never_chase() {
 }
 
 #[test]
-fn zombies_lose_interest_beyond_16_tiles() {
+fn zombies_lose_interest_beyond_40_tiles() {
     let mut caught = 0;
     for seed in 0..8 {
         let mut w = SimWorld::with_map(
             exact(),
             seed,
-            Map::filled(48, Tile::Grass, Biome::Plains),
-            p(4, 24),
+            Map::filled(96, Tile::Grass, Biome::Plains),
+            p(4, 48),
         );
         w.tick = 1200;
-        zombie(&mut w, 21, 24);
+        zombie(&mut w, 45, 48);
         w.step_world(1);
-        caught += usize::from(w.mobs[0].pos == p(20, 24));
+        caught += usize::from(w.mobs[0].pos == p(44, 48));
     }
-    assert!(caught < 8, "17 tiles away it wanders");
+    assert!(caught < 8, "41 tiles away it wanders");
     let mut w = SimWorld::with_map(
         exact(),
         1,
-        Map::filled(48, Tile::Grass, Biome::Plains),
-        p(4, 24),
+        Map::filled(96, Tile::Grass, Biome::Plains),
+        p(4, 48),
     );
     w.tick = 1200;
-    zombie(&mut w, 20, 24);
+    zombie(&mut w, 44, 48);
     w.step_world(1);
-    assert_eq!(w.mobs[0].pos, p(19, 24), "16 tiles away it chases");
+    assert_eq!(w.mobs[0].pos, p(43, 48), "40 tiles away it chases");
 }
 
 #[test]

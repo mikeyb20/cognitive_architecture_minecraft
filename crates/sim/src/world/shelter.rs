@@ -15,10 +15,10 @@ use crate::map::Tile;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ShelterTest {
     /// No hostile has a path to the agent: the tiles a mob could walk to
-    /// the agent from all lie closer than `spawn_min`, so nothing spawns
+    /// the agent from all lie closer than `shelter_radius`, so nothing spawns
     /// among them, and none holds a hostile.
     pub enclosed: bool,
-    /// The agent can walk out (through a door) as far as `spawn_min`, into
+    /// The agent can walk out (through a door) as far as `shelter_radius`, into
     /// the open world.
     pub exit: bool,
 }
@@ -34,7 +34,7 @@ impl SimWorld {
     /// Run the shelter test where the agent stands (01 §4.11, #58).
     pub fn shelter_test(&self) -> ShelterTest {
         let me = self.body.pos;
-        let near = self.rules.spawn_min;
+        let near = self.rules.shelter_radius;
         let inside = self.flood(me, near, Tile::mob_walkable);
         let enclosed = inside.iter().all(|&(x, z)| cheb(pos(x, z), me) < near)
             && !self

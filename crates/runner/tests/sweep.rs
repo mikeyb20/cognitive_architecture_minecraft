@@ -372,10 +372,11 @@ fn affect_grid_scales_each_rate_by_its_label() {
 
 #[test]
 fn one_run_is_measured_and_every_scenario_is_listed() {
-    // Seed 1 lives through the night (seed 0 meets a mob at tick 1,542).
+    // Seed 0 lives through the night since spawns moved 24+ tiles out
+    // (14 Nov sim audit; seed 1, used before, now meets a mob at 2,313).
     // The run reaches the end; an action already under way finishes, so
     // the last tick can pass 2,400.
-    let r = run_one(&BrainConfig::default(), "first_night", 1);
+    let r = run_one(&BrainConfig::default(), "first_night", 0);
     assert!(r.survived && r.decisions > 0 && r.ticks >= 2400, "{r:?}");
     assert_eq!(all_scenarios(), sim::scenario::NAMES.to_vec());
 }

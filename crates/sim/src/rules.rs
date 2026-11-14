@@ -26,13 +26,21 @@ pub struct Rules {
     /// Hostile spawn chance per tick at night (outside) and in caves.
     pub night_spawn: f32,
     pub cave_spawn: f32,
-    /// Spawn ring around the agent, in tiles.
+    /// Spawn ring around the agent, in tiles. Minecraft spawns no hostile
+    /// within 24 blocks of a player (mob spawning, minecraft.wiki); 24–40
+    /// since the 14 Nov sim audit (was 6–12, results/mob-probe-2026-11-14).
     pub spawn_min: i32,
     pub spawn_max: i32,
+    /// How far the shelter test looks (01 §4.11, spec §21): an enclosure
+    /// must close within this many tiles, and the way out must reach it.
+    /// It was `spawn_min` (6) until spawns moved out; kept at 6 so the test
+    /// is unchanged.
+    pub shelter_radius: i32,
     /// Most hostiles alive at once.
     pub max_hostiles: usize,
     /// Hostiles move one tile every this many ticks, toward the agent within
-    /// `chase_radius`.
+    /// `chase_radius` (40: a zombie's follow range in Minecraft, Attribute
+    /// page; was 16).
     pub mob_move_ticks: u64,
     pub chase_radius: i32,
     /// Damage per hostile hit and ticks between hits.
@@ -93,11 +101,12 @@ impl Default for Rules {
             max_move: 8,
             night_spawn: 0.02,
             cave_spawn: 0.005,
-            spawn_min: 6,
-            spawn_max: 12,
+            spawn_min: 24,
+            spawn_max: 40,
+            shelter_radius: 6,
             max_hostiles: 6,
             mob_move_ticks: 6,
-            chase_radius: 16,
+            chase_radius: 40,
             mob_damage: 0.1,
             mob_hit_ticks: 20,
             meat_food: 0.3,
