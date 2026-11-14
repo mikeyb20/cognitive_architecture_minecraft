@@ -258,9 +258,9 @@ fn mc_host(args: &[String]) -> runner::mc::McHost {
 }
 
 /// The `--log FILE` writer, if asked for.
-fn mc_log(args: &[String]) -> Option<std::io::BufWriter<std::fs::File>> {
+fn mc_log(args: &[String]) -> Option<std::io::LineWriter<std::fs::File>> {
     flag(args, "--log").map(|p| {
-        std::io::BufWriter::new(std::fs::File::create(p).expect("cannot create the log file"))
+        std::io::LineWriter::new(std::fs::File::create(p).expect("cannot create the log file"))
     })
 }
 
