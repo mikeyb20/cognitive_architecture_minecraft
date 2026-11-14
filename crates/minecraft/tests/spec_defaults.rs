@@ -15,6 +15,7 @@ fn minecraft_host_defaults() {
         ),
         (8.0, 16, 24, 8)
     );
+    assert_eq!(p.day_ticks, 24_000);
     let m = PlaceParams::default();
     assert_eq!((m.max_per_thing, m.confirm_radius), (32, 4.0));
 }
