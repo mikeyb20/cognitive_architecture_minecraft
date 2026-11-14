@@ -36,7 +36,11 @@ pub struct Rules {
     /// It was `spawn_min` (6) until spawns moved out; kept at 6 so the test
     /// is unchanged.
     pub shelter_radius: i32,
-    /// Most hostiles alive at once.
+    /// Most hostiles alive at once. 10 since the sim audit fixes (14 Nov
+    /// 2026; was 6): with spawns 24+ tiles out and danger interrupts, a
+    /// wanderer that never shelters lived through 88 of 100 first nights at
+    /// 6, so the night no longer told sheltering from not (70 at 10).
+    /// Minecraft's monster cap is 70 for all loaded chunks.
     pub max_hostiles: usize,
     /// Hostiles move one tile every this many ticks, toward the agent within
     /// `chase_radius` (40: a zombie's follow range in Minecraft, Attribute
@@ -104,7 +108,7 @@ impl Default for Rules {
             spawn_min: 24,
             spawn_max: 40,
             shelter_radius: 6,
-            max_hostiles: 6,
+            max_hostiles: 10,
             mob_move_ticks: 6,
             chase_radius: 40,
             mob_damage: 0.1,
