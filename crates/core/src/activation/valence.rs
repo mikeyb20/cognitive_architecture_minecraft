@@ -13,6 +13,10 @@ pub struct AffectParams {
     pub d_rise: f32,
     /// D recovery rate: `D −= d_recover·D`.
     pub d_recover: f32,
+    /// DEF CHANGE F prototype: rate of the relief contingency estimates
+    /// (0 = off: κ stays 0 and D is as in 01 §1.2).
+    #[serde(default)]
+    pub control_rate: f32,
 }
 
 impl Default for AffectParams {
@@ -23,9 +27,16 @@ impl Default for AffectParams {
             d_threshold: -0.3,
             d_rise: 0.01,
             d_recover: 0.0005,
+            control_rate: F_RATE,
         }
     }
 }
+
+pub const F_RATE: f32 = 0.2;
+pub const F_STRESS: bool = true;
+pub const F_CTRL_RECOVER: f32 = 0.005;
+pub const F_PAIN: f32 = 20.0;
+pub const F2: bool = true;
 
 /// Inputs to V_target (spec §12).
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -44,6 +55,10 @@ pub struct Affect {
     pub params: AffectParams,
     v: f32,
     d: f32,
+    #[serde(default)]
+    relief_act: f32,
+    #[serde(default)]
+    relief_other: f32,
 }
 
 impl Affect {
@@ -52,6 +67,8 @@ impl Affect {
             params,
             v: 0.0,
             d: 0.0,
+            relief_act: 0.0,
+            relief_other: 0.0,
         }
     }
 
@@ -61,6 +78,26 @@ impl Affect {
 
     pub fn d(&self) -> f32 {
         self.d
+    }
+
+    /// DEF CHANGE F prototype: perceived control κ = ΔP, the relief rate
+    /// after own escape attempts minus after anything else, floored at 0.
+    pub fn kappa(&self) -> f32 {
+        (self.relief_act - self.relief_other).clamp(0.0, 1.0)
+    }
+
+    /// Record one action taken in pain: was it an escape attempt, and did
+    /// the pain ease by the next observation.
+    pub fn ests(&self) -> (f32, f32) {
+        (self.relief_act, self.relief_other)
+    }
+
+    pub fn observe_control(&mut self, escaped: bool, relief: bool) {
+        if std::env::var("FDBG").is_ok() { eprintln!("obs esc={escaped} relief={relief}"); }
+        let a = self.params.control_rate;
+        let r = f32::from(u8::from(relief));
+        let e = if escaped { &mut self.relief_act } else { &mut self.relief_other };
+        *e += a * (r - *e);
     }
 
     /// `V_target = clamp(0.6·R̄_20 − 0.3·threat − 0.5·damage + 0.2·mean(V_enc over TM), −1, 1)`
@@ -79,10 +116,13 @@ impl Affect {
     pub fn step(&mut self, x: ValenceInputs) {
         let p = &self.params;
         self.v = (self.v + p.v_rate * (Self::v_target(x) - self.v)).clamp(-1.0, 1.0);
-        if self.v < p.d_threshold {
-            self.d += p.d_rise * self.v.abs() * (1.0 - self.d);
+        let k = 1.0 - self.kappa();
+        let stress = if F_STRESS && p.control_rate > 0.0 { (x.damage * F_PAIN).min(1.0) } else { 0.0 };
+        if self.v < p.d_threshold || stress > 0.0 {
+            let drive = if self.v < p.d_threshold { self.v.abs() } else { 0.0 }.max(stress);
+            self.d += p.d_rise * drive * (1.0 - self.d) * k;
         } else {
-            self.d -= p.d_recover * self.d;
+            self.d -= (p.d_recover + F_CTRL_RECOVER * self.kappa()) * self.d;
         }
         self.d = self.d.clamp(0.0, 1.0);
     }

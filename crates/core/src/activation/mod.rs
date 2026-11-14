@@ -4,7 +4,7 @@
 mod curiosity;
 mod g;
 pub mod signals;
-mod valence;
+pub(crate) mod valence;
 
 pub use curiosity::{Curiosity, CuriosityParams};
 pub use g::{

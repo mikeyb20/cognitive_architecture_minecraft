@@ -158,6 +158,8 @@ pub struct Brain {
     pub(crate) rng: ChaCha8Rng,
     pub(crate) curiosity: Curiosity,
     pub(crate) affect: Affect,
+    /// DEF CHANGE F prototype: last decision taken in pain (fled, pain rate).
+    pub(crate) pain_probe: Option<(bool, f32)>,
     pub(crate) act: Box<dyn Activation>,
     pub(crate) fatigue: Fatigue,
     pub(crate) tm: ThoughtMomentum,
@@ -245,6 +247,7 @@ impl Brain {
         Self {
             curiosity: Curiosity::new(config.curiosity.clone()),
             affect: Affect::new(config.affect.clone()),
+            pain_probe: None,
             act: build_activation(config.g_shape, config.alpha, config.g_k),
             fatigue: Fatigue::default(),
             tm: ThoughtMomentum::new(config.tm_k, config.tm_tau),
@@ -374,9 +377,18 @@ impl Brain {
         self.learn(obs, tools);
         self.observe_memory();
         let s = self.sense(obs);
+        let rate = obs.damage_taken / s.dt as f32;
+        if std::env::var("FDBG").is_ok() && rate > 0.0 { eprintln!("t={} rate={rate} D={:.3} V={:.3} k={:.3} ests={:?}", obs.tick, self.affect.d(), self.affect.v(), self.affect.kappa(), self.affect.ests()); }
+        if let Some((fled, prev)) = self.pain_probe.take() {
+            self.affect.observe_control(fled, rate < prev);
+        }
         let triggered = self.run_triggers(obs, tools);
         self.observe_memory();
         let d = self.choose(obs, cands, &s, tools);
+        if rate > 0.0 {
+            let fled = self.pending.as_ref().is_some_and(|p| p.skill == Some(Skill::Flee));
+            self.pain_probe = Some((fled, rate));
+        }
         self.log.triggered = triggered;
         self.fill_state(obs, &s, cands);
         d
