@@ -72,6 +72,8 @@ pub struct SimWorld {
     pub mobs: Vec<Mob>,
     /// Shock bouts, if the scenario has them (benchmark B3).
     pub shock: Option<Shock>,
+    /// Something cut the current action short (a shock bout began, B3).
+    interrupted: bool,
     known: HashSet<String>,
     region_visits: Vec<u32>,
     pending_new: Vec<ThingId>,
@@ -96,6 +98,7 @@ impl SimWorld {
             },
             mobs: Vec::new(),
             shock: None,
+            interrupted: false,
             known: HashSet::new(),
             region_visits: Vec::new(),
             pending_new: Vec::new(),
@@ -509,6 +512,7 @@ impl Host for SimWorld {
 
     fn execute(&mut self, a: &Candidate, it: Intensity) -> Outcome {
         self.action_damage = 0.0;
+        self.interrupted = false;
         self.body.resting = false;
         let start_tick = self.tick;
         let before = self.body.inv.clone();
@@ -520,7 +524,9 @@ impl Host for SimWorld {
             self.step_world(1);
             (false, 0.0, true)
         } else {
-            let r = crate::skills::execute(self, a, it);
+            let mut r = crate::skills::execute(self, a, it);
+            // Cut short is not blocked: the action could have run.
+            r.2 &= !self.interrupted;
             if self.tick == start_tick {
                 // Every action takes time, so any loop of actions moves the
                 // world on.

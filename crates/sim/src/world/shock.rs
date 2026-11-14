@@ -116,6 +116,9 @@ impl SimWorld {
             };
             if due {
                 s.open = Some((t, 0));
+                // A bout's start stops what the agent is doing (#63), so it
+                // can choose the lever while the bout runs.
+                self.interrupted = true;
             }
         }
         let Some((start, dealt)) = s.open else {
@@ -138,6 +141,19 @@ impl SimWorld {
                 s.close();
             }
         }
+    }
+
+    /// Let up to `ticks` pass for the current action; stops early if the
+    /// agent dies or the action is interrupted (#63). Returns whether the
+    /// action may go on.
+    pub(crate) fn wait(&mut self, ticks: u32) -> bool {
+        for _ in 0..ticks {
+            if !self.alive() || self.interrupted {
+                break;
+            }
+            self.tick_once();
+        }
+        self.alive() && !self.interrupted
     }
 
     /// Whether a shock bout is running (fleeing is offered as the lever).

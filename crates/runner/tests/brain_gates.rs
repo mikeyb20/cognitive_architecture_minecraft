@@ -206,15 +206,15 @@ fn golden_trace_is_stable() {
 /// things. Change only on a deliberate behaviour change.
 #[test]
 fn golden_commanded_run_counts_reflexes_and_new_things() {
-    // Seed 5 since hills became walkable (14 Nov sim audit): seeds 0–4 now
-    // run without a reflex.
+    // Seed 5 since hills became walkable (14 Nov sim audit): seeds 1–4 no
+    // longer fire a reflex, and seed 5 is the shortest run that does.
     let (_, r) = run("commanded", 5, Brain::new(BrainConfig::default(), 5));
     let got = (r.decisions, r.idle, r.thoughts, r.reflexes, r.new_things);
     assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");
 }
 
 const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (252, 130, 6, 2, 71);
-const GOLDEN_COUNTS: (u32, u32, u32) = (252, 198, 6);
-const GOLDEN_HASH: u64 = 6_635_207_403_201_492_900;
+const GOLDEN_COUNTS: (u32, u32, u32) = (244, 188, 6);
+const GOLDEN_HASH: u64 = 353_848_256_970_248_940;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).
-const GOLDEN_SUMS: [f64; 5] = [41.7030, 69.8129, -9.1091, 28.7603, 180.1952];
+const GOLDEN_SUMS: [f64; 5] = [39.4829, 74.9454, -12.0456, 27.1980, 173.2228];

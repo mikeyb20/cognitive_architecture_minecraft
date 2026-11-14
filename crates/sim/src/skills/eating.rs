@@ -1,6 +1,6 @@
 //! Eat food in hand (spec §21).
 
-use host_api::{Candidate, Intensity, Skill, Target, TaskType, World};
+use host_api::{Candidate, Intensity, Skill, Target, TaskType};
 
 use super::{BLOCKED, Ctx, Exec, Handler, Out, target_item};
 use crate::craft;
@@ -41,7 +41,10 @@ impl Handler for Eating {
         if !craft::take(&mut w.body.inv, item, 1) {
             return BLOCKED;
         }
-        w.step_world(w.rules.eat_ticks);
+        if !w.wait(w.rules.eat_ticks) {
+            craft::give(&mut w.body.inv, item, 1);
+            return (false, 0.0, false);
+        }
         w.body.food = (w.body.food + v).min(1.0);
         (true, 1.0, false)
     }
