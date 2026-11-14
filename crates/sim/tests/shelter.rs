@@ -66,10 +66,10 @@ fn a_door_into_a_closed_pocket_is_no_way_out() {
 }
 
 #[test]
-fn a_room_must_be_smaller_than_the_spawn_distance() {
-    // Hostiles spawn at Chebyshev distance ≥ spawn_min (6) from the agent,
-    // so a room whose floor reaches 6 could have one spawn inside it.
-    let near = exact().spawn_min;
+fn a_room_must_close_within_the_shelter_radius() {
+    // The test looks out to shelter_radius (6): a room whose floor reaches
+    // 6 is not closed within it.
+    let near = exact().shelter_radius;
     assert_eq!(near, 6);
     let door = |r| Some(p(24 + r, 24));
     assert!(room(near, door(near)).shelter_test().passes(), "floor to 5");
