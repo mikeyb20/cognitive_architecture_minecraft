@@ -149,12 +149,42 @@ test("a home's door is crafted when needed; a failed step stops the build; a far
   d.remembered = P(0, 64, 0);
   d.calls = [];
   await go(d, req("shelter", null), new Set(), live());
-  assert.deepEqual(d.home(), P(0, 64, 0), "a known home is kept");
+  assert.deepEqual(d.home(), P(0, 64, 0), "a known home is kept the first time");
   assert.equal(d.calls.filter(([m]) => m === "dig").length, 1);
+  // Stuck at the same dig a second time: given up for the hole.
+  d.calls = [];
+  await go(d, req("shelter", null), new Set(), live());
+  assert.equal(d.home(), null, "stuck twice: given up");
+  assert.deepEqual(d.calls.slice(-3, -1), [
+    ["setHome", null],
+    ["dig", P(0, 63, 0)],
+  ]);
+  d.remembered = P(0, 64, 0);
   d.answers.delete("dig");
   d.answers.delete("place");
   d.answers.set("goto", false);
   assert.equal((await go(d, req("shelter", null), new Set(), live())).progress, 12 / 71);
+  // Stuck twice means the same home and the same dig. A new home stuck at its second dig is kept at first.
+  const g = new FakeBody();
+  g.inv.set("dirt", HOME_BLOCKS);
+  g.answers.set("dig", false);
+  g.names.set("-1,63,0", "dirt");
+  assert.equal((await go(g, req("shelter", null), new Set(), live())).progress, 1 / 71);
+  g.names.set("-1,63,0", "air").set("-1,63,1", "dirt");
+  assert.equal((await go(g, req("shelter", null), new Set(), live())).progress, 2 / 71);
+  assert.deepEqual(g.home(), P(0, 64, 0), "stuck at another dig: kept");
+  // Stopped twice at a wall (out of blocks), or finished twice: kept.
+  g.names.set("-1,63,1", "air");
+  g.answers.set("place", false);
+  for (let i = 0; i < 2; i++) {
+    assert.equal((await go(g, req("shelter", null), new Set(), live())).progress, 13 / 71);
+  }
+  g.answers.delete("place");
+  g.inv.set("oak_door", 1);
+  for (let i = 0; i < 2; i++) {
+    assert.equal((await go(g, req("shelter", null), new Set(), live())).progress, 1);
+  }
+  assert.deepEqual(g.home(), P(0, 64, 0));
   // A home farther than the search radius is left; a new one starts here.
   const e = new FakeBody();
   e.inv.set("dirt", HOME_BLOCKS);

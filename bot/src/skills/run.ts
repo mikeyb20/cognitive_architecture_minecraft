@@ -311,6 +311,9 @@ async function bedStep(body: Body, foot: Pos, signal: AbortSignal): Promise<bool
   return body.placeWest(bed, foot, signal);
 }
 
+/** Per body, the home and step the last try stopped at, so a home stuck at one dig twice is given up. */
+const lastStuck = new WeakMap<Body, string>();
+
 /** Blocks a home's floor cannot rest on. */
 const WET = ["water", "lava"];
 const LOOSE = [...WET, ...OPEN];
@@ -358,8 +361,15 @@ async function shelter(body: Body, cfg: SkillConfig, signal: AbortSignal): Promi
   while (done < steps.length && (await homeStep(body, o, steps[done] as Step, signal))) {
     done += 1;
   }
-  if (!near && done === 0) {
-    // Not even the floor could be dug here (stone, no pickaxe): no home, the quick hole.
+  // A dig that fails (stone, no pickaxe) gives up the home for the quick
+  // hole: at once for a new home with nothing dug, else on the second try
+  // stuck at the same dig (a live run retried one for a whole night).
+  const failed = steps[done];
+  const at = `${o.x},${o.y},${o.z}:${done}`;
+  const again = lastStuck.get(body) === at;
+  lastStuck.set(body, at);
+  if (failed?.kind === "dig" && ((!near && done === 0) || again)) {
+    lastStuck.delete(body);
     body.setHome(null);
     return hole(body, signal);
   }
