@@ -30,6 +30,10 @@ pub struct McStep {
     pub outcome: Option<Outcome>,
     /// The arm's LLM use so far, if it calls one.
     pub llm: Option<LlmStats>,
+    /// The brain's goal after the decision, and the teacher's shown
+    /// recipe step (01 §4.11), for the brain arm; `None` otherwise.
+    pub goal: Option<String>,
+    pub recipe_step: Option<String>,
 }
 
 /// Up to `decisions` decisions, or until the link fails. Calls `log` after
@@ -60,12 +64,15 @@ pub fn run(
             reflex,
             outcome,
             llm: policy.llm_stats().cloned(),
+            goal: None,
+            recipe_step: None,
         });
     }
     made
 }
 
-/// One JSONL log row for a decision (spec §25: body, choice, outcome, LLM).
+/// One JSONL log row for a decision (spec §25: body, choice, outcome, LLM),
+/// with the chat heard and, for the brain, its goal and the teacher's step.
 pub fn row(s: &McStep) -> Value {
     let o = &s.obs;
     json!({
@@ -78,6 +85,9 @@ pub fn row(s: &McStep) -> Value {
         "chosen": s.chosen,
         "reflex": s.reflex,
         "outcome": s.outcome,
+        "chat": o.chat.iter().map(|c| format!("{}: {}", c.from, c.text)).collect::<Vec<_>>(),
+        "goal": s.goal,
+        "recipe_step": s.recipe_step,
         "llm": s.llm.as_ref().map(|l| json!({
             "calls": l.calls,
             "cached": l.cached,

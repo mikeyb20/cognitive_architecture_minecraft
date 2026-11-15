@@ -37,4 +37,6 @@ fn bot_settings_sent_at_connect() {
 fn dusk_and_the_taught_goal() {
     assert_eq!(host_api::ontology::DUSK, 0.42);
     assert_eq!(host_api::ontology::SHELTER_GOAL, "shelter");
+    assert_eq!(host_api::ontology::BED_GOAL, "bed");
+    assert_eq!(host_api::ontology::BED_CALL, 0.25);
 }

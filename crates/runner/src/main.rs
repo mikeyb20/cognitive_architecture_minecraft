@@ -20,7 +20,7 @@
 //!   scenarios × seeds from `configs/experiments` (spec §26, plan §5).
 //! - `runner mc <a|b|bn|c> [--tier local|cheap|strong] [--addr HOST:PORT]
 //!   [--decisions N] [--log FILE] [--cache FILE [--replay]] [--seed N]
-//!   [--no-teacher]`: run an arm in
+//!   [--no-teacher] [--teach-days N]`: run an arm in
 //!   Minecraft through the bot (`npm start` in bot/ first). Reads
 //!   `ANTHROPIC_API_KEY` and `OLLAMA_BASE_URL` from the environment.
 
@@ -270,16 +270,10 @@ fn git_commit() -> String {
             .filter(|o| o.status.success())
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
     };
-    match git(&["rev-parse", "HEAD"]) {
-        Some(c)
-            if git(&["status", "--porcelain", "--untracked-files=no"])
-                .is_some_and(|s| !s.is_empty()) =>
-        {
-            format!("{c}+dirty")
-        }
-        Some(c) => c,
-        None => "unknown".into(),
-    }
+    runner::paired::commit_label(
+        git(&["rev-parse", "HEAD"]),
+        git(&["status", "--porcelain", "--untracked-files=no"]),
+    )
 }
 
 /// Connect to the bot at `--addr` and say hello (spec §22).
@@ -301,7 +295,8 @@ fn mc_log(args: &[String]) -> Option<std::io::LineWriter<std::fs::File>> {
 }
 
 /// Arm C in Minecraft: the default brain drives the bot (spec §22, §26),
-/// with the shelter teacher unless `--no-teacher` (01 §4.11).
+/// with the shelter and bed teacher unless `--no-teacher` (01 §4.11), its
+/// recipes fading after `--teach-days N` if given.
 fn mc_brain(args: &[String]) {
     use cognitive_core::agent::{Brain, BrainConfig};
     let seed = flag(args, "--seed")
@@ -316,6 +311,7 @@ fn mc_brain(args: &[String]) {
         decisions: n.unwrap_or(u32::MAX),
         thresholds: host_api::reflex::ReflexThresholds::default(),
         teacher: !args.iter().any(|a| a == "--no-teacher"),
+        teach_days: flag(args, "--teach-days").and_then(|d| d.parse().ok()),
     };
     let counts = runner::mc::run_brain(
         &mut host,

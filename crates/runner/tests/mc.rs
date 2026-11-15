@@ -228,6 +228,7 @@ fn plan(decisions: u32, teacher: bool) -> BrainRun {
         decisions,
         thresholds: ReflexThresholds::default(),
         teacher,
+        teach_days: None,
     }
 }
 
@@ -325,8 +326,10 @@ fn reflexes_come_before_the_brain() {
         distance: 2.0,
     });
     let (counts, steps, waits, _) = brain_run(weak, 3);
+    // The view is the afternoon: the teacher asks for a bed too.
     let want = BrainCounts {
         reflexes: 3,
+        bed_calls: 1,
         ..BrainCounts::default()
     };
     assert_eq!(counts, want);
@@ -339,6 +342,10 @@ fn reflexes_come_before_the_brain() {
 /// Run the brain where each perceive returns `views[i]` (the last
 /// repeats; `connect` reads the first).
 fn teach_run(views: Vec<Observation>, n: u32, teacher: bool) -> (BrainCounts, Vec<McStep>, Brain) {
+    teach_with(views, plan(n, teacher))
+}
+
+fn teach_with(views: Vec<Observation>, run: BrainRun) -> (BrainCounts, Vec<McStep>, Brain) {
     let mut i = 0;
     let (addr, _got) = bot(move |req| {
         Some(match req["op"].as_str().unwrap() {
@@ -356,7 +363,7 @@ fn teach_run(views: Vec<Observation>, n: u32, teacher: bool) -> (BrainCounts, Ve
     let counts = run_brain(
         &mut h,
         &mut brain,
-        plan(n, teacher),
+        run,
         || {},
         |s| {
             steps.push(s.clone());
@@ -385,6 +392,17 @@ fn the_teacher_calls_once_at_dusk_and_the_brain_takes_the_goal() {
         .collect();
     assert_eq!(said, ["get shelter"]);
     assert_eq!(steps[0].obs.chat[0].from, "steve");
+    let last = steps.last().unwrap();
+    assert_eq!(
+        last.goal.as_deref(),
+        Some("shelter"),
+        "the log shows the goal"
+    );
+    assert_eq!(
+        last.recipe_step.as_deref(),
+        Some("Craft:item:oak_planks"),
+        "and the shown step"
+    );
     assert_eq!(
         brain.goal().map(|g| (g.item.as_str(), g.commanded)),
         Some(("shelter", true))
@@ -399,6 +417,38 @@ fn the_teacher_calls_once_at_dusk_and_the_brain_takes_the_goal() {
     assert_eq!(counts.dusk_calls, 0, "not before dusk");
     let (counts, _, _) = teach_run(vec![at(0.5, true)], 4, true);
     assert_eq!(counts.dusk_calls, 0, "not when sheltered");
+}
+
+#[test]
+fn the_teacher_asks_for_a_bed_in_the_afternoon_and_shows_how() {
+    // An afternoon with a sheep in view: the player says "get bed", and
+    // the shown recipe's first step is to hunt the sheep (`bed_lesson`).
+    let mut noon = at(0.3, false);
+    noon.visible.push(Seen {
+        thing: ThingId("entity:sheep".into()),
+        kind: SeenKind::Entity { hostile: false },
+        pos: Pos { x: 4, y: 64, z: 0 },
+        distance: 4.0,
+    });
+    let go = |teacher, teach_days| {
+        let run = BrainRun {
+            teach_days,
+            ..plan(2, teacher)
+        };
+        let (counts, _, brain) = teach_with(vec![noon.clone()], run);
+        let goal = brain.goal().map(|g| g.item.clone());
+        (counts.bed_calls, goal, brain.last_log().recipe_step.clone())
+    };
+    let sheep = Some("Attack:entity:sheep".to_string());
+    let bed = Some("bed".to_string());
+    assert_eq!(go(true, None), (1, bed.clone(), sheep.clone()));
+    assert_eq!(go(true, Some(1)), (1, bed.clone(), sheep));
+    assert_eq!(
+        go(true, Some(0)),
+        (1, bed, None),
+        "the teacher's days are up"
+    );
+    assert_eq!(go(false, None).0, 0, "teacher off");
 }
 
 #[test]

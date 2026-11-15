@@ -4,6 +4,7 @@
 //! arm, #42) or the arm's choice → execute.
 
 pub mod archetype;
+pub mod bed_lesson;
 pub mod bench;
 pub mod brain;
 pub(crate) mod drive;

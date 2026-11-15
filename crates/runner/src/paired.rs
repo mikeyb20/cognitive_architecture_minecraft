@@ -172,6 +172,17 @@ pub fn markdown(pairs: &[Pair], reference: &str) -> String {
     t
 }
 
+/// The commit a run came from (07 M1): `head` from `git rev-parse HEAD`,
+/// with "+dirty" when `status` (`git status --porcelain`) lists changes;
+/// "unknown" outside a git checkout.
+pub fn commit_label(head: Option<String>, status: Option<String>) -> String {
+    match head {
+        Some(c) if status.is_some_and(|s| !s.is_empty()) => format!("{c}+dirty"),
+        Some(c) => c,
+        None => "unknown".into(),
+    }
+}
+
 /// A short, stable hash of a config's text (FNV-1a, 64 bits), so a
 /// results folder records exactly which file it ran.
 pub fn config_hash(text: &str) -> String {
@@ -288,6 +299,15 @@ mod tests {
         assert_eq!(lines[0], RUN_HEADER.join(","));
         assert_eq!(lines[1], "\"C 'full'\",s,3,1,0,0,0.0000,0.0000,42,0,1100");
         assert_eq!(lines[2], "\"A\",s,4,0,0,0,0.0000,0.0000,0,0,");
+    }
+
+    #[test]
+    fn commit_label_marks_local_changes() {
+        let s = |x: &str| Some(x.to_string());
+        assert_eq!(commit_label(s("abc"), s("")), "abc");
+        assert_eq!(commit_label(s("abc"), None), "abc");
+        assert_eq!(commit_label(s("abc"), s(" M src/x.rs")), "abc+dirty");
+        assert_eq!(commit_label(None, s(" M x")), "unknown");
     }
 
     #[test]
