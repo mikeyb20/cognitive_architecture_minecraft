@@ -6,6 +6,7 @@
 mod brain;
 mod host;
 mod link;
+mod mob;
 mod setup;
 
 pub use brain::{BrainCounts, BrainRun, run_brain};

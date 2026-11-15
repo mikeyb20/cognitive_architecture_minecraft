@@ -229,6 +229,7 @@ fn plan(decisions: u32, teacher: bool) -> BrainRun {
         thresholds: ReflexThresholds::default(),
         teacher,
         teach_days: None,
+        mob_lessons: teacher,
     }
 }
 
@@ -326,10 +327,12 @@ fn reflexes_come_before_the_brain() {
         distance: 2.0,
     });
     let (counts, steps, waits, _) = brain_run(weak, 3);
-    // The view is the afternoon: the teacher asks for a bed too.
+    // The view is the afternoon: the teacher asks for a bed too, and the
+    // player tells the weak bot to run from the zombie (`mob_lessons`).
     let want = BrainCounts {
         reflexes: 3,
         bed_calls: 1,
+        mob_calls: 1,
         ..BrainCounts::default()
     };
     assert_eq!(counts, want);
@@ -451,6 +454,81 @@ fn the_teacher_asks_for_a_bed_in_the_afternoon_and_shows_how() {
     assert_eq!(go(false, None).0, 0, "teacher off");
 }
 
+/// A morning view (before the bed call) with `mob` at `distance`.
+fn mob_near(mob: &str, distance: f32, health: f32) -> Observation {
+    let mut o = at(0.1, false);
+    o.health = health;
+    o.visible.insert(
+        0,
+        Seen {
+            thing: ThingId(mob.into()),
+            kind: SeenKind::Entity { hostile: true },
+            pos: Pos {
+                x: distance as i32,
+                y: 64,
+                z: 0,
+            },
+            distance,
+        },
+    );
+    o
+}
+
+/// The player's words, the brain's goal and the teacher's shown step
+/// after `n` decisions on `view`, mob lessons on or off.
+fn lesson(view: Observation, lessons: bool) -> (u32, Vec<String>, Option<String>, Option<String>) {
+    let run = BrainRun {
+        mob_lessons: lessons,
+        ..plan(3, true)
+    };
+    let (counts, steps, brain) = teach_with(vec![view], run);
+    let said = steps
+        .iter()
+        .flat_map(|s| &s.obs.chat)
+        .map(|c| c.text.clone())
+        .collect();
+    let goal = brain.goal().map(|g| g.item.clone());
+    (counts.mob_calls, said, goal, steps[0].recipe_step.clone())
+}
+
+#[test]
+fn the_player_gives_the_mob_lessons_and_the_teacher_shows_them() {
+    // Michael, 15 Nov 2026: "zombie: fight; skeleton: hide"; a weak bot
+    // runs from the zombie. Once per threat, as in the sim's player.
+    let (calls, said, goal, step) = lesson(mob_near("entity:zombie", 4.0, 1.0), true);
+    assert_eq!((calls, said), (1, vec!["get fight_zombie".to_string()]));
+    assert_eq!(goal.as_deref(), Some("fight_zombie"));
+    assert_eq!(step.as_deref(), Some("Attack:entity:zombie"));
+
+    let (calls, said, goal, step) = lesson(mob_near("entity:skeleton", 12.0, 1.0), true);
+    assert_eq!(
+        (calls, said),
+        (1, vec!["get hide_from_skeleton".to_string()])
+    );
+    assert_eq!(goal.as_deref(), Some("hide_from_skeleton"));
+    assert_eq!(step.as_deref(), Some("Flee:"));
+
+    let (calls, said, goal, step) = lesson(mob_near("entity:zombie", 4.0, 0.4), true);
+    assert_eq!((calls, said), (1, vec!["get escape_zombie".to_string()]));
+    assert_eq!(goal.as_deref(), Some("escape_zombie"));
+    assert_eq!(step.as_deref(), Some("Flee:"));
+
+    let (calls, said, goal, _) = lesson(mob_near("entity:zombie", 4.0, 1.0), false);
+    assert_eq!((calls, said.len()), (0, 0), "lessons off");
+    assert_ne!(goal.as_deref(), Some("fight_zombie"));
+}
+
+#[test]
+fn a_mob_lesson_ends_when_its_test_passes() {
+    // The zombie is gone on the third view: the fight test passes and
+    // the goal is done (01 §4.11), as the shelter goal is.
+    let z = mob_near("entity:zombie", 4.0, 1.0);
+    let views = vec![z.clone(), z, at(0.1, false)];
+    let (counts, _, brain) = teach_run(views, 8, true);
+    assert_eq!(counts.mob_calls, 1);
+    assert_ne!(brain.goal().map(|g| g.item.as_str()), Some("fight_zombie"));
+}
+
 #[test]
 fn the_bots_sheltered_flag_is_the_shelter_test() {
     // Called at dusk in the open, then the bot reports a shelter: the
@@ -493,6 +571,23 @@ fn the_cli_teacher_can_be_turned_off() {
     assert!(on.contains("dusk_calls: 1"), "{on}");
     let off = calls(&["--no-teacher"]);
     assert!(off.contains("dusk_calls: 0"), "{off}");
+}
+
+#[test]
+fn the_cli_mob_lessons_can_be_turned_off() {
+    let calls = |extra: &[&str]| {
+        let (addr, _got) = good_bot(mob_near("entity:zombie", 4.0, 1.0));
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_runner"))
+            .args(["mc", "c", "--decisions", "2", "--addr", &addr])
+            .args(extra)
+            .output()
+            .expect("runner should start");
+        String::from_utf8(out.stdout).unwrap()
+    };
+    let on = calls(&[]);
+    assert!(on.contains("mob_calls: 1"), "{on}");
+    let off = calls(&["--no-mob-lessons"]);
+    assert!(off.contains("mob_calls: 0"), "{off}");
 }
 
 #[test]
