@@ -7,7 +7,7 @@ use rand::Rng;
 use super::{BLOCKED, Ctx, Exec, Handler, Out, target_pos};
 use crate::geom::cheb;
 use crate::mob::MobKind;
-use crate::world::SimWorld;
+use crate::world::{SimWorld, Stream};
 
 pub(crate) struct Hunting;
 
@@ -68,7 +68,7 @@ impl Handler for Hunting {
                 if w.mobs[idx].health <= 0.0 {
                     w.mobs.remove(idx);
                     if kind == MobKind::Pig {
-                        let n = w.rng.random_range(1..=2);
+                        let n = w.rng.rng(Stream::Loot).random_range(1..=2);
                         w.give("porkchop", n);
                     }
                     return (true, 1.0, false);

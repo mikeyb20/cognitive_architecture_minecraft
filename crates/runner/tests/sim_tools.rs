@@ -114,8 +114,10 @@ fn a_horizon_sets_the_lifespan() {
     let mut rows = 0;
     let r = run_brain(s, BrainConfig::default(), 1, |_| rows += 1);
     // The run ends at the hidden lifespan at the latest (spec §15); the
-    // last action may run a little past it.
-    assert!(r.ticks < life + 200, "{r:?} vs {life}");
+    // last action may run past it: a Rest begun just before it sleeps to
+    // dawn (289 ticks past in one run of 60, once spawns and rolls got
+    // their own random streams).
+    assert!(r.ticks < life + 300, "{r:?} vs {life}");
     assert!(!r.survived || r.ticks >= life, "{r:?} vs {life}");
     assert_eq!(rows, r.decisions);
 }

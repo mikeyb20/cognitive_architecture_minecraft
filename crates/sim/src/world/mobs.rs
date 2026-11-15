@@ -5,7 +5,7 @@
 use host_api::Pos;
 use rand::Rng;
 
-use super::{Reach, SimWorld};
+use super::{Reach, SimWorld, Stream};
 use crate::geom::{cheb, dist, neighbours4, offset};
 use crate::map::Biome;
 use crate::mob::{Mob, MobKind, chase_steps};
@@ -34,15 +34,15 @@ impl SimWorld {
     pub(super) fn spawn_hostile(&mut self) {
         let (lo, hi) = (self.rules.spawn_min, self.rules.spawn_max);
         for _ in 0..10 {
-            let dx = self.rng.random_range(-hi..=hi);
-            let dz = self.rng.random_range(-hi..=hi);
+            let rng = self.rng.rng(Stream::Spawn);
+            let (dx, dz) = (rng.random_range(-hi..=hi), rng.random_range(-hi..=hi));
             if dx.abs().max(dz.abs()) < lo {
                 continue;
             }
             let p = offset(self.body.pos, dx, dz);
             if self.walkable_free(p) {
                 let share = self.rules.skeleton_share;
-                let kind = if share > 0.0 && self.chance(share) {
+                let kind = if share > 0.0 && self.rng.chance(Stream::Spawn, share) {
                     MobKind::Skeleton
                 } else {
                     MobKind::Zombie
@@ -72,7 +72,8 @@ impl SimWorld {
                 .step_toward_origin(m.pos, greedy)
                 .map_or_else(|| greedy.to_vec(), |s| vec![s])
         } else {
-            let d = [(1, 0), (-1, 0), (0, 1), (0, -1)][self.rng.random_range(0..4)];
+            let d =
+                [(1, 0), (-1, 0), (0, 1), (0, -1)][self.rng.rng(Stream::Wander).random_range(0..4)];
             vec![d]
         };
         for (dx, dz) in steps {

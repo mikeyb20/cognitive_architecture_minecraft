@@ -1,12 +1,13 @@
 //! `SimWorld`: the seeded gridworld behind [`World`] and [`Host`] (spec §2, §21).
 //!
 //! One agent for now (#31 keeps multi-agent in the types). Everything random
-//! goes through one ChaCha8 stream, so a seed replays exactly.
+//! goes through seeded ChaCha8 streams, one per source of chance
+//! (`streams`), so a seed replays exactly and arms can be paired by seed.
 
 use std::collections::HashSet;
 
 use host_api::{Inventory, Pos, Scenario, ThingId, World};
-use rand::{Rng, SeedableRng};
+use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
 use crate::craft::{self};
@@ -30,10 +31,13 @@ mod path;
 mod ranged;
 mod shelter;
 mod shock;
+mod streams;
+
 pub use danger::MobTest;
 pub use path::Reach;
 pub use shelter::ShelterTest;
 pub use shock::Shock;
+pub(crate) use streams::{Stream, Streams};
 
 /// What killed the agent, as the world reports it. Outcome first (#43): the
 /// cause behind the cause is worked out later from the log, never guessed here.
@@ -70,7 +74,7 @@ pub struct Body {
 #[derive(Debug, Clone)]
 pub struct SimWorld {
     pub rules: Rules,
-    pub(crate) rng: ChaCha8Rng,
+    pub(crate) rng: Streams,
     pub map: Map,
     pub tick: u64,
     pub body: Body,
@@ -91,7 +95,7 @@ pub struct SimWorld {
 impl SimWorld {
     pub fn new(rules: Rules, seed: u64) -> Self {
         let mut w = Self {
-            rng: ChaCha8Rng::seed_from_u64(seed),
+            rng: Streams::new(seed),
             map: Map::generate(8, rules.tree_chops, &mut ChaCha8Rng::seed_from_u64(0)),
             rules,
             tick: 0,
@@ -243,7 +247,9 @@ impl SimWorld {
         } else {
             0.0
         };
-        if self.hostile_count() < self.rules.max_hostiles && self.chance(p) {
+        // Drawn every tick, so spawn timing does not depend on the agent.
+        let spawn = self.rng.chance(Stream::Spawn, p);
+        if self.hostile_count() < self.rules.max_hostiles && spawn {
             self.spawn_hostile();
         }
         if !night {
@@ -301,14 +307,9 @@ impl SimWorld {
         self.rules.base_success * focus.clamp(0.0, 1.0) * threat
     }
 
-    /// True with probability `p`.
-    fn chance(&mut self, p: f32) -> bool {
-        self.rng.random::<f32>() < p
-    }
-
     pub(crate) fn roll(&mut self, focus: f32) -> bool {
         let p = self.success_chance(focus);
-        self.chance(p)
+        self.rng.chance(Stream::Act, p)
     }
 
     pub(crate) fn give(&mut self, item: &str, n: u32) {

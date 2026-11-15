@@ -437,12 +437,13 @@ fn the_floor_asks_every_arm_for_a_shelter_at_dusk() {
     assert!(e.floor);
     assert_eq!(header(&e)["floor"], true);
     let c = &e.arms[1].clone();
-    // Seed 2's brain builds a passing hut once asked; unasked, it doesn't.
-    // (Seed 0 until skeletons came, 15 Nov 2026: it now builds one unasked.)
-    let (on, _) = runner::experiment::run_arm(&e, c, "first_night", 2, None).unwrap();
+    // Seed 0's brain builds a passing hut once asked; unasked, it doesn't.
+    // (Seed 2 from skeletons, 15 Nov 2026, until spawns and rolls got their
+    // own random streams, 07 M4; 12 of seeds 0-14 build only when asked.)
+    let (on, _) = runner::experiment::run_arm(&e, c, "first_night", 0, None).unwrap();
     assert!(on.shelter_at.is_some(), "{on:?}");
     e.floor = false;
-    let (off, _) = runner::experiment::run_arm(&e, c, "first_night", 2, None).unwrap();
+    let (off, _) = runner::experiment::run_arm(&e, c, "first_night", 0, None).unwrap();
     assert_eq!(off.shelter_at, None);
     let text = SMALL.replace("seeds = 2", "seeds = 2\nfloor = false");
     assert!(!parse(&text).unwrap().floor);
