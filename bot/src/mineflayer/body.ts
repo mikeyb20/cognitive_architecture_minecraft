@@ -112,7 +112,7 @@ export class MineflayerBody implements Body {
 
   async dig(at: Pos, signal: AbortSignal): Promise<boolean> {
     const block = this.bot.blockAt(v(at));
-    if (block === null || block.name === "air") {
+    if (block === null || block.name === "air" || !this.#canHarvest(block)) {
       return false;
     }
     const collect = async () => {
@@ -120,6 +120,16 @@ export class MineflayerBody implements Body {
       return true;
     };
     return bounded(signal, CALL_LIMIT_MS, collect, () => this.bot.collectBlock.cancelTask(), false);
+  }
+
+  /**
+   * Whether a held tool can harvest `block` (stone needs a pickaxe). Asking
+   * collectBlock for a block it cannot harvest ran the bot out of memory
+   * in the live run of 14 Nov 2026 (dig-in on stone, no pickaxe).
+   */
+  #canHarvest(block: Block): boolean {
+    const tools = block.harvestTools;
+    return tools === undefined || this.bot.inventory.items().some((i) => tools[i.type] === true);
   }
 
   /** A solid neighbour of `at` to place against, and the face to use. */
