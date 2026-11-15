@@ -108,6 +108,21 @@ impl Oracle {
         Mode::ALL[best]
     }
 
+    /// Credited mode drawn from the weights, `i* ~ w` (spec §8, #65): the
+    /// mode whose cumulative weight first passes `u ∈ [0, 1)`. Unbiased for
+    /// the gradient-bandit update, so the Oracle matches (benchmark B1)
+    /// instead of collapsing onto the leading mode.
+    pub fn sampled(w: &[f32; 4], u: f32) -> Mode {
+        let mut acc = 0.0;
+        for (i, wi) in w.iter().enumerate() {
+            acc += wi;
+            if u < acc {
+                return Mode::ALL[i];
+            }
+        }
+        Mode::ALL[3]
+    }
+
     /// `Θ_i += η·(R − R̄)·(1[i = i*] − w_i)·x`. When `R − R̄ < 0`, mode i's
     /// step is scaled by `(1 − T[i, task])`, so high-tenacity modes lose
     /// weight more slowly after setbacks (01 §4.4).
@@ -223,6 +238,47 @@ mod tests {
             prop_assert!((s - 1.0).abs() < 1e-5, "sum {s}");
             for wi in w {
                 prop_assert!(wi >= 0.02 - 1e-6, "w {wi}");
+            }
+        }
+    }
+
+    #[test]
+    fn sampled_reads_the_weights_as_a_cumulative_ladder() {
+        // w = [0.1, 0.2, 0.3, 0.4]: cuts at 0.1, 0.3, 0.6, 1.0 (spec §8, #65).
+        let w = [0.1, 0.2, 0.3, 0.4];
+        let at = |u| Oracle::sampled(&w, u);
+        assert_eq!(at(0.0), Mode::Learning);
+        assert_eq!(at(0.05), Mode::Learning);
+        assert_eq!(at(0.1), Mode::Exploring, "a cut belongs to the next mode");
+        assert_eq!(at(0.25), Mode::Exploring);
+        assert_eq!(at(0.55), Mode::Performing);
+        assert_eq!(at(0.6), Mode::Optimizing);
+        assert_eq!(at(0.95), Mode::Optimizing);
+        assert_eq!(at(1.5), Mode::Optimizing, "past the sum: the last mode");
+        assert_eq!(
+            Oracle::sampled(&[0.0, 0.0, 1.0, 0.0], 0.0),
+            Mode::Performing
+        );
+    }
+
+    proptest! {
+        /// Spec §8 (#65): over an even grid of u, each mode is drawn in
+        /// proportion to its weight (within one draw), so credit follows w.
+        #[test]
+        fn sampled_draws_each_mode_in_proportion_to_its_weight(
+            raw in proptest::array::uniform4(0.02f32..1.0),
+        ) {
+            let s: f32 = raw.iter().sum();
+            let w = raw.map(|r| r / s);
+            let n = 1000;
+            let mut count = [0u32; 4];
+            for k in 0..n {
+                let u = (k as f32 + 0.5) / n as f32;
+                count[Oracle::sampled(&w, u).index()] += 1;
+            }
+            for i in 0..4 {
+                let want = w[i] * n as f32;
+                prop_assert!((count[i] as f32 - want).abs() <= 1.5, "{i}: {count:?} vs {w:?}");
             }
         }
     }

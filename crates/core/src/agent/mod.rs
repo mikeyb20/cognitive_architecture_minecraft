@@ -156,6 +156,9 @@ pub(crate) struct Pending {
 pub struct Brain {
     pub config: BrainConfig,
     pub(crate) rng: ChaCha8Rng,
+    /// Its own stream for the Oracle's sampled credit (spec §8, #65), so
+    /// the draw leaves the main stream as it was.
+    pub(crate) credit_rng: ChaCha8Rng,
     pub(crate) curiosity: Curiosity,
     pub(crate) affect: Affect,
     /// The last decision taken in pain, for learned control (01 §1.2,
@@ -213,6 +216,9 @@ pub struct Brain {
     pub(crate) triggers: triggers::TriggerState,
     pub(crate) log: TickLog,
 }
+
+/// Seed offset of the credit stream (any constant; spec §8, #65).
+const CREDIT_STREAM: u64 = 0x0C4E_D175;
 
 /// A standard normal draw (Box–Muller), from the brain's own seeded stream.
 pub(crate) fn normal(rng: &mut ChaCha8Rng) -> f32 {
@@ -292,6 +298,7 @@ impl Brain {
             triggers: triggers::TriggerState::default(),
             log: TickLog::default(),
             rng,
+            credit_rng: ChaCha8Rng::seed_from_u64(seed ^ CREDIT_STREAM),
             config,
         }
     }
