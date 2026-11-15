@@ -57,7 +57,7 @@ cargo run -p runner -- mc c --seed 1 --decisions 200 --log runs/mc-c.jsonl
 
 `MC_VERSION` overrides the pinned game version for a test server that runs another version.
 
-`--tier local` uses Ollama (`OLLAMA_BASE_URL`); `cheap` and `strong` need `ANTHROPIC_API_KEY`. Add `--cache runs/llm.jsonl` to record LLM replies and `--replay` to rerun from them without calls.
+`--tier local` uses Ollama (`OLLAMA_BASE_URL`, and `OLLAMA_MODEL` to pick a model other than `qwen2.5:7b-instruct`; the run header records it as `llm`); `cheap` and `strong` need `ANTHROPIC_API_KEY`. Add `--cache runs/llm.jsonl` to record LLM replies and `--replay` to rerun from them without calls.
 
 ## Testing
 

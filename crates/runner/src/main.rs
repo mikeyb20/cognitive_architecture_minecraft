@@ -208,8 +208,8 @@ fn fail(msg: String) -> ! {
 }
 
 /// The LLM flags shared by `mc` and `run`: `--tier`, `--cache FILE`,
-/// `--replay`, and `OLLAMA_BASE_URL` / `ANTHROPIC_API_KEY` from the
-/// environment. Returns the tier and a provider maker.
+/// `--replay`, and `OLLAMA_BASE_URL` / `OLLAMA_MODEL` / `ANTHROPIC_API_KEY`
+/// from the environment. Returns the tier and a provider maker.
 fn llm_setup(
     args: &[String],
 ) -> (
@@ -223,7 +223,7 @@ fn llm_setup(
     let make = move || {
         let env = |k: &str| std::env::var(k).ok();
         let (url, key) = (env("OLLAMA_BASE_URL"), env("ANTHROPIC_API_KEY"));
-        runner::mc::provider(level, url, key, cache.clone())
+        runner::mc::provider(level, url, env("OLLAMA_MODEL"), key, cache.clone())
     };
     (level, make)
 }
@@ -240,15 +240,17 @@ fn experiment(args: &[String]) {
     }
     // The header, with every arm's expected direction, the commit and the
     // config's hash (07 M1), is written first.
+    let (tier, make) = llm_setup(args);
     let mut head = header(&e);
     head["commit"] = git_commit().into();
     head["config_hash"] = runner::paired::config_hash(&text).into();
+    // Which model the LLM arms ask (spec §23), e.g. "openai/qwen2.5:3b-instruct".
+    head["llm"] = make().ok().map(|p| p.id()).into();
     if let Some(dir) = flag(args, "--out") {
         std::fs::create_dir_all(dir).expect("cannot create the output folder");
         let p = std::path::Path::new(dir).join(format!("{}.header.json", e.id));
         std::fs::write(p, head.to_string()).expect("write failed");
     }
-    let (tier, make) = llm_setup(args);
     let llm = Llm { tier, make: &make };
     let res = run(&e, threads(), Some(&llm)).unwrap_or_else(|err| fail(err));
     let csv = runner::sweep::csv_rows("experiment", &e.id, &res.rows);
