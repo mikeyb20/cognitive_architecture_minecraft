@@ -100,6 +100,11 @@ pub struct Experiment {
     /// whole run.
     #[serde(default)]
     pub teach_days: Option<u64>,
+    /// The mob lessons (Michael, 15 Nov 2026): when a mob threatens, the
+    /// player says "fight" (zombie) or "hide" (skeleton), and the teacher
+    /// shows and explains it (`mob_lessons`). Off unless set.
+    #[serde(default)]
+    pub mob_lessons: bool,
     pub arms: Vec<ArmSpec>,
 }
 
@@ -253,6 +258,7 @@ pub fn run_arm(
 ) -> Result<(RunMetrics, LlmStats), String> {
     let mut s = setup(scenario, seed);
     s.player.dusk_call = e.floor;
+    s.player.mob_calls = e.mob_lessons;
     s.teach_days = e.teach_days;
     let until = teach_until(s.teach_days, s.world.rules.day_ticks);
     let Some(which) = arm.arm.baseline() else {
@@ -358,6 +364,7 @@ pub fn header(e: &Experiment) -> serde_json::Value {
         "archetype": e.archetype,
         "per_agent": e.per_agent,
         "floor": e.floor,
+        "mob_lessons": e.mob_lessons,
         "teacher_off": e.teacher_off,
         "teach_days": e.teach_days,
         "arms": arms,

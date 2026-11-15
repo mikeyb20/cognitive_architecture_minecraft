@@ -30,6 +30,7 @@ mod path;
 mod ranged;
 mod shelter;
 mod shock;
+pub use danger::MobTest;
 pub use path::Reach;
 pub use shelter::ShelterTest;
 pub use shock::Shock;

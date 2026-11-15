@@ -5,8 +5,10 @@
 //! social signal (spec §5).
 
 use host_api::command::mark_step;
-use host_api::ontology::{DUSK, SHELTER_GOAL};
+use host_api::ontology::{DUSK, FIGHT_ZOMBIE_GOAL, HIDE_SKELETON_GOAL, SHELTER_GOAL};
 use host_api::{Candidate, ChatMsg, Observation, Pos, Seen, SeenKind, ThingId};
+
+use crate::world::MobTest;
 
 /// The player's name in chat and perception.
 pub const PLAYER: &str = "steve";
@@ -22,7 +24,12 @@ pub struct ScriptedPlayer {
     /// At each dusk, ask for a shelter unless the agent is in one that
     /// passes the shelter test (plan §5.0 shared floor; spec §27 step 16).
     pub dusk_call: bool,
+    /// When a mob threatens, tell the agent what to do about it (Michael,
+    /// 15 Nov 2026): a skeleton that can shoot it, hide; else a zombie
+    /// near, fight. Once per threat, as it starts or changes kind.
+    pub mob_calls: bool,
     called_day: Option<u64>,
+    mob_call: Option<&'static str>,
     next: usize,
     active: Option<String>,
 }
@@ -55,6 +62,41 @@ impl ScriptedPlayer {
             text: format!("get {SHELTER_GOAL}"),
         });
         true
+    }
+
+    /// The mob call (see `mob_calls`): "get hide_from_skeleton" when a
+    /// skeleton can shoot the agent, else "get fight_zombie" when a zombie
+    /// is near; nothing while the same call is still open. When the threat
+    /// ends, the open command (if any) is said again. Returns whether it
+    /// gave a lesson.
+    pub fn call_on_threat(&mut self, obs: &mut Observation, t: MobTest) -> bool {
+        let lesson = if t.shot_at {
+            Some(HIDE_SKELETON_GOAL)
+        } else if t.zombie_near {
+            Some(FIGHT_ZOMBIE_GOAL)
+        } else {
+            None
+        };
+        let fresh = self.mob_calls && lesson.is_some() && lesson != self.mob_call;
+        // A threat just ended: repeat the open command, which the lesson
+        // took the agent's goal from.
+        let ended = self.mob_calls && lesson.is_none() && self.mob_call.is_some();
+        self.mob_call = lesson;
+        let say = match (
+            lesson.filter(|_| fresh),
+            self.active.as_ref().filter(|_| ended),
+        ) {
+            (Some(goal), _) => Some(goal.to_string()),
+            (None, Some(item)) => Some(item.clone()),
+            _ => None,
+        };
+        if let Some(goal) = say {
+            obs.chat.push(ChatMsg {
+                from: PLAYER.into(),
+                text: format!("get {goal}"),
+            });
+        }
+        fresh
     }
 
     /// The open command, if any.
@@ -242,5 +284,63 @@ mod tests {
             1,
             "and again the next"
         );
+    }
+
+    #[test]
+    fn mob_calls_say_hide_or_fight_once_per_threat_then_repeat_the_command() {
+        let said = |p: &mut ScriptedPlayer, zombie_near, shot_at| {
+            let mut o = obs(0);
+            let fresh = p.call_on_threat(
+                &mut o,
+                MobTest {
+                    zombie_near,
+                    shot_at,
+                },
+            );
+            (
+                fresh,
+                o.chat.iter().map(|m| m.text.clone()).collect::<Vec<_>>(),
+            )
+        };
+        let mut off = ScriptedPlayer::idle();
+        assert_eq!(said(&mut off, true, true), (false, vec![]), "off: silent");
+        let mut p = ScriptedPlayer {
+            mob_calls: true,
+            ..ScriptedPlayer::commanding(vec![(0, "oak_planks".into())])
+        };
+        p.apply(&mut obs(0), &mut cands());
+        assert_eq!(said(&mut p, false, false), (false, vec![]), "no threat");
+        let fight = vec!["get fight_zombie".to_string()];
+        assert_eq!(said(&mut p, true, false), (true, fight.clone()));
+        assert_eq!(
+            said(&mut p, true, false),
+            (false, vec![]),
+            "once per threat"
+        );
+        let hide = vec!["get hide_from_skeleton".to_string()];
+        assert_eq!(
+            said(&mut p, true, true),
+            (true, hide),
+            "a skeleton comes first"
+        );
+        assert_eq!(
+            said(&mut p, true, false),
+            (true, fight),
+            "back to the zombie"
+        );
+        let again = vec!["get oak_planks".to_string()];
+        assert_eq!(
+            said(&mut p, false, false),
+            (false, again),
+            "the command again"
+        );
+        assert_eq!(said(&mut p, false, false), (false, vec![]));
+        // With no open command, the end of a threat says nothing.
+        let mut q = ScriptedPlayer {
+            mob_calls: true,
+            ..ScriptedPlayer::idle()
+        };
+        said(&mut q, true, false);
+        assert_eq!(said(&mut q, false, false), (false, vec![]));
     }
 }

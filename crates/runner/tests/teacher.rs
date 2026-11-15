@@ -213,3 +213,48 @@ fn a_run_records_the_first_tick_each_item_was_held() {
     let r = run_with(s, &mut b, 0, &mut |_| {});
     assert_eq!(r.start_tick, sim::scenario::DAY / 2);
 }
+
+// The mob lessons (Michael, 15 Nov 2026): with the player's mob calls on,
+// a zombie at the food is answered by "get fight_zombie", the teacher
+// shows Attack on it, and the brain attacks; the lesson ends (its test
+// passes once no zombie is near). Off, no lesson is ever set.
+#[test]
+fn a_zombie_call_teaches_the_brain_to_fight_it() {
+    use host_api::ontology::FIGHT_ZOMBIE_GOAL;
+    let rows = |on: bool| {
+        let mut s = setup("hostile_at_food", 0);
+        s.player.mob_calls = on;
+        let mut brain = Brain::new(BrainConfig::default(), 0);
+        let mut rows: Vec<TickLog> = Vec::new();
+        run_with(s, &mut brain, 0, &mut |r| rows.push(r.clone()));
+        rows
+    };
+    let on = rows(true);
+    let fighting: Vec<&TickLog> = on
+        .iter()
+        .filter(|r| r.goal.as_deref() == Some(FIGHT_ZOMBIE_GOAL))
+        .collect();
+    assert!(!fighting.is_empty(), "the call set the goal");
+    assert!(
+        fighting
+            .iter()
+            .any(|r| r.recipe_step.as_deref() == Some("Attack:entity:zombie")),
+        "the teacher showed the step"
+    );
+    assert!(fighting.iter().any(|r| r.chosen.starts_with("Attack")));
+    let first = on
+        .iter()
+        .position(|r| r.goal.as_deref() == Some(FIGHT_ZOMBIE_GOAL))
+        .unwrap();
+    assert!(
+        on[first + 1..]
+            .iter()
+            .any(|r| r.goal.as_deref() != Some(FIGHT_ZOMBIE_GOAL)),
+        "the lesson ended"
+    );
+    let off = rows(false);
+    assert!(
+        off.iter()
+            .all(|r| r.goal.as_deref() != Some(FIGHT_ZOMBIE_GOAL))
+    );
+}

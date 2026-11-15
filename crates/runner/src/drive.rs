@@ -7,7 +7,7 @@ use host_api::ontology::DUSK;
 use host_api::reflex::{ReflexThresholds, emergency_reflex};
 use host_api::{Candidate, Host, Observation, Outcome, World};
 use sim::scenario::{self, Setup};
-use sim::world::ShelterTest;
+use sim::world::{MobTest, ShelterTest};
 
 use crate::FULL;
 use crate::brain::BrainResult;
@@ -25,6 +25,8 @@ pub(crate) trait Driver {
     /// The host's goal tests where the agent stands (01 §4.11), before each
     /// decision. Drivers without a teacher ignore them.
     fn see_tests(&mut self, _shelter: ShelterTest) {}
+    /// The mob lessons' tests (01 §4.11), before each decision.
+    fn see_mob(&mut self, _t: MobTest) {}
 }
 
 /// Run `setup` with `d` until its tick limit (or `lifespan`, if sooner) or
@@ -70,6 +72,8 @@ pub(crate) fn run_scenario(
         player.apply(&mut obs, &mut cands);
         let day_ticks = world.rules.day_ticks;
         let asked = player.call_at_dusk(&mut obs, day_ticks, test.passes());
+        let mob = world.mob_test();
+        player.call_on_threat(&mut obs, mob);
         let dusk = obs.day_phase >= DUSK;
         r.nights
             .see(obs.tick / day_ticks, dusk, asked, test.passes());
@@ -82,6 +86,7 @@ pub(crate) fn run_scenario(
         }
         r.decisions += 1;
         d.see_tests(test);
+        d.see_mob(mob);
         match d.decide(&obs, &cands) {
             Decision::Act(i, it) => {
                 setbacks.acted(cands[i].skill, obs.tick);
