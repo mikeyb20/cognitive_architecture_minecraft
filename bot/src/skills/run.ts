@@ -3,6 +3,7 @@
 // short plan over Body calls; all the Minecraft detail lives in the glue.
 
 import type { Candidate, Intensity, Outcome, Pos, RecipeHint, SkillConfig, Target } from "../host.js";
+import { ENCLOSURE } from "../perceive/shelter.js";
 import type { Body } from "./body.js";
 
 /** One `execute` from the runner (host-api `LinkRequest::Execute`). */
@@ -102,9 +103,20 @@ async function craft(body: Body, out: string, hint: RecipeHint | null, signal: A
 }
 
 /**
+ * The enclosure to build: walls, then one block beside the roof, then the
+ * roof. A block can only be placed against a neighbour, and the roof has
+ * none until that one is in.
+ */
+const BUILD = [...ENCLOSURE.filter(([, dy]) => dy < 2), [1, 2, 0] as const, ...ENCLOSURE.filter(([, dy]) => dy >= 2)];
+
+/** Blocks a placed block may take the place of. */
+const OPEN = ["air", "cave_air", "short_grass", "tall_grass"];
+
+/**
  * Dig in: three blocks down, then close the top of the hole (needs one
  * building block). The top is placed one below the old floor, so the
- * ground around it holds it.
+ * ground around it holds it. Where the ground cannot be dug (stone with
+ * no pickaxe), build the enclosure around the agent instead.
  */
 async function shelter(body: Body, signal: AbortSignal): Promise<Done> {
   const block = BUILDING.find((b) => (body.inventory().get(b) ?? 0) > 0);
@@ -117,7 +129,77 @@ async function shelter(body: Body, signal: AbortSignal): Promise<Done> {
   for (const n of [1, 2, 3]) {
     dug = dug && (await body.dig(below(n), signal));
   }
-  return done(dug && (await body.place(block, below(1), signal)));
+  return dug ? done(await body.place(block, below(1), signal)) : build(body, signal);
+}
+
+/**
+ * Wall the agent in where it stands: every open block of the enclosure the
+ * `sheltered` check asks for (feet walls, head walls, roof), from any
+ * building blocks held. Progress is the share of `BUILD` solid.
+ */
+async function build(body: Body, signal: AbortSignal): Promise<Done> {
+  const me = body.position();
+  let solid = 0;
+  for (const [dx, dy, dz] of BUILD) {
+    const at = { x: me.x + dx, y: me.y + dy, z: me.z + dz };
+    const block = BUILDING.find((b) => (body.inventory().get(b) ?? 0) > 0);
+    const open = OPEN.includes(body.blockName(at) ?? "air");
+    if (open && (block === undefined || !(await body.place(block, at, signal)))) {
+      break;
+    }
+    solid += 1;
+  }
+  const share = solid / BUILD.length;
+  return { success: share === 1, progress: share, blocked: false };
+}
+
+const GRASS = ["short_grass", "tall_grass"];
+const SEEDS = "wheat_seeds";
+const HOE = "wooden_hoe";
+/** Minecraft 1.21's wooden hoe recipe; not in the shared tech tree, so the sim is unchanged. */
+const HOE_RECIPE: RecipeHint = {
+  station: "crafting_table",
+  inputs: [
+    ["oak_planks", 2],
+    ["stick", 2],
+  ],
+};
+
+/**
+ * Farm (host-api `Skill::Farm`, "harvest or plant wheat"). Wild wheat does
+ * not grow in Minecraft, so the agent grows its own: harvest ripe wheat in
+ * range; else break grass for seeds; else make a wooden hoe; else till one
+ * soil block and sow it. Harvest and sowing succeed; the steps before them
+ * only make progress.
+ */
+async function farm(body: Body, cfg: SkillConfig, signal: AbortSignal): Promise<Done> {
+  const ripe = body.findRipe("wheat", cfg.searchRadius);
+  if (ripe !== null) {
+    return done(await body.dig(ripe, signal));
+  }
+  const count = (n: string) => body.inventory().get(n) ?? 0;
+  if (count(SEEDS) === 0) {
+    const grass = body.findBlock(GRASS, cfg.searchRadius);
+    if (grass === null) {
+      return BLOCKED;
+    }
+    const broke = await body.dig(grass, signal);
+    return { success: false, progress: broke && count(SEEDS) > 0 ? 0.5 : 0.25, blocked: false };
+  }
+  if (count(HOE) === 0) {
+    if (!HOE_RECIPE.inputs.every(([i, n]) => count(i) >= n)) {
+      return BLOCKED;
+    }
+    const made = await craft(body, HOE, HOE_RECIPE, signal);
+    return { ...made, success: false, progress: made.success ? 0.5 : 0 };
+  }
+  const soil = body.findSoil(cfg.searchRadius);
+  if (soil === null) {
+    return BLOCKED;
+  }
+  const crop = { x: soil.x, y: soil.y + 1, z: soil.z };
+  const sown = (await body.use(HOE, soil, signal)) && (await body.use(SEEDS, soil, signal));
+  return done(sown && body.blockName(crop) === "wheat");
 }
 
 async function act(body: Body, req: Request, cfg: SkillConfig, signal: AbortSignal): Promise<Done> {
@@ -134,9 +216,10 @@ async function act(body: Body, req: Request, cfg: SkillConfig, signal: AbortSign
       }
       return at === null ? BLOCKED : done(await body.goto(at, 1, signal));
     }
+    case "farm":
+      return farm(body, cfg, signal);
     case "mine":
-    case "chop":
-    case "farm": {
+    case "chop": {
       const key = thing(t);
       if (key !== null) {
         return search(body, key, cfg, signal);

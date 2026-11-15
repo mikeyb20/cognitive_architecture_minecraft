@@ -40,6 +40,30 @@ pub fn ring(c: Pos, r: i32) -> impl Iterator<Item = Pos> {
     square(c, r).filter(move |q| cheb(*q, c) == r)
 }
 
+/// The tiles strictly between `a` and `b` on the straight line joining
+/// them (Bresenham), in order from `a`: what a line of sight crosses.
+pub fn between(a: Pos, b: Pos) -> Vec<Pos> {
+    let (dx, dz) = ((b.x - a.x).abs(), -(b.z - a.z).abs());
+    let (sx, sz) = ((b.x - a.x).signum(), (b.z - a.z).signum());
+    let (mut x, mut z, mut err) = (a.x, a.z, dx + dz);
+    let mut out = Vec::new();
+    loop {
+        let e2 = 2 * err;
+        if e2 >= dz {
+            err += dz;
+            x += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            z += sz;
+        }
+        if (x, z) == (b.x, b.z) {
+            return out;
+        }
+        out.push(offset(a, x - a.x, z - a.z));
+    }
+}
+
 /// The four orthogonal neighbours: east, west, south, north.
 pub fn neighbours4(p: Pos) -> [Pos; 4] {
     [
@@ -108,6 +132,36 @@ mod tests {
         assert_eq!(r.len(), 16);
         assert!(r.iter().all(|q| cheb(*q, p(5, 5)) == 2));
         assert_eq!(r[0], p(3, 3));
+    }
+
+    #[test]
+    fn between_is_the_line_without_its_ends() {
+        assert_eq!(between(p(0, 0), p(3, 0)), [p(1, 0), p(2, 0)]);
+        assert_eq!(between(p(0, 0), p(0, -3)), [p(0, -1), p(0, -2)]);
+        assert_eq!(between(p(0, 0), p(2, 2)), [p(1, 1)]);
+        // Half-way ties round up (away from the start on z).
+        assert_eq!(between(p(0, 0), p(4, 2)), [p(1, 1), p(2, 1), p(3, 2)]);
+        assert_eq!(between(p(5, 5), p(3, 1)), [p(4, 4), p(4, 3), p(3, 2)]);
+        assert_eq!(between(p(0, 0), p(1, 1)), []);
+        assert_eq!(between(p(2, 2), p(2, 2)), []);
+    }
+
+    proptest::proptest! {
+        // One tile per king step, each a king move from the last, never
+        // leaving the box the two ends span.
+        #[test]
+        fn between_walks_king_steps(ax in -9i32..9, az in -9i32..9, bx in -9i32..9, bz in -9i32..9) {
+            let (a, b) = (p(ax, az), p(bx, bz));
+            let line = between(a, b);
+            proptest::prop_assert_eq!(line.len() as i32, (cheb(a, b) - 1).max(0));
+            let mut last = a;
+            for q in line.iter().copied().chain([b]) {
+                proptest::prop_assert_eq!(cheb(last, q), if a == b { 0 } else { 1 });
+                proptest::prop_assert!(q.x >= ax.min(bx) && q.x <= ax.max(bx));
+                proptest::prop_assert!(q.z >= az.min(bz) && q.z <= az.max(bz));
+                last = q;
+            }
+        }
     }
 
     #[test]

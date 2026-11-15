@@ -150,13 +150,14 @@ fn a_default_agent_that_can_flee_stays_calm_through_the_harsh_night() {
     // Decision #49, recorded: once flee always has a way out (D5), the
     // default agent escapes the harsh night's mobs, so its V never stays
     // below the D threshold and D stays near 0. The V/D rules are unchanged.
-    // Seed 1 dies to a night mob at tick 1,718 since hills became walkable
-    // (14 Nov sim audit, new maps), so seeds 0, 2 and 3.
-    for seed in [0, 2, 3] {
+    // Seed 1 died to a night mob at tick 1,718 once hills became walkable
+    // (14 Nov sim audit, new maps); with skeletons (15 Nov 2026) seed 1
+    // lives and seed 3 dies to a zombie at tick 1,875, so seeds 0, 1 and 2.
+    for seed in [0, 1, 2] {
         let (rows, _) = run("harsh", seed, Brain::new(BrainConfig::default(), seed));
         assert!(rows.iter().filter(|r| r.chosen.starts_with("Flee")).count() > 20);
-        // Near 0, far from shutdown: seed 0 is the highest, at 0.12 at dawn
-        // since #61 (0.08 before), falling to 0.06 by tick 3,600.
+        // Near 0, far from shutdown: all three are at 0.0 at dawn since
+        // skeletons (seed 0 was 0.12 since #61, 0.08 before).
         let after = rows.iter().find(|r| r.tick >= 2400).unwrap();
         assert!(after.d < 0.15, "seed {seed}: D after the night {}", after.d);
     }
@@ -208,16 +209,18 @@ fn golden_trace_is_stable() {
 /// things. Change only on a deliberate behaviour change.
 #[test]
 fn golden_commanded_run_counts_reflexes_and_new_things() {
-    // Seed 7 with the sim audit fixes (14 Nov 2026) and sampled Oracle
-    // credit (#65): it fires one reflex and lives to the end. Seed 0 no
-    // longer does (it dies to a mob), so the pin moved to keep its point.
-    let (_, r) = run("commanded", 7, Brain::new(BrainConfig::default(), 7));
+    // Seed 0 with all four sim audit fixes (14 Nov 2026) fired one reflex
+    // and lived to the end; with skeletons (15 Nov 2026) it fired two and a
+    // zombie killed it at tick 2,475. With sampled Oracle credit (#65) it
+    // fires none and starves, so the pin moved to seed 10, which fires one
+    // reflex and lives to the end.
+    let (_, r) = run("commanded", 10, Brain::new(BrainConfig::default(), 10));
     let got = (r.decisions, r.idle, r.thoughts, r.reflexes, r.new_things);
     assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");
 }
 
-const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (204, 28, 51, 1, 66);
-const GOLDEN_COUNTS: (u32, u32, u32) = (970, 743, 153);
-const GOLDEN_HASH: u64 = 7_374_560_238_450_812_174;
+const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (364, 55, 126, 1, 84);
+const GOLDEN_COUNTS: (u32, u32, u32) = (1070, 900, 125);
+const GOLDEN_HASH: u64 = 11_894_555_120_345_401_580;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).
-const GOLDEN_SUMS: [f64; 5] = [215.3573, 8.6437, -57.8601, 102.8826, 541.6861];
+const GOLDEN_SUMS: [f64; 5] = [202.9664, 0.0, -104.1376, 100.6361, 717.7401];

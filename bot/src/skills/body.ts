@@ -24,10 +24,19 @@ export interface Body {
 
   /** The nearest block with one of these names within `radius`, if any. */
   findBlock(names: readonly string[], radius: number): Pos | null;
+  /** The nearest fully grown crop called `name` (e.g. "wheat") within `radius`, if any. */
+  findRipe(name: string, radius: number): Pos | null;
+  /** The nearest dirt or grass block with air above within `radius`, if any. */
+  findSoil(radius: number): Pos | null;
+  /** The name of the block at `at`, if loaded. */
+  blockName(at: Pos): string | null;
   /** Mine the block at `at` (walking there) and pick up what drops. */
   dig(at: Pos, signal: AbortSignal): Promise<boolean>;
   /** Place one `item` against the block at `at`, standing where it is. */
   place(item: string, at: Pos, signal: AbortSignal): Promise<boolean>;
+
+  /** Walk near `at` and use one `item` on the top of the block there (hoe to till, seeds to sow). */
+  use(item: string, at: Pos, signal: AbortSignal): Promise<boolean>;
 
   /** Fight the mob nearest `at` until it dies, flees out of reach, or the signal aborts. */
   attack(at: Pos, signal: AbortSignal): Promise<boolean>;

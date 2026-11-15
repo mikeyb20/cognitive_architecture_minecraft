@@ -1,10 +1,13 @@
-//! Mobs: hostile zombies (night and caves) and pigs (food).
+//! Mobs: hostile zombies and skeletons (night and caves) and pigs (food).
 
 use host_api::Pos;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MobKind {
     Zombie,
+    /// Ranged: shoots from a distance with a clear line of sight and keeps
+    /// out of melee (`world::ranged`).
+    Skeleton,
     Pig,
 }
 
@@ -12,17 +15,23 @@ impl MobKind {
     pub fn name(self) -> &'static str {
         match self {
             MobKind::Zombie => "zombie",
+            MobKind::Skeleton => "skeleton",
             MobKind::Pig => "pig",
         }
     }
 
     pub fn hostile(self) -> bool {
-        self == MobKind::Zombie
+        self != MobKind::Pig
+    }
+
+    /// Whether it attacks from range rather than from the next tile.
+    pub fn ranged(self) -> bool {
+        self == MobKind::Skeleton
     }
 
     pub fn max_health(self) -> f32 {
         match self {
-            MobKind::Zombie => 1.0,
+            MobKind::Zombie | MobKind::Skeleton => 1.0,
             MobKind::Pig => 0.5,
         }
     }
@@ -73,7 +82,11 @@ mod tests {
     #[test]
     fn kinds() {
         assert!(MobKind::Zombie.hostile() && !MobKind::Pig.hostile());
+        assert!(MobKind::Skeleton.hostile() && MobKind::Skeleton.ranged());
+        assert!(!MobKind::Zombie.ranged() && !MobKind::Pig.ranged());
         assert_eq!(MobKind::Zombie.name(), "zombie");
+        assert_eq!(MobKind::Skeleton.name(), "skeleton");
+        assert_eq!(MobKind::Skeleton.max_health(), 1.0);
         assert_eq!(MobKind::Pig.name(), "pig");
         assert_eq!(MobKind::Zombie.max_health(), 1.0);
         assert_eq!(MobKind::Pig.max_health(), 0.5);

@@ -55,6 +55,27 @@ pub struct Rules {
     /// Damage per hostile hit and ticks between hits.
     pub mob_damage: f32,
     pub mob_hit_ticks: u64,
+    /// Share of hostile spawns that are skeletons (proposed: Minecraft
+    /// gives zombies and skeletons about equal spawn weight; not verified
+    /// this session). At 0 no draw is made, so runs replay as before.
+    pub skeleton_share: f32,
+    /// A skeleton shoots when the agent is within this many tiles with a
+    /// clear line of sight (Minecraft: "within 15 blocks of a target and
+    /// with a clear line of sight", minecraft.fandom.com/wiki/Skeleton).
+    pub shoot_range: i32,
+    /// Ticks between shots, and the chance one hits. Minecraft fires once
+    /// every 2 s on Easy and Normal (same page); a zombie's hit interval is
+    /// 1 s (not verified), so a shot takes twice `mob_hit_ticks` to keep the
+    /// ratio on the sim's stretched clock. Hit chance proposed, not found.
+    /// An arrow does `mob_damage` (Normal: 3 for both, wiki Damage page).
+    pub arrow_ticks: u64,
+    pub arrow_hit: f32,
+    /// A skeleton backs away when the agent comes nearer than this
+    /// ("retreat to a safe range if the player comes within 4 blocks").
+    pub keep_away: i32,
+    /// How far a skeleton follows the agent (Minecraft: "chases players
+    /// within 16 blocks"; `chase_radius` is the zombie's 40).
+    pub skeleton_follow: i32,
     /// Food restored by eating.
     pub meat_food: f32,
     pub bread_food: f32,
@@ -86,6 +107,15 @@ pub struct Rules {
     /// Damage per swing, and most swings in one attack action.
     pub swing_damage: f32,
     pub max_swings: u32,
+    /// How far the agent can hit a hostile, in tiles (straight-line). A
+    /// zombie hits only from the next tile, so the agent can strike first.
+    /// Minecraft's survival entity reach is 3 blocks (not verified this
+    /// session: minecraft.wiki refused fetches; a tile is a block).
+    pub attack_reach: f32,
+    /// Tiles a landed hit pushes a hostile back, which also restarts its
+    /// move timer. Proposed: Minecraft pushes a hit mob back, but the
+    /// distance for an unenchanted, non-sprint hit was not found.
+    pub knockback: i32,
     /// Longest rest in one action, in ticks.
     pub rest_ticks: u32,
     /// Success multiplier when a hostile is within 2 tiles and the agent is
@@ -119,6 +149,12 @@ impl Default for Rules {
             chase_radius: 40,
             mob_damage: 0.1,
             mob_hit_ticks: 20,
+            skeleton_share: 0.5,
+            shoot_range: 15,
+            arrow_ticks: 40,
+            arrow_hit: 0.5,
+            keep_away: 4,
+            skeleton_follow: 16,
             meat_food: 0.3,
             bread_food: 0.5,
             shelter_ticks_blocks: 20,
@@ -136,6 +172,8 @@ impl Default for Rules {
             mine_ticks: [40, 30, 20],
             swing_damage: 0.34,
             max_swings: 4,
+            attack_reach: 3.0,
+            knockback: 1,
             rest_ticks: 300,
             threat_penalty: 0.75,
             blocked_ticks: 5,

@@ -59,6 +59,15 @@ impl Tile {
         self.walkable() && !matches!(self, Tile::Shelter | Tile::Door)
     }
 
+    /// Tiles an arrow cannot pass: trunks, rock, walls and doors. Open
+    /// ground, crops, water and lava let a skeleton see and shoot across.
+    pub fn blocks_sight(self) -> bool {
+        matches!(
+            self,
+            Tile::Tree { .. } | Tile::Stone | Tile::IronOre | Tile::Planks | Tile::Door
+        )
+    }
+
     /// Tiles worth listing in an observation (not plain ground).
     pub fn notable(self) -> bool {
         !matches!(self, Tile::Grass | Tile::CaveFloor)

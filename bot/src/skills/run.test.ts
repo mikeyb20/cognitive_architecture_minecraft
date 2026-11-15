@@ -180,7 +180,7 @@ test("searches: in range, after digging down for ore, else one step on", async (
   assert.deepEqual([step.success, step.progress, step.blocked], [false, 0.25, false]);
   assert.deepEqual(b.calls.slice(-1), [["goto", P(0, 16, 24), 2]], "turn 1: +z");
   b.answers.set("goto", false);
-  const stuck = await go(b, req("farm", { Thing: "block:wheat" }), new Set(), live());
+  const stuck = await go(b, req("chop", { Thing: "block:oak_log" }), new Set(), live());
   assert.equal(stuck.progress, 0);
   for (const [turn, to] of [
     [0, P(24, 16, 0)],
@@ -188,7 +188,7 @@ test("searches: in range, after digging down for ore, else one step on", async (
     [3, P(0, 16, -24)],
   ] as const) {
     b.tick = 1200 * turn;
-    await go(b, req("farm", { Thing: "block:wheat" }), new Set(), live());
+    await go(b, req("chop", { Thing: "block:oak_log" }), new Set(), live());
     assert.deepEqual(b.calls.at(-1), ["goto", to, 2], `turn ${turn}`);
   }
   // At the surface a non-ore search does not dig down.
@@ -274,9 +274,68 @@ test("shelter digs in three blocks and closes the hole", async () => {
   }
   b.calls = [];
   b.answers.set("dig", false);
+  b.answers.set("place", false);
   const hard = await go(b, req("shelter", null), new Set(), live());
-  assert.ok(!hard.success && !hard.blocked);
-  assert.deepEqual(b.calls, [["dig", P(0, 63, 0)]], "stops at the first failure");
+  assert.deepEqual([hard.success, hard.progress, hard.blocked], [false, 0, false]);
+  assert.deepEqual(
+    b.calls.slice(0, 2),
+    [
+      ["dig", P(0, 63, 0)],
+      ["place", "dirt", P(1, 64, 0)],
+    ],
+    "stops digging at the first failure",
+  );
+});
+
+test("shelter builds walls and a roof where it cannot dig in", async () => {
+  const b = new FakeBody();
+  b.answers.set("dig", false);
+  b.inv.set("cobblestone", 9);
+  b.effects.set("place", (item) => {
+    const n = (b.inv.get(item as string) ?? 0) - 1;
+    if (n > 0) {
+      b.inv.set(item as string, n);
+    } else {
+      b.inv.delete(item as string);
+    }
+  });
+  // Already solid: the feet wall to +x (stone) and the head wall to -z. Grass is open.
+  b.names.set("1,64,0", "stone").set("0,65,-1", "dirt").set("-1,64,0", "short_grass").set("0,64,1", "air");
+  b.names.set("0,64,-1", "tall_grass").set("1,65,0", "cave_air");
+  const ok = await go(b, req("shelter", null), new Set(), live());
+  assert.deepEqual([ok.success, ok.progress, ok.blocked], [true, 1, false]);
+  const placed = b.calls.filter(([m]) => m === "place").map(([, item, at]) => [item, at]);
+  assert.deepEqual(placed, [
+    ["cobblestone", P(-1, 64, 0)],
+    ["cobblestone", P(0, 64, 1)],
+    ["cobblestone", P(0, 64, -1)],
+    ["cobblestone", P(1, 65, 0)],
+    ["cobblestone", P(-1, 65, 0)],
+    ["cobblestone", P(0, 65, 1)],
+    ["cobblestone", P(1, 66, 0)],
+    ["cobblestone", P(0, 66, 0)],
+  ]);
+  assert.equal(b.inv.get("cobblestone"), 1);
+  // Runs out after two open blocks, mixing the blocks held.
+  const c = new FakeBody();
+  c.answers.set("dig", false);
+  c.inv.set("cobblestone", 1).set("oak_planks", 1);
+  c.effects.set("place", (item) => c.inv.delete(item as string));
+  const short = await go(c, req("shelter", null), new Set(), live());
+  assert.deepEqual([short.success, short.progress], [false, 2 / 10]);
+  assert.deepEqual(
+    c.calls.filter(([m]) => m === "place").map(([, item]) => item),
+    ["cobblestone", "oak_planks"],
+  );
+  // A failed placement stops the build.
+  const d = new FakeBody();
+  d.answers.set("dig", false);
+  d.inv.set("dirt", 9);
+  d.names.set("1,64,0", "stone");
+  d.answers.set("place", false);
+  const stuck = await go(d, req("shelter", null), new Set(), live());
+  assert.deepEqual([stuck.success, stuck.progress], [false, 1 / 10]);
+  assert.equal(d.calls.filter(([m]) => m === "place").length, 1);
 });
 
 test("gained lists only increases, sorted", () => {
@@ -295,4 +354,61 @@ test("gained lists only increases, sorted", () => {
     ["bread", 1],
     ["stick", 2],
   ]);
+});
+
+test("farm grows wheat: seeds from grass, a hoe, till and sow, then harvest", async () => {
+  const b = new FakeBody();
+  const farm = () => go(b, req("farm", { Pos: P(9, 64, 9) }), new Set(), live());
+  const res = (o: Outcome) => [o.success, o.progress, o.blocked];
+  // No ripe wheat, no seeds, no grass in range: blocked.
+  assert.deepEqual(res(await farm()), [false, 0, true]);
+  assert.deepEqual(b.calls.slice(0, 2), [
+    ["findRipe", "wheat", 64],
+    ["findBlock", ["short_grass", "tall_grass"], 64],
+  ]);
+  // Grass breaks but drops no seed; then it drops one.
+  b.blocks.set("short_grass", P(1, 64, 0));
+  assert.deepEqual(res(await farm()), [false, 0.25, false]);
+  assert.deepEqual(b.calls.at(-1), ["dig", P(1, 64, 0)]);
+  b.effects.set("dig", () => b.inv.set("wheat_seeds", 1));
+  assert.deepEqual(res(await farm()), [false, 0.5, false]);
+  b.inv.delete("wheat_seeds");
+  b.answers.set("dig", false);
+  assert.deepEqual(res(await farm()), [false, 0.25, false], "a seed dropped, but the dig failed");
+  b.inv.set("wheat_seeds", 1);
+  b.answers.delete("dig");
+  b.effects.delete("dig");
+  // Seeds but no hoe and too little wood: blocked; with wood, craft one at a table.
+  b.blocks.set("crafting_table", P(2, 64, 0));
+  b.inv.set("oak_planks", 1).set("stick", 2);
+  assert.deepEqual(res(await farm()), [false, 0, true]);
+  assert.ok(!b.calls.some(([m]) => m === "craft"), "too little wood: no craft tried");
+  b.inv.set("oak_planks", 2);
+  b.calls = [];
+  assert.deepEqual(res(await farm()), [false, 0.5, false]);
+  assert.deepEqual(b.calls.at(-1), ["craft", "wooden_hoe", P(2, 64, 0)]);
+  b.answers.set("craft", false);
+  assert.deepEqual(res(await farm()), [false, 0, false]);
+  b.answers.delete("craft");
+  // Hoe and seeds, no soil: blocked. Soil: till, then sow; success once wheat stands there.
+  b.inv.set("wooden_hoe", 1);
+  assert.deepEqual(res(await farm()), [false, 0, true]);
+  b.found.set("soil", P(3, 63, 3));
+  b.calls = [];
+  assert.deepEqual(res(await farm()), [false, 0, false], "sown but no wheat seen");
+  assert.deepEqual(b.calls.slice(-2), [
+    ["use", "wooden_hoe", P(3, 63, 3)],
+    ["use", "wheat_seeds", P(3, 63, 3)],
+  ]);
+  b.names.set("3,64,3", "wheat");
+  assert.deepEqual(res(await farm()), [true, 1, false]);
+  b.answers.set("use", false);
+  b.calls = [];
+  assert.deepEqual(res(await farm()), [false, 0, false]);
+  assert.equal(b.calls.filter(([m]) => m === "use").length, 1, "no sowing after a failed till");
+  // Ripe wheat in range comes first and is harvested; the target position is ignored.
+  b.found.set("wheat", P(4, 64, 4));
+  b.calls = [];
+  assert.deepEqual(res(await farm()), [true, 1, false]);
+  assert.deepEqual(b.calls, [["findRipe", "wheat", 64], ["dig", P(4, 64, 4)]]);
 });
