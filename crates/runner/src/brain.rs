@@ -28,6 +28,10 @@ pub struct SimTools {
     pub mob: MobTest,
     /// The bed lesson's recipe and test (`bed_lesson`), Minecraft only.
     pub bed: bool,
+    /// The host's Shelter digs in without blocks held, as the Minecraft
+    /// bot's quick hole does: the shelter recipe is then Shelter alone
+    /// (`dig_in_recipe`).
+    pub dig_in: bool,
 }
 
 /// Dusk, from which the planner puts shelter first (same as arm A's tree).
@@ -81,7 +85,9 @@ impl ThinkTools for SimTools {
         if !teaching(self.teach_until, obs.tick) {
             return None;
         }
-        if goal == SHELTER {
+        if goal == SHELTER && self.dig_in {
+            Some(dig_in_recipe())
+        } else if goal == SHELTER {
             Some(shelter_recipe(&obs.inventory))
         } else if self.bed && goal == BED_GOAL {
             Some(crate::bed_lesson::recipe(obs))
@@ -126,6 +132,22 @@ pub fn shelter_recipe(inv: &host_api::Inventory) -> Recipe {
     Recipe {
         goal: SHELTER.to_string(),
         steps,
+    }
+}
+
+/// The shelter recipe where Shelter digs in without blocks held (01
+/// §4.11): Shelter alone. In Minecraft the quick hole's digging gives the
+/// dirt that closes it, so no tree is needed; the wood steps of
+/// [`shelter_recipe`] kept a bot in treeless plains exploring for a log
+/// all night (skill audit, 15 Nov 2026).
+pub fn dig_in_recipe() -> Recipe {
+    Recipe {
+        goal: SHELTER.to_string(),
+        steps: vec![PlanStep {
+            skill: Skill::Shelter,
+            thing: String::new(),
+            task: TaskType::Building,
+        }],
     }
 }
 
@@ -339,6 +361,7 @@ mod tests {
                 weak: false,
             },
             bed: false,
+            dig_in: false,
         };
         obs.tick = 99;
         assert!(t.show(SHELTER, &obs).is_some());
@@ -350,6 +373,53 @@ mod tests {
         assert_eq!(t.explain(SHELTER, &obs), Some(false));
         assert_eq!(t.explain(FIGHT_ZOMBIE_GOAL, &obs), Some(false));
         assert_eq!(t.explain(HIDE_SKELETON_GOAL, &obs), Some(true));
+    }
+
+    // Where Shelter digs in without blocks (Minecraft), the shelter
+    // recipe is Shelter alone, whatever is held; it still fades with the
+    // teacher's days, and other lessons are unchanged.
+    #[test]
+    fn a_dig_in_shelter_needs_no_wood_steps() {
+        use host_api::Host;
+        let mut obs = setup("first_night", 0).world.perceive();
+        let mut on = SimTools {
+            dig_in: true,
+            teach_until: Some(100),
+            ..SimTools::default()
+        };
+        let mut off = SimTools {
+            teach_until: Some(100),
+            ..SimTools::default()
+        };
+        obs.tick = 99;
+        let shelter = |t: &mut SimTools, o: &Observation| {
+            t.show(SHELTER, o).map(|r| {
+                r.steps
+                    .iter()
+                    .map(|s| format!("{:?}:{}", s.skill, s.thing))
+                    .collect::<Vec<_>>()
+            })
+        };
+        for held in [&[][..], &[("oak_log", 1)][..], &[("dirt", 40)][..]] {
+            obs.inventory = host_api::Inventory {
+                items: held.iter().map(|&(n, c)| (n.to_string(), c)).collect(),
+            };
+            assert_eq!(shelter(&mut on, &obs), Some(vec!["Shelter:".to_string()]));
+        }
+        obs.inventory = host_api::Inventory::default();
+        assert_eq!(
+            shelter(&mut off, &obs),
+            Some(vec![
+                "Chop:block:oak_log".to_string(),
+                "Craft:item:oak_planks".to_string(),
+                "Shelter:".to_string()
+            ]),
+            "the sim keeps its wood steps"
+        );
+        assert_eq!(on.show(SHELTER, &obs).unwrap().goal, SHELTER);
+        assert_eq!(on.show("stick", &obs), off.show("stick", &obs));
+        obs.tick = 100;
+        assert!(on.show(SHELTER, &obs).is_none(), "faded with the days");
     }
 
     // The bed lesson (`bed_lesson`) is known only when turned on, as in

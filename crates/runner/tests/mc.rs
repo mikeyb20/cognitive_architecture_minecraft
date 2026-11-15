@@ -400,8 +400,8 @@ fn the_teacher_calls_once_at_dusk_and_the_brain_takes_the_goal() {
     );
     assert_eq!(
         last.recipe_step.as_deref(),
-        Some("Craft:item:oak_planks"),
-        "and the shown step"
+        Some("Shelter:"),
+        "and the shown step: the bot's hole digs its own block, no wood"
     );
     assert_eq!(
         brain.goal().map(|g| (g.item.as_str(), g.commanded)),
