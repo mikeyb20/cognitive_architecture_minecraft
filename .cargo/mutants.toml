@@ -35,6 +35,10 @@ exclude_re = [
     # Reinforce when usefulness > 0.5: usefulness is faded by ×0.99 before
     # the check, and no f32 times 0.99 gives exactly 0.5.
     "replace > with >= in reinforces",
+    # Stepping back: a neighbour tile is never exactly as far from the
+    # hostile as the agent's own tile (on integer tiles |v − e|² − |v|² =
+    # 1 − 2·v·e is odd, so never 0), so `>` and `>=` pick the same tiles.
+    "replace > with >= in SimWorld::back_off",
     # Sim random draw `rng < p` vs `<= p`: differs only when a uniform f32
     # draw equals p exactly (probability ~2^-24 per draw).
     "replace < with <= in SimWorld::chance",

@@ -39,6 +39,7 @@ fn default_rules_are_pinned() {
     );
     assert_eq!(r.mine_ticks, [40, 30, 20]);
     assert_eq!((r.swing_damage, r.max_swings), (0.34, 4));
+    assert_eq!((r.attack_reach, r.knockback), (3.0, 1));
     assert_eq!(
         (r.rest_ticks, r.threat_penalty, r.blocked_ticks),
         (300, 0.75, 5)
