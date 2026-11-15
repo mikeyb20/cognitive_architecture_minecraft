@@ -3,6 +3,7 @@
 // short plan over Body calls; all the Minecraft detail lives in the glue.
 
 import type { Candidate, Intensity, Outcome, Pos, RecipeHint, SkillConfig, Target } from "../host.js";
+import { ENCLOSURE } from "../perceive/shelter.js";
 import type { Body } from "./body.js";
 
 /** One `execute` from the runner (host-api `LinkRequest::Execute`). */
@@ -102,9 +103,20 @@ async function craft(body: Body, out: string, hint: RecipeHint | null, signal: A
 }
 
 /**
+ * The enclosure to build: walls, then one block beside the roof, then the
+ * roof. A block can only be placed against a neighbour, and the roof has
+ * none until that one is in.
+ */
+const BUILD = [...ENCLOSURE.filter(([, dy]) => dy < 2), [1, 2, 0] as const, ...ENCLOSURE.filter(([, dy]) => dy >= 2)];
+
+/** Blocks a placed block may take the place of. */
+const OPEN = ["air", "cave_air", "short_grass", "tall_grass"];
+
+/**
  * Dig in: three blocks down, then close the top of the hole (needs one
  * building block). The top is placed one below the old floor, so the
- * ground around it holds it.
+ * ground around it holds it. Where the ground cannot be dug (stone with
+ * no pickaxe), build the enclosure around the agent instead.
  */
 async function shelter(body: Body, signal: AbortSignal): Promise<Done> {
   const block = BUILDING.find((b) => (body.inventory().get(b) ?? 0) > 0);
@@ -117,7 +129,28 @@ async function shelter(body: Body, signal: AbortSignal): Promise<Done> {
   for (const n of [1, 2, 3]) {
     dug = dug && (await body.dig(below(n), signal));
   }
-  return done(dug && (await body.place(block, below(1), signal)));
+  return dug ? done(await body.place(block, below(1), signal)) : build(body, signal);
+}
+
+/**
+ * Wall the agent in where it stands: every open block of the enclosure the
+ * `sheltered` check asks for (feet walls, head walls, roof), from any
+ * building blocks held. Progress is the share of `BUILD` solid.
+ */
+async function build(body: Body, signal: AbortSignal): Promise<Done> {
+  const me = body.position();
+  let solid = 0;
+  for (const [dx, dy, dz] of BUILD) {
+    const at = { x: me.x + dx, y: me.y + dy, z: me.z + dz };
+    const block = BUILDING.find((b) => (body.inventory().get(b) ?? 0) > 0);
+    const open = OPEN.includes(body.blockName(at) ?? "air");
+    if (open && (block === undefined || !(await body.place(block, at, signal)))) {
+      break;
+    }
+    solid += 1;
+  }
+  const share = solid / BUILD.length;
+  return { success: share === 1, progress: share, blocked: false };
 }
 
 const GRASS = ["short_grass", "tall_grass"];

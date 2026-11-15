@@ -274,9 +274,68 @@ test("shelter digs in three blocks and closes the hole", async () => {
   }
   b.calls = [];
   b.answers.set("dig", false);
+  b.answers.set("place", false);
   const hard = await go(b, req("shelter", null), new Set(), live());
-  assert.ok(!hard.success && !hard.blocked);
-  assert.deepEqual(b.calls, [["dig", P(0, 63, 0)]], "stops at the first failure");
+  assert.deepEqual([hard.success, hard.progress, hard.blocked], [false, 0, false]);
+  assert.deepEqual(
+    b.calls.slice(0, 2),
+    [
+      ["dig", P(0, 63, 0)],
+      ["place", "dirt", P(1, 64, 0)],
+    ],
+    "stops digging at the first failure",
+  );
+});
+
+test("shelter builds walls and a roof where it cannot dig in", async () => {
+  const b = new FakeBody();
+  b.answers.set("dig", false);
+  b.inv.set("cobblestone", 9);
+  b.effects.set("place", (item) => {
+    const n = (b.inv.get(item as string) ?? 0) - 1;
+    if (n > 0) {
+      b.inv.set(item as string, n);
+    } else {
+      b.inv.delete(item as string);
+    }
+  });
+  // Already solid: the feet wall to +x (stone) and the head wall to -z. Grass is open.
+  b.names.set("1,64,0", "stone").set("0,65,-1", "dirt").set("-1,64,0", "short_grass").set("0,64,1", "air");
+  b.names.set("0,64,-1", "tall_grass").set("1,65,0", "cave_air");
+  const ok = await go(b, req("shelter", null), new Set(), live());
+  assert.deepEqual([ok.success, ok.progress, ok.blocked], [true, 1, false]);
+  const placed = b.calls.filter(([m]) => m === "place").map(([, item, at]) => [item, at]);
+  assert.deepEqual(placed, [
+    ["cobblestone", P(-1, 64, 0)],
+    ["cobblestone", P(0, 64, 1)],
+    ["cobblestone", P(0, 64, -1)],
+    ["cobblestone", P(1, 65, 0)],
+    ["cobblestone", P(-1, 65, 0)],
+    ["cobblestone", P(0, 65, 1)],
+    ["cobblestone", P(1, 66, 0)],
+    ["cobblestone", P(0, 66, 0)],
+  ]);
+  assert.equal(b.inv.get("cobblestone"), 1);
+  // Runs out after two open blocks, mixing the blocks held.
+  const c = new FakeBody();
+  c.answers.set("dig", false);
+  c.inv.set("cobblestone", 1).set("oak_planks", 1);
+  c.effects.set("place", (item) => c.inv.delete(item as string));
+  const short = await go(c, req("shelter", null), new Set(), live());
+  assert.deepEqual([short.success, short.progress], [false, 2 / 10]);
+  assert.deepEqual(
+    c.calls.filter(([m]) => m === "place").map(([, item]) => item),
+    ["cobblestone", "oak_planks"],
+  );
+  // A failed placement stops the build.
+  const d = new FakeBody();
+  d.answers.set("dig", false);
+  d.inv.set("dirt", 9);
+  d.names.set("1,64,0", "stone");
+  d.answers.set("place", false);
+  const stuck = await go(d, req("shelter", null), new Set(), live());
+  assert.deepEqual([stuck.success, stuck.progress], [false, 1 / 10]);
+  assert.equal(d.calls.filter(([m]) => m === "place").length, 1);
 });
 
 test("gained lists only increases, sorted", () => {
