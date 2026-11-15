@@ -99,6 +99,7 @@ fn the_run_command_writes_runs_commit_and_config_hash() {
             "1",
         ])
         .args(["--out", out_dir.to_str().unwrap()])
+        .env("OLLAMA_MODEL", "tiny:1b")
         .output()
         .unwrap();
     assert!(out.status.success(), "{out:?}");
@@ -111,6 +112,7 @@ fn the_run_command_writes_runs_commit_and_config_hash() {
         serde_json::from_str(&std::fs::read_to_string(out_dir.join("TWO.header.json")).unwrap())
             .unwrap();
     assert_eq!(head["config_hash"], runner::paired::config_hash(TWO));
+    assert_eq!(head["llm"], "openai/tiny:1b", "the model the LLM arms ask");
     // The same answer git gives here (a checkout, or not).
     let git = |a: &[&str]| {
         Command::new("git")
