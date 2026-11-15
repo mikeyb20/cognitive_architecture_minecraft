@@ -36,6 +36,14 @@ const USE_RANGE = 3;
 /** Ticks to wait after using an item for the server's update. */
 const USE_SETTLE_TICKS = 4;
 
+/** A mob this close (blocks) to the target is the one aimed at. */
+const MOB_AT = 3;
+/** At a remembered spot with no mob there, one this close has wandered off it. */
+const MOB_WANDERED = 8;
+/** Drops this close (blocks) to a kill are walked over to pick up. */
+const LOOT_RANGE = 6;
+/** Ticks for a kill's drops to appear. */
+const LOOT_WAIT_TICKS = 10;
 /** A mob further than this (blocks) has got away: the attack gives up. */
 const GIVE_UP_RANGE = 16;
 
@@ -290,10 +298,27 @@ export class MineflayerBody implements Body {
     return bounded(signal, CALL_LIMIT_MS, put, () => undefined, false);
   }
 
-  #mobNear(at: Pos): Entity | null {
+  #mobNear(at: Pos, range: number): Entity | null {
     return this.bot.nearestEntity(
-      (e) => attackable(e.type) && e.position.distanceTo(v(at)) <= 3,
+      (e) => attackable(e.type) && e.position.distanceTo(v(at)) <= range,
     );
+  }
+
+  /**
+   * Walk over the drops near a kill so they are picked up: a live run
+   * killed sheep but never got their wool.
+   */
+  async #loot(at: Vec3, signal: AbortSignal): Promise<void> {
+    await this.bot.waitForTicks(LOOT_WAIT_TICKS);
+    const drops = Object.values(this.bot.entities).filter(
+      (e) => e.name === "item" && e.position.distanceTo(at) <= LOOT_RANGE,
+    );
+    for (const d of drops) {
+      if (d.isValid && !signal.aborted) {
+        const p = d.position.floored();
+        await this.goto({ x: p.x, y: p.y, z: p.z }, 0, signal);
+      }
+    }
   }
 
   /**
@@ -303,7 +328,10 @@ export class MineflayerBody implements Body {
    * when the mob is gone (dead or despawned); gives up if it gets away.
    */
   async attack(at: Pos, signal: AbortSignal): Promise<boolean> {
-    const mob = this.#mobNear(at);
+    // Seen there, or remembered there: walk over and take one that wandered.
+    const mob =
+      this.#mobNear(at, MOB_AT) ??
+      ((await this.goto(at, 2, signal)) ? this.#mobNear(at, MOB_WANDERED) : null);
     if (mob === null) {
       return false;
     }
@@ -344,7 +372,11 @@ export class MineflayerBody implements Body {
         };
         events.on("physicsTick", onTick);
       });
-    return bounded(signal, CALL_LIMIT_MS, fight, stop, false);
+    const won = await bounded(signal, CALL_LIMIT_MS, fight, stop, false);
+    if (won) {
+      await this.#loot(mob.position, signal);
+    }
+    return won;
   }
 
   async eat(item: string, signal: AbortSignal): Promise<boolean> {
