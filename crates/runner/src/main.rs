@@ -270,16 +270,10 @@ fn git_commit() -> String {
             .filter(|o| o.status.success())
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
     };
-    match git(&["rev-parse", "HEAD"]) {
-        Some(c)
-            if git(&["status", "--porcelain", "--untracked-files=no"])
-                .is_some_and(|s| !s.is_empty()) =>
-        {
-            format!("{c}+dirty")
-        }
-        Some(c) => c,
-        None => "unknown".into(),
-    }
+    runner::paired::commit_label(
+        git(&["rev-parse", "HEAD"]),
+        git(&["status", "--porcelain", "--untracked-files=no"]),
+    )
 }
 
 /// Connect to the bot at `--addr` and say hello (spec §22).

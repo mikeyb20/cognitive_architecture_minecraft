@@ -111,10 +111,19 @@ fn the_run_command_writes_runs_commit_and_config_hash() {
         serde_json::from_str(&std::fs::read_to_string(out_dir.join("TWO.header.json")).unwrap())
             .unwrap();
     assert_eq!(head["config_hash"], runner::paired::config_hash(TWO));
-    let commit = head["commit"].as_str().unwrap();
-    assert!(
-        commit == "unknown" || commit.len() >= 40,
-        "a commit id: {commit}"
+    // The same answer git gives here (a checkout, or not).
+    let git = |a: &[&str]| {
+        Command::new("git")
+            .args(a)
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    };
+    let want = runner::paired::commit_label(
+        git(&["rev-parse", "HEAD"]),
+        git(&["status", "--porcelain", "--untracked-files=no"]),
     );
+    assert_eq!(head["commit"], want);
     std::fs::remove_dir_all(dir).unwrap();
 }
