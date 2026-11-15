@@ -26,7 +26,17 @@ pub(crate) fn target_key(c: &Candidate) -> String {
 impl Counts {
     /// Times this candidate's target has been chosen.
     pub fn count(&self, c: &Candidate) -> u32 {
-        self.n.get(&target_key(c)).copied().unwrap_or(0)
+        self.count_key(&target_key(c))
+    }
+
+    /// Times `key` has been counted.
+    pub fn count_key(&self, key: &str) -> u32 {
+        self.n.get(key).copied().unwrap_or(0)
+    }
+
+    /// Count `key` once more.
+    pub fn visit_key(&mut self, key: &str) {
+        *self.n.entry(key.to_string()).or_insert(0) += 1;
     }
 
     /// The bonus `β/√(n+1)`.
@@ -36,7 +46,7 @@ impl Counts {
 
     /// Count one more choice of this candidate's target.
     pub fn visit(&mut self, c: &Candidate) {
-        *self.n.entry(target_key(c)).or_insert(0) += 1;
+        self.visit_key(&target_key(c));
     }
 }
 

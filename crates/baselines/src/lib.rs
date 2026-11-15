@@ -8,7 +8,7 @@ pub mod arm_an;
 pub mod arm_b;
 
 pub use arm_a::ArmA;
-pub use arm_an::ArmAN;
+pub use arm_an::{ArmAN, CountBy};
 pub use arm_b::{ArmB, ArmBConfig};
 pub use host_api;
 

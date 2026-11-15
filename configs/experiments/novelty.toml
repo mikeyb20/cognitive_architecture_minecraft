@@ -46,3 +46,24 @@ label = "A+N, β 8"
 arm = "an"
 beta = 8.0
 expected = "Novelty-led: most new things of the A+N arms, least tech."
+
+# Added after the first run (15 Nov 2026), so exploratory, not primary:
+# counting targets barely raised new things over arm A, so these arms
+# count regions stood in (a state count, the unit C's novelty signal uses).
+[[arms]]
+label = "A+N by region, β 2"
+arm = "anr"
+beta = 2.0
+expected = "More new things than A+N by target at the same β."
+
+[[arms]]
+label = "A+N by region, β 4"
+arm = "anr"
+beta = 4.0
+expected = "More new things than β 2, less tech."
+
+[[arms]]
+label = "A+N by region, β 8"
+arm = "anr"
+beta = 8.0
+expected = "Novelty-led: the strongest count-based explorer here."
