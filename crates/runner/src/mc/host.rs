@@ -38,10 +38,12 @@ fn not_done() -> Outcome {
 impl McHost {
     /// Say hello with `config` and read the first observation. The bot's
     /// danger interrupt uses `params.threat_range`, the same range at which
-    /// the candidates offer flee and attack (sim #68 parity).
+    /// the candidates offer flee and attack (sim #68 parity), and its fight
+    /// gate the sim's `Rules::fight_health` (#87 parity).
     pub fn connect(mut link: Link, config: BotConfig, params: McParams) -> Result<Self, LinkError> {
         let config = BotConfig {
             danger_range: params.threat_range,
+            fight_health: sim::Rules::default().fight_health,
             ..config
         };
         let names = match link.call(&LinkRequest::Hello { config })? {

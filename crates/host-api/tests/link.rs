@@ -37,9 +37,12 @@ fn requests_and_replies_on_the_wire() {
         json!(0.05f32)
     );
     assert_eq!(hello["config"]["dangerRange"], json!(0.0));
-    // Additive: a hello from before the danger range still reads, as off.
+    assert_eq!(hello["config"]["fightHealth"], json!(0.0));
+    // Additive: a hello from before the danger range and the fight gate
+    // still reads, as off.
     let mut old = hello["config"].clone();
     old.as_object_mut().unwrap().remove("dangerRange");
+    old.as_object_mut().unwrap().remove("fightHealth");
     let read: BotConfig = serde_json::from_value(old).unwrap();
     assert_eq!(read, BotConfig::default());
     let ready: LinkReply =

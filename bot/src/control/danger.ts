@@ -4,7 +4,8 @@
 // taking free hits mid-chop. A skill begun in danger runs on: it was chosen
 // with the hostile in view.
 
-import { type ActionLock, Priority } from "./lock.js";
+import type { ActionLock } from "./lock.js";
+import { Onset } from "./onset.js";
 
 export interface DangerState {
   sheltered: boolean;
@@ -21,11 +22,11 @@ export function inDanger(s: DangerState, range: number): boolean {
 }
 
 export class DangerWatch {
-  #calm = false;
+  #onset = new Onset(false);
 
   /** Call as a skill starts: only a skill begun calm can be cut short. */
   begin(s: DangerState | null, range: number): void {
-    this.#calm = s !== null && !inDanger(s, range);
+    this.#onset.begin(s === null || inDanger(s, range));
   }
 
   /**
@@ -33,12 +34,6 @@ export class DangerWatch {
    * per skill. Returns whether it interrupted.
    */
   check(lock: ActionLock, s: DangerState, range: number): boolean {
-    if (!this.#calm || lock.holder() === null || !inDanger(s, range)) {
-      return false;
-    }
-    this.#calm = false;
-    lock.acquire(DANGER, Priority.Critical);
-    lock.release(DANGER);
-    return true;
+    return this.#onset.fire(lock, inDanger(s, range), DANGER);
   }
 }
