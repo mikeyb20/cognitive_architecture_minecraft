@@ -8,7 +8,7 @@ mod host;
 mod link;
 mod setup;
 
-pub use brain::{BrainCounts, run_brain};
+pub use brain::{BrainCounts, BrainRun, run_brain};
 pub use host::McHost;
 pub use link::{Link, LinkError};
 pub use setup::{McArm, arm, provider, tier};

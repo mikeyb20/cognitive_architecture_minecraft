@@ -4,16 +4,16 @@
 // decision comes at once instead of after the skill ends (v0.2 R7).
 
 import type { Thresholds } from "../host.js";
+import type { DangerState } from "./danger.js";
 import { type ActionLock, Priority } from "./lock.js";
 
 export type { Thresholds };
 
-export interface BodyState {
+export interface BodyState extends DangerState {
   /** 0..1 */
   health: number;
   /** 0..1 */
   food: number;
-  sheltered: boolean;
   hostileNear: boolean;
   hasFood: boolean;
 }

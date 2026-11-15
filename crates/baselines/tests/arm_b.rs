@@ -158,7 +158,9 @@ fn the_prompt_by_hand() {
          2: craft oak_planks [Mining] cost 0.05 risk 0.00 (asked by a player)\n\
          3: mine (search for block:iron_ore) [Mining] cost 0.60 risk 0.30\n\
          4: follow_player player alex [Mining] cost 0.10 risk 0.00\n\
-         5: rest [Mining] cost 0.10 risk 0.00"
+         5: rest [Mining] cost 0.10 risk 0.00\n\
+         6: plan: think about your next steps toward the goal (no action)\n\
+         7: reflect: think about what has and hasn't worked (no action)"
     );
 }
 
@@ -174,7 +176,9 @@ fn night_shelter_and_an_empty_inventory_read_plainly() {
     assert_eq!(
         pr.user,
         "health 90%, food 56%, night, sheltered, at (0, 64, 0)\ninventory: empty\nOptions:\n\
-         5: rest [Mining] cost 0.10 risk 0.00"
+         5: rest [Mining] cost 0.10 risk 0.00\n\
+         6: plan: think about your next steps toward the goal (no action)\n\
+         7: reflect: think about what has and hasn't worked (no action)"
     );
 }
 
@@ -259,7 +263,8 @@ fn b_plus_n_ranks_by_bonus_and_counts_visits() {
         .map(|l| &l[..1])
         .collect();
     // Score = 1 − (cost + risk)/2: craft 0.975, rest and follow 0.95, chop 0.925 …
-    assert_eq!(order, ["2", "4", "5", "0", "1", "3"]);
+    // Plan and reflect come after the ranked options.
+    assert_eq!(order, ["2", "4", "5", "0", "1", "3", "6", "7"]);
     assert!(first.user.contains(
         "2: craft oak_planks [Mining] cost 0.05 risk 0.00 novelty 1.00 (asked by a player)"
     ));
@@ -270,8 +275,8 @@ fn b_plus_n_ranks_by_bonus_and_counts_visits() {
     // Chopping that log again: bonus 1/√4 = 0.5.
     assert!((a.counts().bonus(&c[0], 1.0) - 0.5).abs() < 1e-6);
     let again = a.prompt(&o, &c);
-    assert!(again.user.ends_with(
-        "0: chop block:oak_log at (3, 64, 4) [Mining] cost 0.15 risk 0.00 novelty 0.50"
+    assert!(again.user.contains(
+        "0: chop block:oak_log at (3, 64, 4) [Mining] cost 0.15 risk 0.00 novelty 0.50\n6: plan"
     ));
 }
 
@@ -445,4 +450,169 @@ fn only_llm_arms_report_llm_use() {
     a.choose(&obs(), &cands());
     assert_eq!(a.llm_stats(), Some(&a.stats));
     assert_eq!(a.llm_stats().map(|s| s.calls), Some(1));
+}
+
+// Plan and reflect (spec §24, debt D6): one extra call each, kept as a note.
+
+const PLAN: &str = "6: plan: think about your next steps toward the goal (no action)";
+
+#[test]
+fn picking_plan_thinks_keeps_a_note_and_picks_again_from_the_world() {
+    let mut a = arm(
+        ArmBConfig::default(),
+        vec![
+            says("6", false),
+            says("Chop logs,\n then craft a table.", false),
+            says("0", false),
+            says("1", false),
+        ],
+    );
+    let (o, c) = (obs(), cands());
+    assert_eq!(a.choose(&o, &c), Some(0));
+    assert_eq!(a.stats.calls, 3);
+    let plan = &a.llm().sent[1];
+    assert_eq!(
+        plan.system,
+        "You control one player in a Minecraft world. Stay alive and work toward: iron_pickaxe. \
+         In at most two sentences, say what to do next and in what order. \
+         This plan will be shown to you on later turns."
+    );
+    assert!(
+        plan.user
+            .ends_with("alex says: hi\nrecent choices: none yet"),
+        "{}",
+        plan.user
+    );
+    let again = &a.llm().sent[2].user;
+    assert!(!again.contains(PLAN), "no second thought in one decision");
+    assert!(
+        again.contains(
+            "alex says: hi\nyour plan: Chop logs, then craft a table.\nOptions:\n0: chop"
+        )
+    );
+    a.choose(&o, &c);
+    let next = &a.llm().sent[3].user;
+    assert!(next.contains("your plan: Chop logs, then craft a table.\nOptions:"));
+    assert!(next.contains(PLAN), "thinking is offered again");
+}
+
+#[test]
+fn reflect_sees_recent_choices_and_how_the_body_changed() {
+    let mut a = arm(
+        ArmBConfig {
+            history: 2,
+            ..Default::default()
+        },
+        vec![
+            says("1", false),
+            says("5", false),
+            says("0", false),
+            says("7", false),
+            says("Exploring hurt me.", false),
+            says("5", false),
+        ],
+    );
+    let (mut o, c) = (obs(), cands());
+    a.choose(&o, &c);
+    o.health = 0.8;
+    a.choose(&o, &c);
+    o.food = 0.5;
+    a.choose(&o, &c);
+    o.health = 0.854;
+    assert_eq!(a.choose(&o, &c), Some(5));
+    let reflect = &a.llm().sent[4];
+    assert!(reflect.system.ends_with(
+        "In at most two sentences, say what has worked and what hasn't in your \
+         recent choices. This lesson will be shown to you on later turns."
+    ));
+    // Two kept: explore has dropped out.
+    assert!(reflect.user.ends_with(
+        "recent choices:\n\
+         - rest [Mining] cost 0.10 risk 0.00 → health 80%→80%, food 56%→50%\n\
+         - chop block:oak_log at (3, 64, 4) [Mining] cost 0.15 risk 0.00 → health 80%→85%, food 50%→50%"
+    ), "{}", reflect.user);
+    assert!(
+        a.llm().sent[5]
+            .user
+            .contains("your lesson: Exploring hurt me.\nOptions:")
+    );
+}
+
+#[test]
+fn notes_are_one_line_capped_and_an_empty_answer_keeps_the_old_one() {
+    let mut a = arm(
+        ArmBConfig {
+            note_chars: 10,
+            ..Default::default()
+        },
+        vec![
+            says("6", false),
+            says("go   north\nthen east", false),
+            says("0", false),
+            says("6", false),
+            says("  \n ", false),
+            says("0", false),
+        ],
+    );
+    let (o, c) = (obs(), cands());
+    a.choose(&o, &c);
+    a.choose(&o, &c);
+    let last = &a.llm().sent[5].user;
+    assert!(last.contains("\nyour plan: go north t\nOptions:"), "{last}");
+}
+
+#[test]
+fn a_failed_thought_still_picks_and_a_thought_id_the_second_time_falls_back() {
+    let mut a = arm(
+        ArmBConfig::default(),
+        vec![says("7", false), Err(LlmError::Refused), says("3", false)],
+    );
+    let (o, c) = (obs(), cands());
+    assert_eq!(a.choose(&o, &c), Some(3));
+    assert!(!a.llm().sent[2].user.contains("your lesson"));
+    let mut b = arm(
+        ArmBConfig::default(),
+        vec![says("7", false), says("ok", false), says("7", false)],
+    );
+    assert_eq!(
+        b.choose(&o, &c),
+        Some(2),
+        "7 is not offered again: cheapest"
+    );
+    assert_eq!((b.stats.unparsed, b.stats.fallbacks), (1, 1));
+}
+
+#[test]
+fn with_thinking_off_only_the_world_is_offered() {
+    let cfg = ArmBConfig {
+        think: false,
+        ..Default::default()
+    };
+    let mut a = arm(cfg, vec![says("6", false)]);
+    let (o, c) = (obs(), cands());
+    assert!(!a.prompt(&o, &c).user.contains("plan:"));
+    assert_eq!(a.choose(&o, &c), Some(2), "6 is not an option: cheapest");
+    assert_eq!(a.stats.calls, 1);
+}
+
+#[test]
+fn thought_ids_follow_the_highest_external_id() {
+    let a = arm(ArmBConfig::default(), vec![]);
+    let o = obs();
+    let gap = vec![
+        cand(4, Skill::Rest, None, 0.1, 0.0),
+        cand(1, Skill::Rest, None, 0.1, 0.0),
+    ];
+    assert!(a.prompt(&o, &gap).user.ends_with("\n5: plan: think about your next steps toward the goal (no action)\n6: reflect: think about what has and hasn't worked (no action)"));
+    assert!(a.prompt(&o, &[]).user.ends_with("Options:\n0: plan: think about your next steps toward the goal (no action)\n1: reflect: think about what has and hasn't worked (no action)"));
+}
+
+#[test]
+fn thinking_defaults_are_pinned() {
+    let c = ArmBConfig::default();
+    assert_eq!(
+        (c.think, c.note_chars, c.history),
+        (true, 200, 5),
+        "proposed until the pilot"
+    );
 }

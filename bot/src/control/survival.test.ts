@@ -5,7 +5,7 @@ import { ActionLock, Priority } from "./lock.js";
 import { type BodyState, emergency, interruptIfEmergency } from "./survival.js";
 
 const t = { criticalHealth: 0.2, starvingFood: 0.05 };
-const calm: BodyState = { health: 1, food: 1, sheltered: false, hostileNear: false, hasFood: true };
+const calm: BodyState = { health: 1, food: 1, sheltered: false, hostileNear: false, nearestHostile: null, hasFood: true };
 
 test("emergencies match the shared reflex", () => {
   assert.ok(!emergency(calm, t));

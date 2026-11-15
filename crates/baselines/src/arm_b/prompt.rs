@@ -41,14 +41,17 @@ pub(crate) fn candidate_line(obs: &Observation, c: &Candidate, bonus: Option<f32
     )
 }
 
-/// The user part of the prompt: status, then the options (spec §23).
+/// The user part of the prompt: status, B's notes, then the options (spec
+/// §23).
 pub(crate) fn user_prompt(
     obs: &Observation,
+    notes: Vec<String>,
     lines: &[String],
     system_chars: usize,
     max_tokens: u32,
 ) -> String {
-    let mut tail = vec!["Options:".to_string()];
+    let mut tail = notes;
+    tail.push("Options:".to_string());
     tail.extend(lines.iter().cloned());
     describe::fit(obs, &tail, system_chars, max_tokens)
 }

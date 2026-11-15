@@ -30,6 +30,7 @@ fn bot_settings_sent_at_connect() {
     assert_eq!((l.max_visible_blocks, l.max_per_kind), (32, 4));
     let c = BotConfig::default();
     assert_eq!(c.thresholds, ReflexThresholds::default().into());
+    assert_eq!(c.danger_range, 0.0, "off unless the host sends a range");
 }
 
 #[test]

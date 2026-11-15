@@ -17,7 +17,7 @@ use host_api::{
 };
 use minecraft::McParams;
 use runner::FULL;
-use runner::mc::{BrainCounts, Link, LinkError, McHost, McStep, run, run_brain};
+use runner::mc::{BrainCounts, BrainRun, Link, LinkError, McHost, McStep, run, run_brain};
 use serde_json::{Value, json};
 
 /// A fake bot: answers with `reply(request)`; `None` hangs up.
@@ -118,7 +118,11 @@ fn connect_says_hello_then_looks() {
     let hello = got.recv().unwrap();
     assert_eq!(hello["op"], "hello");
     let config: BotConfig = serde_json::from_value(hello["config"].clone()).unwrap();
-    assert_eq!(config, BotConfig::default());
+    let want = BotConfig {
+        danger_range: McParams::default().threat_range,
+        ..BotConfig::default()
+    };
+    assert_eq!(config, want, "the bot gets the candidates' threat range");
     assert_eq!(got.recv().unwrap(), json!({"op": "perceive"}));
     assert_eq!(h.perceive(), obs(&[]));
     assert!(h.error.is_none());
@@ -219,6 +223,14 @@ fn the_loop_uses_reflexes_and_the_arm() {
     assert!(chosen.is_some());
 }
 
+fn plan(decisions: u32, teacher: bool) -> BrainRun {
+    BrainRun {
+        decisions,
+        thresholds: ReflexThresholds::default(),
+        teacher,
+    }
+}
+
 /// The brain on a fake bot for `n` decisions: counts, steps, waits.
 fn brain_run(seen: Observation, n: u32) -> (BrainCounts, Vec<McStep>, u32, Brain) {
     let (addr, _got) = good_bot(seen);
@@ -228,8 +240,7 @@ fn brain_run(seen: Observation, n: u32) -> (BrainCounts, Vec<McStep>, u32, Brain
     let counts = run_brain(
         &mut h,
         &mut brain,
-        n,
-        ReflexThresholds::default(),
+        plan(n, true),
         || waits += 1,
         |s| steps.push(s.clone()),
     );
@@ -265,14 +276,7 @@ fn outcomes_reach_the_brain() {
         });
         let mut h = connect(&addr).unwrap();
         let mut brain = Brain::new(BrainConfig::default(), 7);
-        run_brain(
-            &mut h,
-            &mut brain,
-            40,
-            ReflexThresholds::default(),
-            || {},
-            |_| {},
-        );
+        run_brain(&mut h, &mut brain, plan(40, true), || {}, |_| {});
         (brain.c(), brain.v(), brain.memory().len())
     };
     assert_ne!(
@@ -332,6 +336,115 @@ fn reflexes_come_before_the_brain() {
     assert_eq!(steps[0].chosen.as_ref().unwrap().skill, Skill::Flee);
 }
 
+/// Run the brain where each perceive returns `views[i]` (the last
+/// repeats; `connect` reads the first).
+fn teach_run(views: Vec<Observation>, n: u32, teacher: bool) -> (BrainCounts, Vec<McStep>, Brain) {
+    let mut i = 0;
+    let (addr, _got) = bot(move |req| {
+        Some(match req["op"].as_str().unwrap() {
+            "hello" => json!({"reply": "ready", "names": []}).to_string(),
+            "perceive" => {
+                i += 1;
+                observed(&views[(i - 1).min(views.len() - 1)])
+            }
+            _ => done(false),
+        })
+    });
+    let mut h = connect(&addr).unwrap();
+    let mut brain = Brain::new(BrainConfig::default(), 3);
+    let mut steps = Vec::new();
+    let counts = run_brain(
+        &mut h,
+        &mut brain,
+        plan(n, teacher),
+        || {},
+        |s| {
+            steps.push(s.clone());
+        },
+    );
+    (counts, steps, brain)
+}
+
+fn at(day_phase: f32, sheltered: bool) -> Observation {
+    Observation {
+        day_phase,
+        sheltered,
+        ..obs(&[])
+    }
+}
+
+#[test]
+fn the_teacher_calls_once_at_dusk_and_the_brain_takes_the_goal() {
+    let dusk = at(0.5, false);
+    let (counts, steps, brain) = teach_run(vec![dusk.clone()], 6, true);
+    assert_eq!(counts.dusk_calls, 1, "once a day");
+    let said: Vec<&str> = steps
+        .iter()
+        .flat_map(|s| &s.obs.chat)
+        .map(|c| c.text.as_str())
+        .collect();
+    assert_eq!(said, ["get shelter"]);
+    assert_eq!(steps[0].obs.chat[0].from, "steve");
+    assert_eq!(
+        brain.goal().map(|g| (g.item.as_str(), g.commanded)),
+        Some(("shelter", true))
+    );
+
+    let (counts, steps, brain) = teach_run(vec![dusk], 6, false);
+    assert_eq!(counts.dusk_calls, 0, "teacher off");
+    assert!(steps.iter().all(|s| s.obs.chat.is_empty()));
+    assert_ne!(brain.goal().map(|g| g.item.as_str()), Some("shelter"));
+
+    let (counts, _, _) = teach_run(vec![at(0.3, false)], 4, true);
+    assert_eq!(counts.dusk_calls, 0, "not before dusk");
+    let (counts, _, _) = teach_run(vec![at(0.5, true)], 4, true);
+    assert_eq!(counts.dusk_calls, 0, "not when sheltered");
+}
+
+#[test]
+fn the_bots_sheltered_flag_is_the_shelter_test() {
+    // Called at dusk in the open, then the bot reports a shelter: the
+    // test passes and the goal is done (01 §4.11, #58), as in the sim.
+    // The first view is the one `connect` reads.
+    let views = vec![at(0.5, false), at(0.5, false), at(0.5, true)];
+    let (counts, steps, brain) = teach_run(views, 12, true);
+    assert_eq!(counts.dusk_calls, 1);
+    assert!(steps[1].obs.sheltered);
+    assert_ne!(
+        brain.goal().map(|g| g.item.as_str()),
+        Some("shelter"),
+        "goal done"
+    );
+}
+
+#[test]
+fn the_host_runs_with_the_params_it_was_given() {
+    let (addr, _got) = good_bot(obs(&[]));
+    let params = McParams {
+        day_ticks: 7,
+        ..McParams::default()
+    };
+    let h = McHost::connect(Link::tcp(&addr).unwrap(), BotConfig::default(), params).unwrap();
+    assert_eq!(h.params(), &params);
+}
+
+#[test]
+fn the_cli_teacher_can_be_turned_off() {
+    let calls = |extra: &[&str]| {
+        let (addr, _got) = good_bot(at(0.5, false));
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_runner"))
+            .args(["mc", "c", "--decisions", "3", "--addr", &addr])
+            .args(extra)
+            .output()
+            .expect("runner should start");
+        String::from_utf8(out.stdout).unwrap()
+    };
+    let on = calls(&[]);
+    assert!(on.contains("dusk_calls: 1"), "{on}");
+    let off = calls(&["--no-teacher"]);
+    assert!(off.contains("dusk_calls: 0"), "{off}");
+}
+
 #[test]
 fn the_brain_stops_on_a_broken_link() {
     let mut n = 0;
@@ -345,14 +458,7 @@ fn the_brain_stops_on_a_broken_link() {
     });
     let mut h = connect(&addr).unwrap();
     let mut brain = Brain::new(BrainConfig::default(), 0);
-    let counts = run_brain(
-        &mut h,
-        &mut brain,
-        5,
-        ReflexThresholds::default(),
-        || {},
-        |_| {},
-    );
+    let counts = run_brain(&mut h, &mut brain, plan(5, true), || {}, |_| {});
     assert_eq!(
         counts.decisions(),
         1,

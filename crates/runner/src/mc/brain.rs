@@ -1,10 +1,12 @@
 //! Arm C in Minecraft (spec §22, §26): the full brain drives the bot. Same
-//! order as the sim driver: perceive → candidates → emergency reflex (#42)
-//! or the brain's decision → execute on the bot, outcome back to the brain.
+//! order as the sim driver: perceive → candidates → teacher's dusk call →
+//! emergency reflex (#42) or the brain's decision → execute on the bot,
+//! outcome back to the brain.
 
 use cognitive_core::agent::{Brain, Decision};
 use host_api::Host;
 use host_api::reflex::{ReflexThresholds, emergency_reflex};
+use sim::player::ScriptedPlayer;
 
 use super::{McHost, McStep};
 use crate::FULL;
@@ -17,6 +19,8 @@ pub struct BrainCounts {
     pub thoughts: u32,
     pub idle: u32,
     pub reflexes: u32,
+    /// Dusk calls the teacher made ("get shelter", 01 §4.11).
+    pub dusk_calls: u32,
 }
 
 impl BrainCounts {
@@ -25,27 +29,45 @@ impl BrainCounts {
     }
 }
 
-/// Up to `decisions` decisions by `brain` on the bot, or until the link
-/// fails (spec §22). The sim's code tools stand in for the LLM (spec §21).
-/// `wait` runs after a thought or idle tick, so the game moves on; the CLI
-/// passes a one-tick sleep. Calls `log` after each decision.
+/// How a brain run goes (spec §22).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BrainRun {
+    /// Stop after this many decisions, or when the link fails.
+    pub decisions: u32,
+    pub thresholds: ReflexThresholds,
+    /// The shelter teacher (01 §4.11, #59): once a day from dusk, unless
+    /// the bot is sheltered, the player says "get shelter", and the sim's
+    /// code tools show the shelter recipe and explain the test with the
+    /// bot's own sheltered flag. As in the sim's dusk-call scenarios.
+    pub teacher: bool,
+}
+
+/// Run `brain` on the bot (spec §22). The sim's code tools stand in for
+/// the LLM (spec §21). `wait` runs after a thought or idle tick, so the
+/// game moves on; the CLI passes a one-tick sleep. Calls `log` after each
+/// decision.
 pub fn run_brain(
     host: &mut McHost,
     brain: &mut Brain,
-    decisions: u32,
-    thresholds: ReflexThresholds,
+    run: BrainRun,
     mut wait: impl FnMut(),
     mut log: impl FnMut(&McStep),
 ) -> BrainCounts {
     let mut tools = SimTools::default();
+    let mut player = ScriptedPlayer::idle();
+    player.dusk_call = run.teacher;
+    let day_ticks = host.params().day_ticks;
     let mut n = BrainCounts::default();
-    for _ in 0..decisions {
+    for _ in 0..run.decisions {
         if host.error.is_some() {
             break;
         }
-        let obs = host.perceive();
+        let mut obs = host.perceive();
         let cands = host.candidate_actions(&obs);
-        let (chosen, it, reflex) = match emergency_reflex(&obs, &cands, thresholds) {
+        let sheltered = obs.sheltered;
+        tools.shelter = Some(sheltered);
+        n.dusk_calls += u32::from(player.call_at_dusk(&mut obs, day_ticks, sheltered));
+        let (chosen, it, reflex) = match emergency_reflex(&obs, &cands, run.thresholds) {
             Some((_, c)) => {
                 n.reflexes += 1;
                 brain.reflex_fired(obs.tick);

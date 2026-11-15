@@ -31,9 +31,13 @@ const link = new BotServer({
   body: new MineflayerBody(bot),
   say: (text) => bot.chat(text),
 });
-bot.on("health", () => {
+/** How often the interrupts look for danger between health changes, in ms. */
+const WATCH_MS = 250;
+const watch = () => {
   link.watch(perception.body(isFood));
-});
+};
+bot.on("health", watch);
+setInterval(watch, WATCH_MS);
 // Float up in water or lava (body reflex, below any decision).
 const swim = new SwimUp();
 const inLiquid = () => {

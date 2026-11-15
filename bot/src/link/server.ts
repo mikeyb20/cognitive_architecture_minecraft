@@ -1,7 +1,9 @@
 // The bot's end of the runner link (spec §22): the runner decides, the bot
 // answers. Each request gets one reply; the body runs one action at a time
-// under the action lock, and the survival interrupt can cut it short.
+// under the action lock, and the survival and danger interrupts can cut it
+// short.
 
+import { DangerWatch } from "../control/danger.js";
 import { type BodyState, interruptIfEmergency } from "../control/survival.js";
 import { ActionLock, Priority } from "../control/lock.js";
 import type { BotConfig, LinkReply, LinkRequest } from "../host.js";
@@ -24,6 +26,9 @@ export const TASK = "runner";
 export class BotServer {
   #config: BotConfig | null = null;
   #held = new Set<string>();
+  #danger = new DangerWatch();
+  /** The body as `watch` last saw it. */
+  #last: BodyState | null = null;
   readonly lock = new ActionLock();
 
   constructor(private readonly deps: Deps) {}
@@ -47,6 +52,7 @@ export class BotServer {
         return { reply: "observed", obs: toObservation(this.deps.snapshot(), cfg.limits) };
       case "execute": {
         const go = (signal: AbortSignal) => run(this.deps.body, req, this.#held, signal, cfg.skills);
+        this.#danger.begin(this.#last, cfg.dangerRange);
         const outcome = await this.lock.with(TASK, Priority.Task, go);
         return outcome === null ? { reply: "failed", message: "the body is busy" } : { reply: "done", outcome };
       }
@@ -70,10 +76,18 @@ export class BotServer {
     return JSON.stringify(reply);
   }
 
-  /** Call on every health or food change: stops the running skill in an emergency. */
+  /**
+   * Call on every health or food change and every few ticks: stops the
+   * running skill in an emergency, or when danger arrives during a skill
+   * begun calm.
+   */
   watch(s: BodyState): boolean {
+    this.#last = s;
     const cfg = this.#config;
-    return cfg !== null && interruptIfEmergency(this.lock, s, cfg.thresholds);
+    if (cfg === null) {
+      return false;
+    }
+    return interruptIfEmergency(this.lock, s, cfg.thresholds) || this.#danger.check(this.lock, s, cfg.dangerRange);
   }
 
   /** Death or reconnect: abort the running skill and start clean. */

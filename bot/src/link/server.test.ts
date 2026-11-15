@@ -12,6 +12,7 @@ const config: BotConfig = {
   skills: { searchRadius: 64, oreDepth: 16, followRange: 3, followMs: 5000, restMs: 5000, searchStep: 24 },
   limits: { maxVisibleBlocks: 32, maxPerKind: 1 },
   thresholds: { criticalHealth: 0.2, starvingFood: 0.05 },
+  dangerRange: 8,
 };
 
 const snapshot: Snapshot = {
@@ -135,7 +136,7 @@ test("answer turns lines into replies, and errors into failed", async () => {
 
 test("watch interrupts a running skill only in an emergency", async () => {
   const { server } = setup();
-  const calm: BodyState = { health: 1, food: 1, sheltered: false, hostileNear: false, hasFood: false };
+  const calm: BodyState = { health: 1, food: 1, sheltered: false, hostileNear: false, nearestHostile: null, hasFood: false };
   const dying: BodyState = { ...calm, health: 0.1, hostileNear: true };
   assert.equal(server.watch(dying), false, "no settings before hello");
   await server.handle({ op: "hello", config });
@@ -145,6 +146,34 @@ test("watch interrupts a running skill only in an emergency", async () => {
   assert.equal(signal.aborted, false);
   assert.equal(server.watch(dying), true);
   assert.equal(signal.aborted, true);
+});
+
+test("watch stops a skill begun calm when danger arrives", async () => {
+  const { server, body } = setup();
+  const calm: BodyState = { health: 1, food: 1, sheltered: false, hostileNear: false, nearestHostile: null, hasFood: false };
+  const near: BodyState = { ...calm, hostileNear: true, nearestHostile: 3 };
+  await server.handle({ op: "hello", config });
+  server.watch(calm);
+  let signal: AbortSignal | null = null;
+  body.effects.set("dig", () => {
+    signal = server.lock.signal();
+    assert.equal(server.watch(near), true, "danger arrived mid-skill");
+  });
+  const r = await server.handle(execute);
+  assert.equal(r.reply, "done");
+  assert.equal((signal as AbortSignal | null)?.aborted, true);
+  // Begun in danger: runs on.
+  body.effects.set("dig", () => {
+    assert.equal(server.watch(near), false);
+  });
+  await server.handle(execute);
+  // Danger off when the runner sends no range.
+  await server.handle({ op: "hello", config: { ...config, dangerRange: 0 } });
+  server.watch(calm);
+  body.effects.set("dig", () => {
+    assert.equal(server.watch(near), false);
+  });
+  await server.handle(execute);
 });
 
 test("reset aborts whatever runs", () => {
