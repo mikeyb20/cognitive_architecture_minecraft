@@ -326,8 +326,10 @@ fn reflexes_come_before_the_brain() {
         distance: 2.0,
     });
     let (counts, steps, waits, _) = brain_run(weak, 3);
+    // The view is the afternoon: the teacher asks for a bed too.
     let want = BrainCounts {
         reflexes: 3,
+        bed_calls: 1,
         ..BrainCounts::default()
     };
     assert_eq!(counts, want);
@@ -407,28 +409,35 @@ fn the_teacher_calls_once_at_dusk_and_the_brain_takes_the_goal() {
 }
 
 #[test]
-fn the_teacher_shows_the_bed_lesson_until_its_days_are_up() {
-    // At dusk in the open with planks and a sheep in view: the shown
-    // recipe's first step is to hunt the sheep for wool (`bed_lesson`).
-    let mut dusk = at(0.5, false);
-    dusk.inventory.items = vec![("oak_planks".into(), 4)];
-    dusk.visible.push(Seen {
+fn the_teacher_asks_for_a_bed_in_the_afternoon_and_shows_how() {
+    // An afternoon with a sheep in view: the player says "get bed", and
+    // the shown recipe's first step is to hunt the sheep (`bed_lesson`).
+    let mut noon = at(0.3, false);
+    noon.visible.push(Seen {
         thing: ThingId("entity:sheep".into()),
         kind: SeenKind::Entity { hostile: false },
         pos: Pos { x: 4, y: 64, z: 0 },
         distance: 4.0,
     });
-    let step = |teacher, teach_days| {
+    let go = |teacher, teach_days| {
         let run = BrainRun {
             teach_days,
             ..plan(2, teacher)
         };
-        let (_, _, brain) = teach_with(vec![dusk.clone()], run);
-        brain.last_log().recipe_step.clone()
+        let (counts, _, brain) = teach_with(vec![noon.clone()], run);
+        let goal = brain.goal().map(|g| g.item.clone());
+        (counts.bed_calls, goal, brain.last_log().recipe_step.clone())
     };
-    assert_eq!(step(true, None).as_deref(), Some("Attack:entity:sheep"));
-    assert_eq!(step(true, Some(1)).as_deref(), Some("Attack:entity:sheep"));
-    assert_eq!(step(true, Some(0)), None, "the teacher's days are up");
+    let sheep = Some("Attack:entity:sheep".to_string());
+    let bed = Some("bed".to_string());
+    assert_eq!(go(true, None), (1, bed.clone(), sheep.clone()));
+    assert_eq!(go(true, Some(1)), (1, bed.clone(), sheep));
+    assert_eq!(
+        go(true, Some(0)),
+        (1, bed, None),
+        "the teacher's days are up"
+    );
+    assert_eq!(go(false, None).0, 0, "teacher off");
 }
 
 #[test]

@@ -13,6 +13,7 @@ use sim::{Death, Rules};
 
 use crate::drive::{Driver, run_scenario};
 use crate::teachability::{Nights, teach_until, teaching};
+use host_api::ontology::BED_GOAL;
 
 /// The sim's code tools (spec §21): the scripted planner and the
 /// tech-tree recombiner stand in for the LLM. As the teacher (01 §4.11)
@@ -25,7 +26,7 @@ pub struct SimTools {
     pub teach_until: Option<u64>,
     /// The mob lessons' tests, set before each decision.
     pub mob: MobTest,
-    /// The bed lesson (`bed_lesson`), Minecraft only.
+    /// The bed lesson's recipe and test (`bed_lesson`), Minecraft only.
     pub bed: bool,
 }
 
@@ -74,28 +75,28 @@ impl ThinkTools for SimTools {
         }
     }
 
-    /// The teacher shows how to build a shelter (01 §4.11, #59), and the
-    /// mob lessons (`mob_lessons`).
+    /// The teacher shows how to build a shelter (01 §4.11, #59), the mob
+    /// lessons (`mob_lessons`) and, in Minecraft, the bed (`bed_lesson`).
     fn show(&mut self, goal: &str, obs: &Observation) -> Option<Recipe> {
         if !teaching(self.teach_until, obs.tick) {
             return None;
         }
         if goal == SHELTER {
-            let mut r = shelter_recipe(&obs.inventory);
-            if self.bed {
-                crate::bed_lesson::add_to(&mut r, obs);
-            }
-            Some(r)
+            Some(shelter_recipe(&obs.inventory))
+        } else if self.bed && goal == BED_GOAL {
+            Some(crate::bed_lesson::recipe(obs))
         } else {
             crate::mob_lessons::recipe(goal)
         }
     }
 
     /// The shelter test (01 §4.11): no hostile has a path in, and a way
-    /// out; or a mob lesson's test.
-    fn explain(&mut self, goal: &str, _obs: &Observation) -> Option<bool> {
+    /// out; or a mob lesson's or the bed lesson's test.
+    fn explain(&mut self, goal: &str, obs: &Observation) -> Option<bool> {
         if goal == SHELTER {
             self.shelter
+        } else if self.bed && goal == BED_GOAL {
+            Some(crate::bed_lesson::test(obs))
         } else {
             crate::mob_lessons::test(goal, self.mob)
         }
@@ -339,38 +340,23 @@ mod tests {
         assert_eq!(t.explain(HIDE_SKELETON_GOAL, &obs), Some(true));
     }
 
-    // The bed lesson (`bed_lesson`) is shown only when turned on, as in
-    // Minecraft; the sim's shelter recipe is unchanged.
+    // The bed lesson (`bed_lesson`) is known only when turned on, as in
+    // Minecraft; the sim's teacher is unchanged.
     #[test]
-    fn the_bed_lesson_adds_a_wool_step_only_when_on() {
+    fn the_bed_lesson_is_known_only_when_on() {
         use host_api::Host;
-        let mut obs = setup("first_night", 0).world.perceive();
-        obs.visible.push(host_api::Seen {
-            thing: host_api::ThingId("entity:sheep".into()),
-            kind: host_api::SeenKind::Entity { hostile: false },
-            pos: obs.position,
-            distance: 2.0,
-        });
-        let skills = |bed| {
-            let mut t = SimTools {
-                bed,
-                ..SimTools::default()
-            };
-            let r = t.show(SHELTER, &obs).unwrap();
-            r.steps.iter().map(|s| s.skill).collect::<Vec<_>>()
+        let obs = setup("first_night", 0).world.perceive();
+        let mut off = SimTools::default();
+        assert!(off.show(BED_GOAL, &obs).is_none());
+        assert_eq!(off.explain(BED_GOAL, &obs), None);
+        let mut on = SimTools {
+            bed: true,
+            ..SimTools::default()
         };
-        let plain = skills(false);
-        assert_eq!(
-            plain,
-            shelter_recipe(&obs.inventory)
-                .steps
-                .iter()
-                .map(|s| s.skill)
-                .collect::<Vec<_>>()
-        );
-        let mut with_bed = plain.clone();
-        with_bed.insert(plain.len() - 1, Skill::Attack);
-        assert_eq!(skills(true), with_bed);
+        let r = on.show(BED_GOAL, &obs).unwrap();
+        assert_eq!(r, crate::bed_lesson::recipe(&obs));
+        assert_eq!(on.explain(BED_GOAL, &obs), Some(false));
+        assert_eq!(on.show(SHELTER, &obs), off.show(SHELTER, &obs));
     }
 
     // A run passes its teaching days to the brain's teacher: asked at

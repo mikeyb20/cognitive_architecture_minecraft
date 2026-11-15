@@ -139,6 +139,15 @@ pub const HIDE_SKELETON_GOAL: &str = "hide_from_skeleton";
 /// shelter that passes the host's shelter test.
 pub const SHELTER_GOAL: &str = "shelter";
 
+/// The bed lesson's goal (Michael, 15 Nov 2026: sleep in a bed inside a
+/// shelter). Minecraft only: its test passes once a bed is in view.
+pub const BED_GOAL: &str = "bed";
+
+/// Day phase from which the player asks for a bed ("get bed"), once a day
+/// until dusk, if the agent has none: afternoon, leaving time to hunt
+/// sheep and build before night (proposed).
+pub const BED_CALL: f32 = 0.25;
+
 /// Hostiles that shoot from range: the skeleton and its 1.21 variants
 /// (stray, bogged). Both worlds count one that can shoot as a threat from
 /// further out than a melee mob (sim `world::ranged`).
