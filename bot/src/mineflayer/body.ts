@@ -5,14 +5,16 @@
 import type { EventEmitter } from "node:events";
 
 import type { Bot } from "mineflayer";
-// Type imports for the plugins' additions to `Bot` (collectBlock, pvp).
+// Type imports for the plugins' additions to `Bot` (collectBlock); the
+// weapon cooldown table comes from mineflayer-pvp.
 import type {} from "mineflayer-collectblock";
 import pathfinderPkg from "mineflayer-pathfinder";
-import type {} from "mineflayer-pvp";
+import { getCooldown } from "mineflayer-pvp/lib/Cooldown.js";
 import type { Block } from "prismarine-block";
 import type { Entity } from "prismarine-entity";
 import { Vec3 } from "vec3";
 
+import { type Move, SPACING, Swing, nextMove } from "../control/spacing.js";
 import type { Pos } from "../host.js";
 import type { Body } from "../skills/body.js";
 
@@ -28,7 +30,22 @@ const USE_RANGE = 3;
 /** Ticks to wait after using an item for the server's update. */
 const USE_SETTLE_TICKS = 4;
 
+/** A mob further than this (blocks) has got away: the attack gives up. */
+const GIVE_UP_RANGE = 16;
+
 const v = (p: Pos) => new Vec3(p.x, p.y, p.z);
+
+/** Where the pathfinder heads for each spaced-melee move. */
+function goalFor(move: Move, mob: Entity): InstanceType<typeof goals.Goal> | null {
+  switch (move) {
+    case "back":
+      return new goals.GoalInvert(new goals.GoalFollow(mob, SPACING.tooClose));
+    case "close":
+      return new goals.GoalFollow(mob, SPACING.reach - 0.5);
+    default:
+      return null;
+  }
+}
 const posOf = (p: Vec3): Pos => ({ x: p.x, y: p.y, z: p.z });
 
 /** Run `work`, giving up (and calling `stop`) on abort or after `ms`. */
@@ -229,18 +246,50 @@ export class MineflayerBody implements Body {
     );
   }
 
+  /**
+   * Spaced melee (control/spacing.ts): each game tick, hit when the swing has
+   * recharged and the mob is in reach, back off when it is too close while
+   * recharging, close in when recharged and out of reach, else hold. Done
+   * when the mob is gone (dead or despawned); gives up if it gets away.
+   */
   async attack(at: Pos, signal: AbortSignal): Promise<boolean> {
     const mob = this.#mobNear(at);
     if (mob === null) {
       return false;
     }
+    const held = this.bot.heldItem?.name ?? "";
+    const swing = new Swing(getCooldown(held));
+    const events = this.bot as unknown as EventEmitter;
+    let onTick = () => undefined as void;
+    const stop = () => {
+      events.removeListener("physicsTick", onTick);
+      this.bot.pathfinder.setGoal(null);
+    };
     const fight = () =>
       new Promise<boolean>((resolve) => {
-        const events = this.bot as unknown as EventEmitter;
-        events.once("stoppedAttacking", () => resolve(!mob.isValid || (mob.health ?? 0) <= 0));
-        void this.bot.pvp.attack(mob);
+        let last: Move | null = null;
+        onTick = () => {
+          swing.tick();
+          const d = mob.isValid ? mob.position.distanceTo(this.bot.entity.position) : 0;
+          if (!mob.isValid || d > GIVE_UP_RANGE) {
+            stop();
+            resolve(!mob.isValid);
+            return;
+          }
+          const move = nextMove(d, swing.ready());
+          if (move === "hit") {
+            void this.bot.lookAt(mob.position.offset(0, mob.height * 0.8, 0), true);
+            this.bot.attack(mob);
+            swing.swung();
+          }
+          if (move !== last) {
+            this.bot.pathfinder.setGoal(goalFor(move, mob), true);
+            last = move;
+          }
+        };
+        events.on("physicsTick", onTick);
       });
-    return bounded(signal, CALL_LIMIT_MS, fight, () => void this.bot.pvp.stop(), false);
+    return bounded(signal, CALL_LIMIT_MS, fight, stop, false);
   }
 
   async eat(item: string, signal: AbortSignal): Promise<boolean> {
