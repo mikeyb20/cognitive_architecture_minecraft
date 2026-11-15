@@ -170,7 +170,12 @@ export const HOME_BLOCKS = 32;
 /** Blocks a home's digging leaves alone: its door, and what was put inside. */
 const KEEP = ["_door", "_bed", "crafting_table", "chest", "furnace"];
 
-type Step = { kind: "dig" | "stand" | "wall" | "door"; at: Pos };
+/** Minecraft 1.21's bed recipe, less the wool; kept out of the shared tech tree like the door's. */
+const BED_PLANKS: [string, number] = ["oak_planks", 3];
+const BED_WOOL = 3;
+const WOOL = "_wool";
+
+type Step = { kind: "dig" | "stand" | "wall" | "door" | "bed"; at: Pos };
 
 /** Cells (dx, dz) at ring distance `r`, going round from (r, -r); the cell (r, 0) last. */
 function ring(r: number): Array<[number, number]> {
@@ -214,7 +219,8 @@ export function inHome(o: Pos, p: Pos): boolean {
  * The home (Michael, 15 Nov 2026): a 3x3 room around `o` sunk one block
  * into the ground, walls two high, a roof, and a door on the +x side. In
  * build order: dig the floor, the doorway and a step outside it, stand inside, wall, roof
- * (each block placed against one already there), then the door, and in.
+ * (each block placed against one already there), the door, a bed if one
+ * is held or can be made, and in.
  */
 export function homePlan(o: Pos): Step[] {
   const at = (dx: number, dy: number, dz: number) => ({ x: o.x + dx, y: o.y + dy, z: o.z + dz });
@@ -230,6 +236,8 @@ export function homePlan(o: Pos): Step[] {
     ...[-1, 0].flatMap((dy) => walls.map(([dx, dz]): Step => ({ kind: "wall", at: at(dx, dy, dz) }))),
     ...[...ring(2), ...inner].map(([dx, dz]): Step => ({ kind: "wall", at: at(dx, 1, dz) })),
     { kind: "door", at: homeDoor(o) },
+    // The bed's foot; its head goes west, into the corner away from the door.
+    { kind: "bed", at: at(0, -1, -1) },
     // In, with the door shut.
     { kind: "stand", at: at(0, -1, 0) },
   ];
@@ -265,7 +273,33 @@ async function homeStep(body: Body, o: Pos, s: Step, signal: AbortSignal): Promi
         return false;
       }
       return body.place(DOOR, s.at, signal);
+    case "bed":
+      return bedStep(body, s.at, signal);
   }
+}
+
+/**
+ * Put a bed in the home: done when one is there, or when there is none to
+ * hold and none can be made (the home works without it). Makes one from
+ * three wool of one colour and three planks.
+ */
+async function bedStep(body: Body, foot: Pos, signal: AbortSignal): Promise<boolean> {
+  const head = { ...foot, x: foot.x - 1 };
+  if ([foot, head].some((p) => body.blockName(p)?.endsWith("_bed"))) {
+    return true;
+  }
+  const inv = body.inventory();
+  let bed = [...inv.keys()].find((i) => i.endsWith("_bed") && (inv.get(i) ?? 0) > 0);
+  // Three wool of one colour (white_wool, lime_wool, ...) make that colour's bed.
+  const wool = [...inv.keys()].find((i) => i.endsWith(WOOL) && (inv.get(i) ?? 0) >= BED_WOOL);
+  if (bed === undefined && wool !== undefined) {
+    const out = `${wool.slice(0, -WOOL.length)}_bed`;
+    const recipe: RecipeHint = { station: "crafting_table", inputs: [[wool, BED_WOOL], BED_PLANKS] };
+    if (holds(body, recipe) && (await craft(body, out, recipe, signal)).success) {
+      bed = out;
+    }
+  }
+  return bed === undefined || body.placeWest(bed, foot, signal);
 }
 
 /** Blocks a home's floor cannot rest on. */

@@ -23,6 +23,7 @@ import {
 } from "../control/spacing.js";
 import type { Pos } from "../host.js";
 import type { Body } from "../skills/body.js";
+import { inRoom } from "../skills/run.js";
 import { Home } from "./home.js";
 import { sheltered } from "./perception.js";
 
@@ -35,6 +36,12 @@ export const CALL_LIMIT_MS = 60_000;
 const RIPE_AGE = 7;
 /** How near to stand to use an item on a block. */
 const USE_RANGE = 3;
+/** Mineflayer's untyped place call; `forceLook: "ignore"` keeps the bot's own look. */
+interface GenericPlace {
+  _genericPlace(ref: Block, face: Vec3, opts: { forceLook: "ignore" }): Promise<void>;
+}
+/** Ticks to wait after placing for the server's update. */
+const PLACE_SETTLE_TICKS = 4;
 /** Ticks to wait after using an item for the server's update. */
 const USE_SETTLE_TICKS = 4;
 
@@ -335,6 +342,25 @@ export class MineflayerBody implements Body {
     );
   }
 
+  async placeWest(item: string, at: Pos, signal: AbortSignal): Promise<boolean> {
+    const stack = this.bot.inventory.items().find((i) => i.name === item);
+    const below = this.bot.blockAt(v(at).offset(0, -1, 0));
+    if (stack === undefined || below === null || below.boundingBox !== "block") {
+      return false;
+    }
+    const put = async () => {
+      await this.bot.equip(stack, "hand");
+      // Yaw π/2 faces -x; the place packet carries this look, not one at the block.
+      await this.bot.look(Math.PI / 2, -Math.PI / 4, true);
+      await (this.bot as unknown as GenericPlace)._genericPlace(below, new Vec3(0, 1, 0), {
+        forceLook: "ignore",
+      });
+      await this.bot.waitForTicks(PLACE_SETTLE_TICKS);
+      return this.bot.blockAt(v(at))?.name === item;
+    };
+    return bounded(signal, CALL_LIMIT_MS, put, () => undefined, false);
+  }
+
   /**
    * Spaced melee (control/spacing.ts): each game tick, hit when the swing has
    * recharged and the mob is in reach, back off when it is too close while
@@ -459,8 +485,13 @@ export class MineflayerBody implements Body {
   }
 
   async sleep(bed: Pos, signal: AbortSignal): Promise<boolean> {
+    const home = this.#home.at;
+    const inside = home !== null && inRoom(home, bed);
+    if (inside ? !(await this.enterHome(signal)) : !(await this.goto(bed, 2, signal))) {
+      return false;
+    }
     const block = this.bot.blockAt(v(bed));
-    if (block === null || !(await this.goto(bed, 2, signal))) {
+    if (block === null) {
       return false;
     }
     const lie = async () => {
