@@ -1,0 +1,21 @@
+# Smoke test for novelty-llm.toml: does the local LLM answer, and how fast?
+# One short scenario, C as the reference plus arm B (about 160 calls), so a
+# CPU-only machine finishes in minutes. B+N sends the same kind of prompt.
+# Not a result; timing only.
+#   OLLAMA_MODEL=qwen2.5:3b-instruct runner run \
+#     --experiment configs/experiments/novelty-llm-smoke.toml --tier local \
+#     --seeds 1 --cache runs/smoke.jsonl --out results/smoke
+id = "NOVELTY_LLM_SMOKE"
+question = "Smoke test: do arms B and B+N get usable replies from the local model?"
+scenarios = ["first_night"]
+seeds = 1
+
+[[arms]]
+label = "C (brain)"
+arm = "c"
+expected = "-"
+
+[[arms]]
+label = "B (LLM loop)"
+arm = "b"
+expected = "Few fallbacks or unusable replies."
