@@ -251,8 +251,21 @@ fn experiment(args: &[String]) {
         let p = std::path::Path::new(dir).join(format!("{}.header.json", e.id));
         std::fs::write(p, head.to_string()).expect("write failed");
     }
-    let llm = Llm { tier, make: &make };
+    // Each LLM run makes its provider once; a shared tally prints progress.
+    let tally = runner::progress::Tally::new(runner::experiment::llm_runs(&e));
+    let shared = std::sync::Arc::new(std::sync::Mutex::new((tally, std::time::Instant::now())));
+    let counted = || -> Result<Box<dyn llm::Provider>, String> {
+        let p = runner::progress::Counted::start(make()?, shared.clone());
+        Ok(Box::new(p))
+    };
+    let llm = Llm {
+        tier,
+        make: &counted,
+    };
     let res = run(&e, threads(), Some(&llm)).unwrap_or_else(|err| fail(err));
+    if shared.lock().is_ok_and(|g| g.0.started > 0) {
+        eprintln!();
+    }
     let csv = runner::sweep::csv_rows("experiment", &e.id, &res.rows);
     publish(args, &e.id, &markdown(&e, &res), &csv);
     if let Some(dir) = flag(args, "--out") {
