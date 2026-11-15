@@ -8,19 +8,33 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub enum Skill {
+    /// Head for ground not yet seen.
     Explore,
+    /// Walk to a target.
     MoveTo,
+    /// Break stone or ore with a pickaxe.
     Mine,
+    /// Cut a tree for logs.
     Chop,
+    /// Make an item from the tech tree.
     Craft,
+    /// Put a block down.
     Place,
+    /// Fight a mob.
     Attack,
+    /// Run from a hostile.
     Flee,
+    /// Eat food from the inventory.
     Eat,
+    /// Harvest or plant wheat.
     Farm,
+    /// Build or dig into an enclosure.
     Shelter,
+    /// Stay put and rest.
     Rest,
+    /// Keep near a player.
     FollowPlayer,
+    /// Say something in chat.
     Chat,
 }
 
@@ -70,16 +84,24 @@ impl Skill {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub enum TaskType {
+    /// Breaking stone and ore.
     Mining,
+    /// Shelter, resting and placing blocks.
     Building,
+    /// Fighting.
     Combat,
+    /// Making items.
     Crafting,
+    /// Food: harvesting, hunting, eating.
     Farming,
+    /// Moving: exploring, walking, fleeing.
     Travel,
+    /// Doing what a player asked.
     Helping,
 }
 
 impl TaskType {
+    /// Every task type, in declaration order.
     pub const ALL: [TaskType; 7] = [
         TaskType::Mining,
         TaskType::Building,

@@ -3,4 +3,8 @@
 /**
  * Item name (Minecraft naming, shared by both worlds) and count.
  */
-export type Inventory = { items: Array<[string, number]>, };
+export type Inventory = { 
+/**
+ * Item name and count; a name may appear more than once (see [`Inventory::count`]).
+ */
+items: Array<[string, number]>, };

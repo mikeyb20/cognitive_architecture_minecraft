@@ -7,4 +7,24 @@ import type { RecipeHint } from "./RecipeHint.js";
 /**
  * Runner → bot.
  */
-export type LinkRequest = { "op": "hello", config: BotConfig, } | { "op": "perceive" } | { "op": "execute", action: Candidate, intensity: Intensity, recipe: RecipeHint | null, } | { "op": "say", text: string, };
+export type LinkRequest = { "op": "hello", 
+/**
+ * The bot's settings.
+ */
+config: BotConfig, } | { "op": "perceive" } | { "op": "execute", 
+/**
+ * The chosen candidate.
+ */
+action: Candidate, 
+/**
+ * How hard to carry it out.
+ */
+intensity: Intensity, 
+/**
+ * For a craft, what it needs.
+ */
+recipe: RecipeHint | null, } | { "op": "say", 
+/**
+ * The chat line.
+ */
+text: string, };

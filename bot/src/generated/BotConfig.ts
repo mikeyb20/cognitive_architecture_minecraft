@@ -7,7 +7,19 @@ import type { Thresholds } from "./Thresholds.js";
  * Everything the bot needs from the runner, sent once at connect, so each
  * value has one home (the Rust defaults).
  */
-export type BotConfig = { skills: SkillConfig, limits: Limits, thresholds: Thresholds, 
+export type BotConfig = { 
+/**
+ * How the bot's skills search and act.
+ */
+skills: SkillConfig, 
+/**
+ * Time limits on skills.
+ */
+limits: Limits, 
+/**
+ * When the survival interrupt fires.
+ */
+thresholds: Thresholds, 
 /**
  * Danger interrupt (sim #68 in Minecraft): a hostile this close, in
  * blocks, to the unsheltered bot cuts short a skill begun with none

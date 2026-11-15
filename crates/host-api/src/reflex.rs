@@ -26,7 +26,9 @@ impl Default for ReflexThresholds {
 /// Which reflex fired, for the log.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reflex {
+    /// Run from a hostile at critical health.
     Flee,
+    /// Eat when starving.
     Eat,
 }
 

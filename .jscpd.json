@@ -2,7 +2,7 @@
   "threshold": 3,
   "minTokens": 70,
   "format": ["rust", "typescript"],
-  "path": ["crates", "bot/src", "bindings"],
+  "path": ["crates", "bot/src"],
   "ignore": ["**/target/**", "**/node_modules/**", "**/dist/**", "bot/src/generated/**"],
   "reporters": ["console"],
   "absolute": false,

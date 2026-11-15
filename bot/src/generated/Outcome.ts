@@ -5,8 +5,32 @@ import type { ThingId } from "./ThingId.js";
 /**
  * Result of executing a candidate.
  */
-export type Outcome = { success: boolean, 
+export type Outcome = { 
+/**
+ * Whether the action did what it set out to.
+ */
+success: boolean, 
 /**
  * 0..1 progress on the step.
  */
-progress: number, items_gained: Inventory, damage: number, new_things: Array<ThingId>, blocked: boolean, duration_ticks: number, };
+progress: number, 
+/**
+ * Items the action added to the inventory.
+ */
+items_gained: Inventory, 
+/**
+ * Health lost during the action, as a fraction of full health.
+ */
+damage: number, 
+/**
+ * Things noticed for the first time during the action.
+ */
+new_things: Array<ThingId>, 
+/**
+ * The action could not start (no path, missing inputs, dead).
+ */
+blocked: boolean, 
+/**
+ * World ticks the action took.
+ */
+duration_ticks: number, };

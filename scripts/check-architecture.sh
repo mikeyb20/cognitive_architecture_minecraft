@@ -85,7 +85,7 @@ while IFS= read -r f; do
     */tests/*) check_size "$f" 600 900 ;;
     *)         check_size "$f" 400 600 ;;
   esac
-done < <(git ls-files 'crates/*.rs' 'bot/src/*.ts' 'bindings/*.rs' 'bindings/*.ts')
+done < <(git ls-files 'crates/*.rs' 'bot/src/*.ts')
 for f in "${!cap[@]}"; do
   [[ -f $f ]] || warn "scripts/size-budget.txt lists $f, which no longer exists: remove it"
 done

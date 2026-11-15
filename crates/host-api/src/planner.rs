@@ -10,16 +10,22 @@ use crate::craft::{self, pick_tier};
 /// Raw materials gathered from the world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Resource {
+    /// `oak_log`, by chopping.
     Log,
+    /// `cobblestone`, by mining.
     Stone,
+    /// `raw_iron`, by mining.
     IronOre,
+    /// `wheat`, by farming.
     Wheat,
 }
 
 /// The next thing to do toward a goal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
+    /// Craft this item.
     Craft(&'static str),
+    /// Gather this raw material.
     Gather(Resource),
 }
 
@@ -147,6 +153,7 @@ pub fn progress(inv: &Inventory, goal: &str) -> f32 {
 /// one not yet held as an own goal.
 pub const TECH_GOALS: [&str; 4] = ["wooden_pickaxe", "stone_pickaxe", "furnace", "iron_pickaxe"];
 
+/// The first tech goal not yet held, if any.
 pub fn next_goal(inv: &Inventory) -> Option<&'static str> {
     TECH_GOALS.into_iter().find(|g| inv.count(g) == 0)
 }

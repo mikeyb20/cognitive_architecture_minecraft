@@ -11,4 +11,8 @@ effort: number,
 /**
  * 1 - execution loss from choking (sim only, #43).
  */
-focus: number, external_drive: boolean, };
+focus: number, 
+/**
+ * Whether the external-drive floor set `effort` (spec §16, #41).
+ */
+external_drive: boolean, };
