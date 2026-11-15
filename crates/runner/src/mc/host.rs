@@ -59,6 +59,11 @@ impl McHost {
         &self.queue
     }
 
+    /// The Minecraft distances and day length this host runs with.
+    pub fn params(&self) -> &McParams {
+        &self.params
+    }
+
     pub fn places(&self) -> &Places {
         &self.places
     }

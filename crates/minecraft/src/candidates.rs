@@ -25,6 +25,9 @@ pub struct McParams {
     pub explore_distance: i32,
     /// Blocks needed in the inventory to wall in quickly.
     pub shelter_blocks: u32,
+    /// Game ticks in one Minecraft day (20 min at 20 ticks/s), for
+    /// once-a-day events such as the teacher's dusk call (01 §4.11).
+    pub day_ticks: u64,
 }
 
 impl Default for McParams {
@@ -34,6 +37,7 @@ impl Default for McParams {
             flee_distance: 16,
             explore_distance: 24,
             shelter_blocks: 8,
+            day_ticks: 24_000,
         }
     }
 }
