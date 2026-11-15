@@ -255,6 +255,12 @@ fn the_mob_tests_see_what_threatens() {
     assert!(!w.mob_test().zombie_near, "9 tiles: out of range");
     skeleton(&mut w, 24, 36);
     assert!(w.mob_test().shot_at);
+    assert!(!w.mob_test().weak);
+    w.body.health = 0.49;
+    assert!(w.mob_test().weak, "below fight_health 0.5");
+    w.body.health = 0.5;
+    assert!(!w.mob_test().weak, "at fight_health: strong enough");
+    w.body.health = 0.2;
     w.map.set(p(24, 24), Tile::Shelter);
     assert_eq!(w.mob_test(), MobTest::default());
 }

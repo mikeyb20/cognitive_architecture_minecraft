@@ -17,6 +17,8 @@ pub struct MobTest {
     pub zombie_near: bool,
     /// A skeleton can shoot the unsheltered agent.
     pub shot_at: bool,
+    /// The unsheltered agent's health is below `Rules::fight_health`.
+    pub weak: bool,
 }
 
 impl SimWorld {
@@ -32,6 +34,7 @@ impl SimWorld {
                 .iter()
                 .any(|m| m.kind == MobKind::Zombie && cheb(m.pos, me) <= self.rules.threat_range),
             shot_at: self.exposed_at(me),
+            weak: self.body.health < self.rules.fight_health,
         }
     }
 

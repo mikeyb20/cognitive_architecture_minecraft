@@ -5,7 +5,9 @@
 //! social signal (spec §5).
 
 use host_api::command::mark_step;
-use host_api::ontology::{DUSK, FIGHT_ZOMBIE_GOAL, HIDE_SKELETON_GOAL, SHELTER_GOAL};
+use host_api::ontology::{
+    DUSK, ESCAPE_ZOMBIE_GOAL, FIGHT_ZOMBIE_GOAL, HIDE_SKELETON_GOAL, SHELTER_GOAL,
+};
 use host_api::{Candidate, ChatMsg, Observation, Pos, Seen, SeenKind, ThingId};
 
 use crate::world::MobTest;
@@ -26,7 +28,8 @@ pub struct ScriptedPlayer {
     pub dusk_call: bool,
     /// When a mob threatens, tell the agent what to do about it (Michael,
     /// 15 Nov 2026): a skeleton that can shoot it, hide; else a zombie
-    /// near, fight. Once per threat, as it starts or changes kind.
+    /// near, fight, or run when the agent is weak. Once per threat, as it
+    /// starts or changes kind.
     pub mob_calls: bool,
     called_day: Option<u64>,
     mob_call: Option<&'static str>,
@@ -66,12 +69,14 @@ impl ScriptedPlayer {
 
     /// The mob call (see `mob_calls`): "get hide_from_skeleton" when a
     /// skeleton can shoot the agent, else "get fight_zombie" when a zombie
-    /// is near; nothing while the same call is still open. When the threat
+    /// is near ("get escape_zombie" while the agent is weak); nothing while the same call is still open. When the threat
     /// ends, the open command (if any) is said again. Returns whether it
     /// gave a lesson.
     pub fn call_on_threat(&mut self, obs: &mut Observation, t: MobTest) -> bool {
         let lesson = if t.shot_at {
             Some(HIDE_SKELETON_GOAL)
+        } else if t.zombie_near && t.weak {
+            Some(ESCAPE_ZOMBIE_GOAL)
         } else if t.zombie_near {
             Some(FIGHT_ZOMBIE_GOAL)
         } else {
@@ -295,6 +300,7 @@ mod tests {
                 MobTest {
                     zombie_near,
                     shot_at,
+                    weak: false,
                 },
             );
             (
@@ -342,5 +348,30 @@ mod tests {
         };
         said(&mut q, true, false);
         assert_eq!(said(&mut q, false, false), (false, vec![]));
+    }
+
+    #[test]
+    fn a_weak_agent_is_told_to_run_from_a_zombie() {
+        let mut p = ScriptedPlayer {
+            mob_calls: true,
+            ..ScriptedPlayer::idle()
+        };
+        let call = |p: &mut ScriptedPlayer, weak, shot_at| {
+            let mut o = obs(0);
+            let t = MobTest {
+                zombie_near: true,
+                shot_at,
+                weak,
+            };
+            p.call_on_threat(&mut o, t);
+            o.chat.iter().map(|m| m.text.clone()).collect::<Vec<_>>()
+        };
+        assert_eq!(call(&mut p, true, false), vec!["get escape_zombie"]);
+        assert_eq!(call(&mut p, false, false), vec!["get fight_zombie"]);
+        assert_eq!(
+            call(&mut p, true, true),
+            vec!["get hide_from_skeleton"],
+            "a skeleton still comes first"
+        );
     }
 }
