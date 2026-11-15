@@ -127,10 +127,6 @@ pub const REGION: i32 = 8;
 /// it too.
 pub const DUSK: f32 = 0.42;
 
-/// The goal the teacher knows a recipe and a test for (01 §4.11, #58): a
-/// shelter that passes the host's shelter test.
-pub const SHELTER_GOAL: &str = "shelter";
-
 /// The mob lessons the teacher knows (01 §4.11; Michael, 15 Nov 2026:
 /// "zombie: fight; skeleton: hide"). Each has a recipe and a test: fight
 /// passes once no zombie is within threat range, hide once no skeleton can
@@ -138,6 +134,10 @@ pub const SHELTER_GOAL: &str = "shelter";
 pub const FIGHT_ZOMBIE_GOAL: &str = "fight_zombie";
 /// See [`FIGHT_ZOMBIE_GOAL`].
 pub const HIDE_SKELETON_GOAL: &str = "hide_from_skeleton";
+
+/// The goal the teacher knows a recipe and a test for (01 §4.11, #58): a
+/// shelter that passes the host's shelter test.
+pub const SHELTER_GOAL: &str = "shelter";
 
 /// The novelty unit for the 8×8 region containing `pos` (spec §5, §21).
 pub fn region_of(pos: crate::Pos) -> crate::ThingId {
