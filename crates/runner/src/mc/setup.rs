@@ -49,11 +49,13 @@ pub fn tier(s: &str) -> Option<Tier> {
 }
 
 /// The provider for a tier, behind the replay cache when `cache` is given.
-/// `ollama` overrides the local server's URL; `key` is the Anthropic key
-/// (from the local `.env`, never committed).
+/// `ollama` overrides the local server's URL and `model` the local model
+/// (spec §23: T-local's model is picked in the pilot); `key` is the
+/// Anthropic key (from the local `.env`, never committed).
 pub fn provider(
     tier: Tier,
     ollama: Option<String>,
+    model: Option<String>,
     key: Option<String>,
     cache: Option<(PathBuf, bool)>,
 ) -> Result<Box<dyn Provider>, String> {
@@ -62,6 +64,9 @@ pub fn provider(
             let mut cfg = OpenAiConfig::local();
             if let Some(url) = ollama {
                 cfg.base_url = url;
+            }
+            if let Some(m) = model {
+                cfg.model = m;
             }
             Box::new(OpenAi::new(cfg))
         }

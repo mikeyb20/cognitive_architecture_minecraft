@@ -73,18 +73,21 @@ fn ask(p: &mut Box<dyn Provider>) -> Result<Reply, LlmError> {
 
 #[test]
 fn providers_by_tier() {
-    let mut local = provider(Tier::Local, Some(ollama("7")), None, None).unwrap();
+    let mut local = provider(Tier::Local, Some(ollama("7")), None, None, None).unwrap();
     assert_eq!(local.id(), "openai/qwen2.5:7b-instruct");
     assert_eq!(
         ask(&mut local).unwrap().text,
         "7",
         "the URL override is used"
     );
-    let cheap = provider(Tier::Cheap, None, Some("k".into()), None).unwrap();
+    let small = Some("qwen2.5:3b-instruct".to_string());
+    let local3 = provider(Tier::Local, None, small, None, None).unwrap();
+    assert_eq!(local3.id(), "openai/qwen2.5:3b-instruct", "OLLAMA_MODEL");
+    let cheap = provider(Tier::Cheap, None, None, Some("k".into()), None).unwrap();
     assert_eq!(cheap.id(), "anthropic/claude-haiku-5-5");
-    let strong = provider(Tier::Strong, None, Some("k".into()), None).unwrap();
+    let strong = provider(Tier::Strong, None, None, Some("k".into()), None).unwrap();
     assert_eq!(strong.id(), "anthropic/claude-sonnet-5-5");
-    let no_key = provider(Tier::Cheap, None, None, None).err();
+    let no_key = provider(Tier::Cheap, None, None, None, None).err();
     assert_eq!(no_key.as_deref(), Some("ANTHROPIC_API_KEY is not set"));
 }
 
@@ -95,14 +98,14 @@ fn the_cache_records_or_replays() {
     let file = dir.join("c.jsonl");
     let _ = std::fs::remove_file(&file);
     let url = Some(ollama("3"));
-    let mut rec = provider(Tier::Local, url, None, Some((file.clone(), false))).unwrap();
+    let mut rec = provider(Tier::Local, url, None, None, Some((file.clone(), false))).unwrap();
     assert_eq!(ask(&mut rec).unwrap().text, "3");
-    let mut rep = provider(Tier::Local, None, None, Some((file.clone(), true))).unwrap();
+    let mut rep = provider(Tier::Local, None, None, None, Some((file.clone(), true))).unwrap();
     assert!(ask(&mut rep).unwrap().cached, "replayed, no server needed");
     let other = dir.join("empty.jsonl");
-    let mut miss = provider(Tier::Local, None, None, Some((other, true))).unwrap();
+    let mut miss = provider(Tier::Local, None, None, None, Some((other, true))).unwrap();
     assert_eq!(ask(&mut miss), Err(LlmError::NotCached));
-    let bad = provider(Tier::Local, None, None, Some((dir.clone(), true))).err();
+    let bad = provider(Tier::Local, None, None, None, Some((dir.clone(), true))).err();
     assert!(bad.unwrap().starts_with("cannot open the cache"));
     std::fs::remove_dir_all(dir).unwrap();
 }
