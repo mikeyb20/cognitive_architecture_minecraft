@@ -18,10 +18,12 @@ pub fn p(x: i32, z: i32) -> Pos {
     Pos { x, y: 0, z }
 }
 
-/// Exact rules: no random failure, no night spawns unless a test turns them on.
+/// Exact rules: no random failure, no night spawns unless a test turns them
+/// on, and those are zombies (skeletons have their own tests).
 pub fn exact() -> Rules {
     Rules {
         base_success: 1.0,
+        skeleton_share: 0.0,
         night_spawn: 0.0,
         cave_spawn: 0.0,
         regen: 0.0,

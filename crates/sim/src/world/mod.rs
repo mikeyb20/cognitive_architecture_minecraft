@@ -27,6 +27,7 @@ mod danger;
 mod host;
 mod mobs;
 mod path;
+mod ranged;
 mod shelter;
 mod shock;
 pub use path::Reach;
@@ -38,7 +39,10 @@ pub use shock::Shock;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Death {
     Starved,
+    /// A melee hit (a zombie).
     Mob,
+    /// A skeleton's arrow (added 15 Nov 2026; earlier runs had none).
+    Arrow,
     /// A shock bout (benchmark B3).
     Shock,
 }
@@ -263,6 +267,10 @@ impl SimWorld {
                     } else {
                         self.rules.mob_move_ticks * 4
                     };
+            }
+            if self.mobs[i].kind.ranged() {
+                self.shoot(i, sheltered);
+                continue;
             }
             let m = &self.mobs[i];
             if m.kind.hostile()
