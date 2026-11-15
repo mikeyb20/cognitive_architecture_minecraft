@@ -103,6 +103,7 @@ fn the_run_command_writes_runs_commit_and_config_hash() {
         .output()
         .unwrap();
     assert!(out.status.success(), "{out:?}");
+    assert!(out.stderr.is_empty(), "no LLM arm, no progress line");
     let runs = std::fs::read_to_string(out_dir.join("TWO.runs.csv")).unwrap();
     let lines: Vec<&str> = runs.lines().collect();
     assert_eq!(lines.len(), 3, "{runs}");
@@ -127,5 +128,51 @@ fn the_run_command_writes_runs_commit_and_config_hash() {
         git(&["status", "--porcelain", "--untracked-files=no"]),
     );
     assert_eq!(head["commit"], want);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn llm_runs_print_progress_on_stderr() {
+    let one_b = r#"
+id = "ONE_B"
+question = "Progress?"
+scenarios = ["first_night"]
+seeds = 1
+
+[[arms]]
+label = "C"
+arm = "c"
+expected = "-"
+
+[[arms]]
+label = "B"
+arm = "b"
+expected = "-"
+"#;
+    let e = parse(one_b).unwrap();
+    assert_eq!(runner::experiment::llm_runs(&e), 1);
+    assert_eq!(runner::experiment::llm_runs(&parse(TWO).unwrap()), 0);
+    let dir = std::env::temp_dir().join(format!("progress-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("one_b.toml");
+    std::fs::write(&file, one_b).unwrap();
+    // Nothing listens on port 9, so every call fails fast and falls back.
+    let out = Command::new(env!("CARGO_BIN_EXE_runner"))
+        .args([
+            "run",
+            "--experiment",
+            file.to_str().unwrap(),
+            "--tier",
+            "local",
+        ])
+        .env("OLLAMA_BASE_URL", "http://127.0.0.1:9")
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{out:?}");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("\rLLM run 1/1, call 1 | "), "{err}");
+    assert!(err.ends_with("after the first run   \n"), "{err}");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(!stdout.contains("LLM run 1/1"), "results stay clean");
     std::fs::remove_dir_all(dir).unwrap();
 }
