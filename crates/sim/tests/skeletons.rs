@@ -8,6 +8,7 @@ use common::*;
 use host_api::{Host, Skill, Target, World};
 use sim::map::{Biome, Map, Tile};
 use sim::mob::{Mob, MobKind};
+use sim::world::MobTest;
 use sim::{Death, Rules, SimWorld};
 
 const NIGHT: u64 = 1200;
@@ -241,3 +242,19 @@ fn a_zero_share_spawns_as_before() {
 
 // Spawn spots from `main` before skeletons (checked on 424b88d).
 const PINNED: [(i32, i32); 3] = [(22, 34), (58, 80), (87, 35)];
+
+// The mob lessons' tests (01 §4.11): a zombie within the threat range, a
+// skeleton that can shoot; both false in a hut.
+#[test]
+fn the_mob_tests_see_what_threatens() {
+    let mut w = night(sure());
+    assert_eq!(w.mob_test(), MobTest::default());
+    zombie(&mut w, 32, 24);
+    assert!(w.mob_test().zombie_near && !w.mob_test().shot_at);
+    w.mobs[0].pos = p(33, 24);
+    assert!(!w.mob_test().zombie_near, "9 tiles: out of range");
+    skeleton(&mut w, 24, 36);
+    assert!(w.mob_test().shot_at);
+    w.map.set(p(24, 24), Tile::Shelter);
+    assert_eq!(w.mob_test(), MobTest::default());
+}

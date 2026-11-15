@@ -7,8 +7,34 @@
 //! in view.
 
 use super::SimWorld;
+use crate::geom::cheb;
+use crate::mob::MobKind;
+
+/// The mob lessons' tests (01 §4.11) where the agent stands.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MobTest {
+    /// A zombie is within `Rules::threat_range` of the unsheltered agent.
+    pub zombie_near: bool,
+    /// A skeleton can shoot the unsheltered agent.
+    pub shot_at: bool,
+}
 
 impl SimWorld {
+    /// The mob lessons' tests where the agent stands (01 §4.11).
+    pub fn mob_test(&self) -> MobTest {
+        if self.sheltered() {
+            return MobTest::default();
+        }
+        let me = self.body.pos;
+        MobTest {
+            zombie_near: self
+                .mobs
+                .iter()
+                .any(|m| m.kind == MobKind::Zombie && cheb(m.pos, me) <= self.rules.threat_range),
+            shot_at: self.exposed_at(me),
+        }
+    }
+
     /// Whether a hostile threatens the unsheltered agent: within
     /// `Rules::threat_range`, or a skeleton that can shoot it (`ranged`).
     pub fn in_danger(&self) -> bool {

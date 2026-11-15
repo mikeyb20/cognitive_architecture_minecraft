@@ -1,0 +1,12 @@
+# Mob lessons A/B (Michael, 15 Nov 2026: "zombie: fight; skeleton: hide").
+# Run as is for lessons on; set mob_lessons = false for the off arm.
+id = "MOB_LESSONS"
+question = "Do the mob lessons (zombie: fight, skeleton: hide) change survival and damage?"
+scenarios = ["first_night", "open_day", "commanded", "harsh", "long_horizon", "far_food", "dusk_errand", "hostile_at_food", "expedition", "incubation", "held_out"]
+seeds = 50
+mob_lessons = true
+
+[[arms]]
+label = "C (brain)"
+arm = "c"
+expected = "With lessons: more Attack on zombies and Flee from skeletons; fewer arrow deaths."

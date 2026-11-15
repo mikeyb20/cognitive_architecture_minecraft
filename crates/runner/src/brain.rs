@@ -8,7 +8,7 @@ use host_api::{Candidate, Outcome};
 use host_api::{Observation, Skill, TaskType};
 use sim::planner;
 use sim::scenario::{self, Setup};
-use sim::world::ShelterTest;
+use sim::world::{MobTest, ShelterTest};
 use sim::{Death, Rules};
 
 use crate::drive::{Driver, run_scenario};
@@ -23,6 +23,8 @@ pub struct SimTools {
     /// The tick the teacher stops showing recipes (plan §5.0
     /// teachability); the test is still explained after it (01 §4.11).
     pub teach_until: Option<u64>,
+    /// The mob lessons' tests, set before each decision.
+    pub mob: MobTest,
 }
 
 /// Dusk, from which the planner puts shelter first (same as arm A's tree).
@@ -70,15 +72,27 @@ impl ThinkTools for SimTools {
         }
     }
 
-    /// The teacher shows how to build a shelter (01 §4.11, #59).
+    /// The teacher shows how to build a shelter (01 §4.11, #59), and the
+    /// mob lessons (`mob_lessons`).
     fn show(&mut self, goal: &str, obs: &Observation) -> Option<Recipe> {
-        (goal == SHELTER && teaching(self.teach_until, obs.tick))
-            .then(|| shelter_recipe(&obs.inventory))
+        if !teaching(self.teach_until, obs.tick) {
+            return None;
+        }
+        if goal == SHELTER {
+            Some(shelter_recipe(&obs.inventory))
+        } else {
+            crate::mob_lessons::recipe(goal)
+        }
     }
 
-    /// The shelter test (01 §4.11): no hostile has a path in, and a way out.
+    /// The shelter test (01 §4.11): no hostile has a path in, and a way
+    /// out; or a mob lesson's test.
     fn explain(&mut self, goal: &str, _obs: &Observation) -> Option<bool> {
-        if goal == SHELTER { self.shelter } else { None }
+        if goal == SHELTER {
+            self.shelter
+        } else {
+            crate::mob_lessons::test(goal, self.mob)
+        }
     }
 }
 
@@ -206,6 +220,9 @@ impl Driver for BrainDriver<'_> {
     fn see_tests(&mut self, shelter: ShelterTest) {
         self.tools.shelter = Some(shelter.passes());
     }
+    fn see_mob(&mut self, t: MobTest) {
+        self.tools.mob = t;
+    }
 }
 
 /// Run with a brain the caller built (tests force states first).
@@ -293,17 +310,26 @@ mod tests {
     #[test]
     fn the_sim_teacher_stops_showing_but_keeps_explaining() {
         use host_api::Host;
+        use host_api::ontology::{FIGHT_ZOMBIE_GOAL, HIDE_SKELETON_GOAL};
         let mut obs = setup("first_night", 0).world.perceive();
         let mut t = SimTools {
             shelter: Some(false),
             teach_until: Some(100),
+            mob: MobTest {
+                zombie_near: true,
+                shot_at: false,
+            },
         };
         obs.tick = 99;
         assert!(t.show(SHELTER, &obs).is_some());
+        assert!(t.show(FIGHT_ZOMBIE_GOAL, &obs).is_some());
         assert!(t.show("stick", &obs).is_none());
         obs.tick = 100;
         assert!(t.show(SHELTER, &obs).is_none());
+        assert!(t.show(FIGHT_ZOMBIE_GOAL, &obs).is_none());
         assert_eq!(t.explain(SHELTER, &obs), Some(false));
+        assert_eq!(t.explain(FIGHT_ZOMBIE_GOAL, &obs), Some(false));
+        assert_eq!(t.explain(HIDE_SKELETON_GOAL, &obs), Some(true));
     }
 
     // A run passes its teaching days to the brain's teacher: asked at
