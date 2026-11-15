@@ -352,6 +352,8 @@ export class MineflayerBody implements Body {
       await this.bot.equip(stack, "hand");
       // Yaw π/2 faces -x; the place packet carries this look, not one at the block.
       await this.bot.look(Math.PI / 2, -Math.PI / 4, true);
+      // Let the look reach the server first: a probe once placed a bed with the old facing.
+      await this.bot.waitForTicks(1);
       await (this.bot as unknown as GenericPlace)._genericPlace(below, new Vec3(0, 1, 0), {
         forceLook: "ignore",
       });

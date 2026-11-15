@@ -189,6 +189,7 @@ test("a home gets a bed: one held is placed head west, one is made from wool of 
   held.closed = true;
   assert.equal((await shelter(held)).success, true);
   assert.deepEqual(beds(held), [["placeWest", "red_bed", P(0, 63, -1)]]);
+  assert.ok(!held.calls.some(([m, at]) => m === "dig" && JSON.stringify(at) === JSON.stringify(P(0, 63, -1))), "an unseen cell is not dug");
   // Three wool of one colour and three planks: made at a table, then placed.
   const made = built();
   made.inv.set("white_wool", 2).set("lime_wool", 3).set("pink_wool", 3).set("oak_planks", 3).set("red_bed", 0);
@@ -198,6 +199,21 @@ test("a home gets a bed: one held is placed head west, one is made from wool of 
     ["craft", "lime_bed", P(4, 64, 0)],
     ["placeWest", "lime_bed", P(0, 63, -1)],
   ]);
+  // Something in the bed's cells (the table, once) is dug out first; if it cannot be, no bed.
+  const blocked = built();
+  blocked.inv.set("white_bed", 1);
+  blocked.names.set("0,63,-1", "short_grass").set("-1,63,-1", "crafting_table");
+  await shelter(blocked);
+  assert.deepEqual(blocked.calls.slice(-3, -1), [
+    ["dig", P(-1, 63, -1)],
+    ["placeWest", "white_bed", P(0, 63, -1)],
+  ]);
+  blocked.calls = [];
+  blocked.answers.set("dig", false);
+  blocked.names.set("0,63,-1", "crafting_table").set("-1,63,-1", "air");
+  assert.equal((await shelter(blocked)).progress, 69 / 71, "stopped at the bed");
+  assert.ok(!blocked.calls.some(([m]) => m === "placeWest"));
+  assert.deepEqual(blocked.calls.filter(([m]) => m === "dig").at(-1), ["dig", P(0, 63, -1)]);
   // A failed placing stops the build before the last step.
   const stuck = built();
   stuck.inv.set("white_bed", 1);

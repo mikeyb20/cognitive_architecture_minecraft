@@ -299,7 +299,16 @@ async function bedStep(body: Body, foot: Pos, signal: AbortSignal): Promise<bool
       bed = out;
     }
   }
-  return bed === undefined || body.placeWest(bed, foot, signal);
+  if (bed === undefined) {
+    return true;
+  }
+  // Clear the bed's two cells: a crafting table placed while making it once stood at the head.
+  for (const p of [foot, head]) {
+    if (!OPEN.includes(body.blockName(p) ?? "air") && !(await body.dig(p, signal))) {
+      return false;
+    }
+  }
+  return body.placeWest(bed, foot, signal);
 }
 
 /** Blocks a home's floor cannot rest on. */
