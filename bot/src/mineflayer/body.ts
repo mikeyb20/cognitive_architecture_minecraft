@@ -21,7 +21,15 @@ const { goals } = pathfinderPkg;
 /** Longest any single body call may take, in ms. */
 export const CALL_LIMIT_MS = 60_000;
 
+/** Crop age at which wheat, carrots and potatoes are grown (Minecraft 1.21). */
+const RIPE_AGE = 7;
+/** How near to stand to use an item on a block. */
+const USE_RANGE = 3;
+/** Ticks to wait after using an item for the server's update. */
+const USE_SETTLE_TICKS = 4;
+
 const v = (p: Pos) => new Vec3(p.x, p.y, p.z);
+const posOf = (p: Vec3): Pos => ({ x: p.x, y: p.y, z: p.z });
 
 /** Run `work`, giving up (and calling `stop`) on abort or after `ms`. */
 async function bounded<T>(
@@ -107,7 +115,61 @@ export class MineflayerBody implements Body {
   findBlock(names: readonly string[], radius: number): Pos | null {
     const ids = names.flatMap((n) => this.bot.registry.blocksByName[n]?.id ?? []);
     const found = this.bot.findBlock({ matching: ids, maxDistance: radius });
-    return found === null ? null : { x: found.position.x, y: found.position.y, z: found.position.z };
+    return found === null ? null : posOf(found.position);
+  }
+
+  /** Block properties arrive as strings ("7"), so the age is parsed. */
+  findRipe(name: string, radius: number): Pos | null {
+    const id = this.bot.registry.blocksByName[name]?.id;
+    const found = this.bot.findBlock({
+      matching: (b: Block) => b.type === id && Number(b.getProperties().age) === RIPE_AGE,
+      maxDistance: radius,
+      useExtraInfo: true,
+    });
+    return found === null ? null : posOf(found.position);
+  }
+
+  findSoil(radius: number): Pos | null {
+    const ids = ["dirt", "grass_block"].flatMap((n) => this.bot.registry.blocksByName[n]?.id ?? []);
+    const found = this.bot.findBlock({
+      matching: (b: Block) =>
+        ids.includes(b.type) && this.bot.blockAt(b.position.offset(0, 1, 0))?.name === "air" && !this.#underfoot(b.position),
+      maxDistance: radius,
+      useExtraInfo: true,
+    });
+    return found === null ? null : posOf(found.position);
+  }
+
+  /**
+   * Whether `p` is the block the bot stands on. Tilling it failed or got
+   * trampled about half the time in the live probe of 15 Nov 2026.
+   */
+  #underfoot(p: Vec3): boolean {
+    const me = this.position();
+    return p.x === me.x && p.z === me.z && p.y === me.y - 1;
+  }
+
+  blockName(at: Pos): string | null {
+    return this.bot.blockAt(v(at))?.name ?? null;
+  }
+
+  async use(item: string, at: Pos, signal: AbortSignal): Promise<boolean> {
+    const stack = this.bot.inventory.items().find((i) => i.name === item);
+    if (stack === undefined || !(await this.goto(at, USE_RANGE, signal))) {
+      return false;
+    }
+    const apply = async () => {
+      const block = this.bot.blockAt(v(at));
+      if (block === null) {
+        return false;
+      }
+      await this.bot.equip(stack, "hand");
+      await this.bot.activateBlock(block, new Vec3(0, 1, 0));
+      // Let the server's block update arrive before the caller looks.
+      await this.bot.waitForTicks(USE_SETTLE_TICKS);
+      return true;
+    };
+    return bounded(signal, CALL_LIMIT_MS, apply, () => undefined, false);
   }
 
   async dig(at: Pos, signal: AbortSignal): Promise<boolean> {
@@ -115,8 +177,11 @@ export class MineflayerBody implements Body {
     if (block === null || block.name === "air" || !this.#canHarvest(block)) {
       return false;
     }
+    // Next to crops and grass the pathfinder often gives up deciding a
+    // path ("Took to long to decide path to goal") on the first try and
+    // finds one on the second (live probe, 15 Nov 2026), so try twice.
     const collect = async () => {
-      await this.bot.collectBlock.collect(block);
+      await this.bot.collectBlock.collect(block).catch(() => this.bot.collectBlock.collect(block));
       return true;
     };
     return bounded(signal, CALL_LIMIT_MS, collect, () => this.bot.collectBlock.cancelTask(), false);
