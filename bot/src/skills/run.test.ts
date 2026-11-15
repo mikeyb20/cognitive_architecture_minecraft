@@ -1,40 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { Candidate, Outcome, Skill, SkillConfig, Target } from "../host.js";
-import type { Body } from "./body.js";
+import type { Outcome, Skill, Target } from "../host.js";
 import { FakeBody } from "./fake.test-util.js";
-import { type Request, gained, run, searchNames } from "./run.js";
-
-const P = (x: number, y: number, z: number) => ({ x, y, z });
-const live = () => new AbortController().signal;
-
-/** The runner's defaults (host-api `SkillConfig::default`). */
-const SKILLS: SkillConfig = {
-  searchRadius: 64,
-  oreDepth: 16,
-  followRange: 3,
-  followMs: 5000,
-  restMs: 5000,
-  searchStep: 24,
-};
-
-function go(b: Body, r: Request, held: Set<string>, s: AbortSignal, cfg = SKILLS): Promise<Outcome> {
-  return run(b, r, held, s, cfg);
-}
-
-function req(skill: Skill, target: Target | null, recipe: Request["recipe"] = null): Request {
-  const action: Candidate = {
-    id: 0,
-    skill,
-    target,
-    task_type: "mining",
-    est_cost: 0.1,
-    est_risk: 0,
-    commanded: false,
-  };
-  return { action, intensity: { effort: 0.5, focus: 1, external_drive: false }, recipe };
-}
+import { gained, searchNames } from "./run.js";
+import { P, SKILLS, go, live, req } from "./run.test-util.js";
 
 test("an outcome reports gains, damage, time and first-time items", async () => {
   const b = new FakeBody();
@@ -228,14 +198,14 @@ test("crafting uses or places the station the recipe needs", async () => {
   assert.deepEqual(b.calls.at(-1), ["craft", "wooden_pickaxe", P(4, 64, 4)]);
   assert.ok(!b.calls.some(([m]) => m === "place"));
   b.blocks.clear();
-  // One held: place it beside the agent, then craft there.
+  // One held: place it beside the agent on the -x side (away from a home door), then craft there.
   b.calls = [];
   b.inv.set("crafting_table", 1);
   await go(b, req("craft", { Item: "wooden_pickaxe" }, table), new Set(), live());
   assert.deepEqual(b.calls, [
     ["findBlock", ["crafting_table"], 16],
-    ["place", "crafting_table", P(1, 64, 0)],
-    ["craft", "wooden_pickaxe", P(1, 64, 0)],
+    ["place", "crafting_table", P(-1, 64, 0)],
+    ["craft", "wooden_pickaxe", P(-1, 64, 0)],
   ]);
   b.answers.set("place", false);
   const fail = await go(b, req("craft", { Item: "wooden_pickaxe" }, table), new Set(), live());

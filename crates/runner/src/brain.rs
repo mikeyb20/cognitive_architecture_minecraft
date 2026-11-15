@@ -13,6 +13,7 @@ use sim::{Death, Rules};
 
 use crate::drive::{Driver, run_scenario};
 use crate::teachability::{Nights, teach_until, teaching};
+use host_api::ontology::BED_GOAL;
 
 /// The sim's code tools (spec §21): the scripted planner and the
 /// tech-tree recombiner stand in for the LLM. As the teacher (01 §4.11)
@@ -25,6 +26,8 @@ pub struct SimTools {
     pub teach_until: Option<u64>,
     /// The mob lessons' tests, set before each decision.
     pub mob: MobTest,
+    /// The bed lesson's recipe and test (`bed_lesson`), Minecraft only.
+    pub bed: bool,
 }
 
 /// Dusk, from which the planner puts shelter first (same as arm A's tree).
@@ -72,24 +75,28 @@ impl ThinkTools for SimTools {
         }
     }
 
-    /// The teacher shows how to build a shelter (01 §4.11, #59), and the
-    /// mob lessons (`mob_lessons`).
+    /// The teacher shows how to build a shelter (01 §4.11, #59), the mob
+    /// lessons (`mob_lessons`) and, in Minecraft, the bed (`bed_lesson`).
     fn show(&mut self, goal: &str, obs: &Observation) -> Option<Recipe> {
         if !teaching(self.teach_until, obs.tick) {
             return None;
         }
         if goal == SHELTER {
             Some(shelter_recipe(&obs.inventory))
+        } else if self.bed && goal == BED_GOAL {
+            Some(crate::bed_lesson::recipe(obs))
         } else {
             crate::mob_lessons::recipe(goal)
         }
     }
 
     /// The shelter test (01 §4.11): no hostile has a path in, and a way
-    /// out; or a mob lesson's test.
-    fn explain(&mut self, goal: &str, _obs: &Observation) -> Option<bool> {
+    /// out; or a mob lesson's or the bed lesson's test.
+    fn explain(&mut self, goal: &str, obs: &Observation) -> Option<bool> {
         if goal == SHELTER {
             self.shelter
+        } else if self.bed && goal == BED_GOAL {
+            Some(crate::bed_lesson::test(obs))
         } else {
             crate::mob_lessons::test(goal, self.mob)
         }
@@ -318,7 +325,9 @@ mod tests {
             mob: MobTest {
                 zombie_near: true,
                 shot_at: false,
+                weak: false,
             },
+            bed: false,
         };
         obs.tick = 99;
         assert!(t.show(SHELTER, &obs).is_some());
@@ -330,6 +339,25 @@ mod tests {
         assert_eq!(t.explain(SHELTER, &obs), Some(false));
         assert_eq!(t.explain(FIGHT_ZOMBIE_GOAL, &obs), Some(false));
         assert_eq!(t.explain(HIDE_SKELETON_GOAL, &obs), Some(true));
+    }
+
+    // The bed lesson (`bed_lesson`) is known only when turned on, as in
+    // Minecraft; the sim's teacher is unchanged.
+    #[test]
+    fn the_bed_lesson_is_known_only_when_on() {
+        use host_api::Host;
+        let obs = setup("first_night", 0).world.perceive();
+        let mut off = SimTools::default();
+        assert!(off.show(BED_GOAL, &obs).is_none());
+        assert_eq!(off.explain(BED_GOAL, &obs), None);
+        let mut on = SimTools {
+            bed: true,
+            ..SimTools::default()
+        };
+        let r = on.show(BED_GOAL, &obs).unwrap();
+        assert_eq!(r, crate::bed_lesson::recipe(&obs));
+        assert_eq!(on.explain(BED_GOAL, &obs), Some(false));
+        assert_eq!(on.show(SHELTER, &obs), off.show(SHELTER, &obs));
     }
 
     // A run passes its teaching days to the brain's teacher: asked at

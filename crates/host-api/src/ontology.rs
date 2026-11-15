@@ -134,10 +134,23 @@ pub const DUSK: f32 = 0.42;
 pub const FIGHT_ZOMBIE_GOAL: &str = "fight_zombie";
 /// See [`FIGHT_ZOMBIE_GOAL`].
 pub const HIDE_SKELETON_GOAL: &str = "hide_from_skeleton";
+/// The zombie lesson for a weak agent (Michael, 15 Nov 2026: "fighting
+/// should only occur with enough energy otherwise run hide and get health
+/// and food bars up"): run, and pass once no zombie is within threat range.
+pub const ESCAPE_ZOMBIE_GOAL: &str = "escape_zombie";
 
 /// The goal the teacher knows a recipe and a test for (01 §4.11, #58): a
 /// shelter that passes the host's shelter test.
 pub const SHELTER_GOAL: &str = "shelter";
+
+/// The bed lesson's goal (Michael, 15 Nov 2026: sleep in a bed inside a
+/// shelter). Minecraft only: its test passes once a bed is in view.
+pub const BED_GOAL: &str = "bed";
+
+/// Day phase from which the player asks for a bed ("get bed"), once a day
+/// until dusk, if the agent has none: afternoon, leaving time to hunt
+/// sheep and build before night (proposed).
+pub const BED_CALL: f32 = 0.25;
 
 /// Hostiles that shoot from range: the skeleton and its 1.21 variants
 /// (stray, bogged). Both worlds count one that can shoot as a threat from

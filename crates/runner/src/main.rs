@@ -18,7 +18,7 @@
 //!   scenarios × seeds from `configs/experiments` (spec §26, plan §5).
 //! - `runner mc <a|b|bn|c> [--tier local|cheap|strong] [--addr HOST:PORT]
 //!   [--decisions N] [--log FILE] [--cache FILE [--replay]] [--seed N]
-//!   [--no-teacher]`: run an arm in
+//!   [--no-teacher] [--teach-days N]`: run an arm in
 //!   Minecraft through the bot (`npm start` in bot/ first). Reads
 //!   `ANTHROPIC_API_KEY` and `OLLAMA_BASE_URL` from the environment.
 
@@ -266,7 +266,8 @@ fn mc_log(args: &[String]) -> Option<std::io::LineWriter<std::fs::File>> {
 }
 
 /// Arm C in Minecraft: the default brain drives the bot (spec §22, §26),
-/// with the shelter teacher unless `--no-teacher` (01 §4.11).
+/// with the shelter and bed teacher unless `--no-teacher` (01 §4.11), its
+/// recipes fading after `--teach-days N` if given.
 fn mc_brain(args: &[String]) {
     use cognitive_core::agent::{Brain, BrainConfig};
     let seed = flag(args, "--seed")
@@ -281,6 +282,7 @@ fn mc_brain(args: &[String]) {
         decisions: n.unwrap_or(u32::MAX),
         thresholds: host_api::reflex::ReflexThresholds::default(),
         teacher: !args.iter().any(|a| a == "--no-teacher"),
+        teach_days: flag(args, "--teach-days").and_then(|d| d.parse().ok()),
     };
     let counts = runner::mc::run_brain(
         &mut host,

@@ -28,6 +28,8 @@ export interface Body {
   findRipe(name: string, radius: number): Pos | null;
   /** The nearest dirt or grass block with air above within `radius`, if any. */
   findSoil(radius: number): Pos | null;
+  /** Whether the block at `at` is a full solid block (a mob cannot pass it). */
+  solid(at: Pos): boolean;
   /** The name of the block at `at`, if loaded. */
   blockName(at: Pos): string | null;
   /** Mine the block at `at` (walking there) and pick up what drops. */
@@ -35,8 +37,19 @@ export interface Body {
   /** Place one `item` against the block at `at`, standing where it is. */
   place(item: string, at: Pos, signal: AbortSignal): Promise<boolean>;
 
+  /** Whether the agent is in a closed room now (`perceive/shelter.ts` `enclosed`). */
+  sheltered(): boolean;
+  /** The home the agent built, if any; kept after a death, as the world keeps it. */
+  home(): Pos | null;
+  setHome(at: Pos | null): void;
+  /** Walk into the home through its door, closing it behind; true if already in the room. */
+  enterHome(signal: AbortSignal): Promise<boolean>;
+
   /** Walk near `at` and use one `item` on the top of the block there (hoe to till, seeds to sow). */
   use(item: string, at: Pos, signal: AbortSignal): Promise<boolean>;
+
+  /** Place one `item` at `at` facing west (-x), for blocks whose facing matters (a bed's head goes west). */
+  placeWest(item: string, at: Pos, signal: AbortSignal): Promise<boolean>;
 
   /** Fight the mob nearest `at` until it dies, flees out of reach, or the signal aborts. */
   attack(at: Pos, signal: AbortSignal): Promise<boolean>;
@@ -45,6 +58,7 @@ export interface Body {
   craft(item: string, table: Pos | null, signal: AbortSignal): Promise<boolean>;
   /** Smelt one `input` in the furnace at `furnace`, waiting for the result. */
   smelt(input: string, furnace: Pos, signal: AbortSignal): Promise<boolean>;
+  /** Sleep in the bed at `bed`, going into the home first if it is there. */
   sleep(bed: Pos, signal: AbortSignal): Promise<boolean>;
   /** Stand still for `ms`. */
   wait(ms: number, signal: AbortSignal): Promise<void>;

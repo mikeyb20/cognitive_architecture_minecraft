@@ -61,8 +61,30 @@ export class FakeBody implements Body {
     this.calls.push(["findSoil", radius]);
     return this.found.get("soil") ?? null;
   }
+  /** Names solid() treats as not solid; anything else named is solid, anything unnamed is not. */
+  soft = new Set(["air", "cave_air", "short_grass", "tall_grass", "poppy", "bush", "wheat"]);
+  solid(at: Pos): boolean {
+    const name = this.blockName(at);
+    return name !== null && !this.soft.has(name);
+  }
   blockName(at: Pos): string | null {
     return this.names.get(`${at.x},${at.y},${at.z}`) ?? null;
+  }
+  /** What sheltered() answers. */
+  closed = false;
+  remembered: Pos | null = null;
+  sheltered(): boolean {
+    return this.closed;
+  }
+  home(): Pos | null {
+    return this.remembered;
+  }
+  setHome(at: Pos | null): void {
+    this.calls.push(["setHome", at]);
+    this.remembered = at;
+  }
+  async enterHome(): Promise<boolean> {
+    return this.#do("enterHome");
   }
   async use(item: string, at: Pos): Promise<boolean> {
     return this.#do("use", item, at);
@@ -72,6 +94,9 @@ export class FakeBody implements Body {
   }
   async place(item: string, at: Pos): Promise<boolean> {
     return this.#do("place", item, at);
+  }
+  async placeWest(item: string, at: Pos): Promise<boolean> {
+    return this.#do("placeWest", item, at);
   }
   async attack(at: Pos): Promise<boolean> {
     return this.#do("attack", at);
