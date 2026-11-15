@@ -4,6 +4,8 @@
 //! adapter both implement [`World`] and [`Host`]. Multi-agent support is in the
 //! types from day one ([`AgentId`]), even though this phase runs single agents.
 
+#![warn(missing_docs)]
+
 use serde::{Deserialize, Serialize};
 
 pub mod command;
@@ -30,8 +32,11 @@ pub struct ThingId(pub String);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Pos {
+    /// East–west.
     pub x: i32,
+    /// Height; always 0 in the sim.
     pub y: i32,
+    /// North–south.
     pub z: i32,
 }
 
@@ -39,6 +44,7 @@ pub struct Pos {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Inventory {
+    /// Item name and count; a name may appear more than once (see [`Inventory::count`]).
     pub items: Vec<(String, u32)>,
 }
 
@@ -57,24 +63,38 @@ impl Inventory {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Seen {
+    /// What it is (`block:<name>`, `entity:<name>`, ...).
     pub thing: ThingId,
+    /// Block, entity or player.
     pub kind: SeenKind,
+    /// Where it is.
     pub pos: Pos,
+    /// Straight-line distance from the agent.
     pub distance: f32,
 }
 
+/// What sort of thing was seen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub enum SeenKind {
+    /// A block or tile.
     Block,
-    Entity { hostile: bool },
+    /// A mob or animal.
+    Entity {
+        /// Whether it attacks the agent.
+        hostile: bool,
+    },
+    /// Another player.
     Player,
 }
 
+/// A chat line the agent heard.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct ChatMsg {
+    /// The speaker's name.
     pub from: String,
+    /// What they said.
     pub text: String,
 }
 
@@ -82,9 +102,13 @@ pub struct ChatMsg {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub enum Target {
+    /// A place.
     Pos(Pos),
+    /// A kind of thing to search for.
     Thing(ThingId),
+    /// An item, by name (craft, eat, place).
     Item(String),
+    /// A player, by name.
     Player(String),
 }
 
@@ -92,7 +116,9 @@ pub enum Target {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Observation {
+    /// Whose view this is.
     pub agent: AgentId,
+    /// World tick it was taken at.
     pub tick: u64,
     /// 0..1 through the day; night is >= 0.5.
     pub day_phase: f32,
@@ -100,10 +126,15 @@ pub struct Observation {
     pub health: f32,
     /// 0..1
     pub food: f32,
+    /// Where the agent stands.
     pub position: Pos,
+    /// What it carries.
     pub inventory: Inventory,
+    /// What it sees, nearest first.
     pub visible: Vec<Seen>,
+    /// Chat heard since the last observation.
     pub chat: Vec<ChatMsg>,
+    /// Health lost since the last observation, as a fraction of full health.
     pub damage_taken: f32,
     /// In bed or otherwise safely resting.
     pub resting: bool,
@@ -132,8 +163,11 @@ impl Observation {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Candidate {
+    /// Index in this decision's list.
     pub id: u32,
+    /// What to do.
     pub skill: Skill,
+    /// What to do it to, if anything.
     pub target: Option<Target>,
     /// One of the 7 tenacity task types (#36).
     pub task_type: TaskType,
@@ -153,6 +187,7 @@ pub struct Intensity {
     pub effort: f32,
     /// 1 - execution loss from choking (sim only, #43).
     pub focus: f32,
+    /// Whether the external-drive floor set `effort` (spec §16, #41).
     pub external_drive: bool,
 }
 
@@ -160,13 +195,19 @@ pub struct Intensity {
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Outcome {
+    /// Whether the action did what it set out to.
     pub success: bool,
     /// 0..1 progress on the step.
     pub progress: f32,
+    /// Items the action added to the inventory.
     pub items_gained: Inventory,
+    /// Health lost during the action, as a fraction of full health.
     pub damage: f32,
+    /// Things noticed for the first time during the action.
     pub new_things: Vec<ThingId>,
+    /// The action could not start (no path, missing inputs, dead).
     pub blocked: bool,
+    /// World ticks the action took.
     pub duration_ticks: u32,
 }
 
@@ -174,6 +215,7 @@ pub struct Outcome {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Scenario {
+    /// File stem in `configs/scenarios/`.
     pub name: String,
 }
 
@@ -182,17 +224,21 @@ pub const MAX_CANDIDATES: usize = 20;
 
 /// One run's world, shared by all agents (spec §2).
 pub trait World {
+    /// Start over: new map from `seed`, set up for `scenario`.
     fn reset(&mut self, seed: u64, scenario: &Scenario);
     /// Advance time, mobs and day/night.
     fn step_world(&mut self, ticks: u32);
+    /// One agent's body in this world.
     fn host(&mut self, agent: AgentId) -> &mut dyn Host;
 }
 
 /// One agent's body in a world (spec §2).
 pub trait Host {
+    /// What the agent senses now.
     fn perceive(&mut self) -> Observation;
     /// External candidates only, at most K = 20 (spec §6).
     fn candidate_actions(&mut self, obs: &Observation) -> Vec<Candidate>;
+    /// Carry out one candidate at the given intensity; the world moves on while it runs.
     fn execute(&mut self, action: &Candidate, intensity: Intensity) -> Outcome;
 }
 

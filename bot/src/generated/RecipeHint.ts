@@ -3,4 +3,12 @@
 /**
  * For a craft: what the tech tree says it needs (spec §21).
  */
-export type RecipeHint = { station: string | null, inputs: Array<[string, number]>, };
+export type RecipeHint = { 
+/**
+ * Station to craft at (`crafting_table`, `furnace`), if any.
+ */
+station: string | null, 
+/**
+ * Items used up, with counts.
+ */
+inputs: Array<[string, number]>, };

@@ -65,7 +65,9 @@ impl Default for Limits {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Thresholds {
+    /// Health (0..1) at or below which a hostile nearby is an emergency.
     pub critical_health: f32,
+    /// Food (0..1) at or below which eating is an emergency.
     pub starving_food: f32,
 }
 
@@ -83,8 +85,11 @@ impl From<ReflexThresholds> for Thresholds {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct BotConfig {
+    /// How the bot's skills search and act.
     pub skills: SkillConfig,
+    /// Time limits on skills.
     pub limits: Limits,
+    /// When the survival interrupt fires.
     pub thresholds: Thresholds,
 }
 
@@ -102,7 +107,9 @@ impl Default for BotConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct RecipeHint {
+    /// Station to craft at (`crafting_table`, `furnace`), if any.
     pub station: Option<String>,
+    /// Items used up, with counts.
     pub inputs: Vec<(String, u32)>,
 }
 
@@ -123,17 +130,26 @@ impl RecipeHint {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub enum LinkRequest {
     /// First message: settings for this run.
-    Hello { config: BotConfig },
+    Hello {
+        /// The bot's settings.
+        config: BotConfig,
+    },
     /// Read the world now.
     Perceive,
     /// Carry out one action; the reply comes when it ends.
     Execute {
+        /// The chosen candidate.
         action: Candidate,
+        /// How hard to carry it out.
         intensity: Intensity,
+        /// For a craft, what it needs.
         recipe: Option<RecipeHint>,
     },
     /// Say something in game chat (replies to player commands).
-    Say { text: String },
+    Say {
+        /// The chat line.
+        text: String,
+    },
 }
 
 /// Bot → runner, one per request.
@@ -144,17 +160,24 @@ pub enum LinkReply {
     /// Connected and configured. `names` is every block and item name the
     /// server's version knows, so chat commands can be checked.
     Ready {
+        /// Block and item names.
         names: Vec<String>,
     },
+    /// Answer to `Perceive`.
     Observed {
+        /// What the bot sees now.
         obs: Observation,
     },
+    /// Answer to `Execute`, when the action ends.
     Done {
+        /// What the action did.
         outcome: Outcome,
     },
+    /// Answer to `Say`: the line was sent.
     Said,
     /// The request could not be served (bad JSON, not connected, ...).
     Failed {
+        /// Why.
         message: String,
     },
 }

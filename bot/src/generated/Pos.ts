@@ -3,4 +3,16 @@
 /**
  * Block or tile position.
  */
-export type Pos = { x: number, y: number, z: number, };
+export type Pos = { 
+/**
+ * East–west.
+ */
+x: number, 
+/**
+ * Height; always 0 in the sim.
+ */
+y: number, 
+/**
+ * North–south.
+ */
+z: number, };
