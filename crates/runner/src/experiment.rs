@@ -32,6 +32,8 @@ pub enum ArmKind {
     B,
     /// The LLM loop with the count bonus.
     BN,
+    /// The behaviour tree with the count bonus (no LLM; 07 M2).
+    AN,
     /// The brain.
     C,
 }
@@ -43,6 +45,7 @@ impl ArmKind {
             Self::A => Some(McArm::A),
             Self::B => Some(McArm::B),
             Self::BN => Some(McArm::BN),
+            Self::AN => Some(McArm::AN),
             Self::C => None,
         }
     }
@@ -70,6 +73,10 @@ pub struct ArmSpec {
     /// `teacher.show = false`).
     #[serde(default = "on")]
     pub teacher: bool,
+    /// The count bonus weight β for arms `bn` and `an` (spec §24); the
+    /// default β unless set.
+    #[serde(default)]
+    pub beta: Option<f32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -134,6 +141,14 @@ pub fn parse(text: &str) -> Result<Experiment, String> {
     for arm in &e.arms {
         if arm.arm != ArmKind::C && !arm.config.is_empty() {
             return Err(format!("{}: only arm c has brain settings", arm.label));
+        }
+        if let Some(b) = arm.beta {
+            if !matches!(arm.arm, ArmKind::BN | ArmKind::AN) || b.is_nan() || b < 0.0 {
+                return Err(format!(
+                    "{}: β is for arms bn and an, at 0 or more",
+                    arm.label
+                ));
+            }
         }
         config_for(&e, arm, 0)?;
     }
@@ -272,7 +287,7 @@ pub fn run_arm(
         (_, l) => (l.map_or(Tier::Local, |l| l.tier), None),
     };
     let mut d = PolicyDriver {
-        policy: crate::mc::arm(which, tier, provider)?,
+        policy: crate::mc::arm_with(which, tier, provider, arm.beta)?,
         teacher: Teacher::new(arm.teacher, until),
     };
     let no_rows = &mut |_: &TickLog| unreachable!("baseline arms keep no log rows");
@@ -352,6 +367,7 @@ pub fn header(e: &Experiment) -> serde_json::Value {
                 "expected": a.expected,
                 "config": a.config,
                 "teacher": a.teacher,
+                "beta": a.beta,
             })
         })
         .collect();

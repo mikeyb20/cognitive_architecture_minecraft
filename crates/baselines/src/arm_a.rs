@@ -159,18 +159,32 @@ impl ArmA {
     }
 }
 
-impl Policy for ArmA {
-    fn choose(&mut self, obs: &Observation, c: &[Candidate]) -> Option<usize> {
+impl ArmA {
+    /// The tree's top branches (spec §24): danger, the commanded step, then
+    /// dusk and hunger. Arm A+N shares them, so it has the same floor.
+    pub(crate) fn urgent(&self, obs: &Observation, c: &[Candidate]) -> Option<usize> {
         self.danger(obs, c)
             .or_else(|| cheapest(c, |x| x.commanded))
             .or_else(|| self.survive(obs, c))
-            .or_else(|| self.plan_step(obs, c))
+    }
+
+    /// The tree's work branches (spec §24): plan step, nearest resource,
+    /// explore. Arm A+N treats this pick as its goal.
+    pub(crate) fn work(&self, obs: &Observation, c: &[Candidate]) -> Option<usize> {
+        self.plan_step(obs, c)
             .or_else(|| {
                 cheapest(c, |x| {
                     matches!(x.skill, Skill::Chop | Skill::Mine | Skill::Farm)
                 })
             })
             .or_else(|| find(c, |x| x.skill == Skill::Explore))
+    }
+}
+
+impl Policy for ArmA {
+    fn choose(&mut self, obs: &Observation, c: &[Candidate]) -> Option<usize> {
+        self.urgent(obs, c)
+            .or_else(|| self.work(obs, c))
             .or(if c.is_empty() { None } else { Some(0) })
     }
 }

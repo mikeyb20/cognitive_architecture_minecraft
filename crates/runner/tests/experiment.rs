@@ -32,7 +32,13 @@ expected = "flat C"
 
 #[test]
 fn the_shipped_experiments_parse() {
-    for f in ["baselines", "baselines-llm", "ablations", "transfer"] {
+    for f in [
+        "baselines",
+        "baselines-llm",
+        "ablations",
+        "transfer",
+        "novelty",
+    ] {
         let text = std::fs::read_to_string(format!("../../configs/experiments/{f}.toml")).unwrap();
         let e = parse(&text).unwrap_or_else(|err| panic!("{f}: {err}"));
         assert!(e.arms.iter().all(|a| !a.expected.is_empty()), "{f}");
@@ -482,4 +488,55 @@ fn teachability_is_scored_after_the_teacher_stops() {
     let s = &rows[0].summary;
     assert_eq!((s.learned, s.hints), (1.0, 1.0));
     assert!((0.0..=1.0).contains(&s.kept), "{s:?}");
+}
+
+#[test]
+fn the_novelty_arm_runs_without_an_llm_at_its_beta() {
+    let text = r#"
+id = "AN"
+question = "q"
+scenarios = ["first_night"]
+seeds = 2
+
+[[arms]]
+label = "A+N"
+arm = "an"
+beta = 2.0
+expected = "-"
+
+[[arms]]
+label = "A+N default"
+arm = "an"
+expected = "-"
+"#;
+    let e = parse(text).unwrap();
+    assert_eq!(e.arms[0].arm, ArmKind::AN);
+    assert_eq!((e.arms[0].beta, e.arms[1].beta), (Some(2.0), None));
+    assert_eq!(header(&e)["arms"][0]["beta"], 2.0);
+    let res = run(&e, 2, None).unwrap();
+    assert_eq!(res.rows.len(), 2);
+    assert!(res.llm.is_empty(), "no LLM calls");
+    let wrong = |arm: &str, beta: &str| {
+        let t = text.replacen(
+            "arm = \"an\"\nbeta = 2.0",
+            &format!("arm = \"{arm}\"\nbeta = {beta}"),
+            1,
+        );
+        parse(&t).unwrap_err()
+    };
+    assert_eq!(
+        wrong("a", "1.0"),
+        "A+N: β is for arms bn and an, at 0 or more"
+    );
+    assert_eq!(
+        wrong("an", "-1.0"),
+        "A+N: β is for arms bn and an, at 0 or more"
+    );
+    assert_eq!(
+        wrong("an", "nan"),
+        "A+N: β is for arms bn and an, at 0 or more"
+    );
+    assert!(
+        parse(&text.replacen("arm = \"an\"\nbeta = 2.0", "arm = \"bn\"\nbeta = 0.0", 1)).is_ok()
+    );
 }
