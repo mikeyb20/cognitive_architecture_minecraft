@@ -36,8 +36,14 @@ fn not_done() -> Outcome {
 }
 
 impl McHost {
-    /// Say hello with `config` and read the first observation.
+    /// Say hello with `config` and read the first observation. The bot's
+    /// danger interrupt uses `params.threat_range`, the same range at which
+    /// the candidates offer flee and attack (sim #68 parity).
     pub fn connect(mut link: Link, config: BotConfig, params: McParams) -> Result<Self, LinkError> {
+        let config = BotConfig {
+            danger_range: params.threat_range,
+            ..config
+        };
         let names = match link.call(&LinkRequest::Hello { config })? {
             LinkReply::Ready { names } => names.into_iter().collect(),
             other => return Err(LinkError::Unexpected(format!("{other:?}"))),

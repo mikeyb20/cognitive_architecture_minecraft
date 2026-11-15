@@ -41,7 +41,15 @@ export class Perception {
       }));
   }
 
-  #sheltered(): boolean {
+  #nearestHostile(): number | null {
+    const me = this.bot.entity.position;
+    const d = this.#entities()
+      .filter((e) => e.kind === "hostile")
+      .map((e) => me.distanceTo(new Vec3(e.pos.x, e.pos.y, e.pos.z)));
+    return d.length === 0 ? null : Math.min(...d);
+  }
+
+    #sheltered(): boolean {
     const feet = this.bot.entity.position.floored();
     const solid = (dx: number, dy: number, dz: number) =>
       this.bot.blockAt(feet.plus(new Vec3(dx, dy, dz)))?.boundingBox === "block";
@@ -56,6 +64,7 @@ export class Perception {
       food: bot.food / MAX_FOOD,
       sheltered: this.#sheltered(),
       hostileNear: this.#entities().some((e) => e.kind === "hostile"),
+      nearestHostile: this.#nearestHostile(),
       hasFood: bot.inventory.items().some((i) => isFood(i.name)),
     };
   }

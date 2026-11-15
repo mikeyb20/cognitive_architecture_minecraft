@@ -86,6 +86,12 @@ pub struct BotConfig {
     pub skills: SkillConfig,
     pub limits: Limits,
     pub thresholds: Thresholds,
+    /// Danger interrupt (sim #68 in Minecraft): a hostile this close, in
+    /// blocks, to the unsheltered bot cuts short a skill begun with none
+    /// that close. 0 turns it off (the default here); the Minecraft host
+    /// sends its candidates' threat range.
+    #[serde(rename = "dangerRange", default)]
+    pub danger_range: f32,
 }
 
 impl Default for BotConfig {
@@ -94,6 +100,7 @@ impl Default for BotConfig {
             skills: SkillConfig::default(),
             limits: Limits::default(),
             thresholds: ReflexThresholds::default().into(),
+            danger_range: 0.0,
         }
     }
 }
