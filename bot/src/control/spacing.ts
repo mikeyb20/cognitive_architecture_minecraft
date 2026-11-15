@@ -20,7 +20,11 @@ export interface Spacing {
 export const SPACING: Spacing = { reach: 3, tooClose: 2 };
 
 /** The move for a mob `distance` blocks away, with the swing `ready` or not. */
-export function nextMove(distance: number, ready: boolean, s: Spacing = SPACING): Move {
+export function nextMove(
+  distance: number,
+  ready: boolean,
+  s: Spacing = SPACING,
+): Move {
   if (ready) {
     return distance <= s.reach ? "hit" : "close";
   }
@@ -49,4 +53,17 @@ export class Swing {
   swung(): void {
     this.#since = 0;
   }
+}
+
+/**
+ * Entity types the bot may attack: living mobs only. Dropped items, arrows
+ * and XP orbs are entities too, and the server kicks a client that attacks
+ * one ("Attempting to attack an invalid entity", live Peaceful run 15 Nov
+ * 2026).
+ */
+const ATTACKABLE: readonly string[] = ["hostile", "mob", "animal", "passive"];
+
+/** Whether an entity of Mineflayer type `type` can be attacked. */
+export function attackable(type: string): boolean {
+  return ATTACKABLE.includes(type);
 }

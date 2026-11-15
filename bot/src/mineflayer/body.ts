@@ -14,7 +14,13 @@ import type { Block } from "prismarine-block";
 import type { Entity } from "prismarine-entity";
 import { Vec3 } from "vec3";
 
-import { type Move, SPACING, Swing, nextMove } from "../control/spacing.js";
+import {
+  type Move,
+  SPACING,
+  Swing,
+  attackable,
+  nextMove,
+} from "../control/spacing.js";
 import type { Pos } from "../host.js";
 import type { Body } from "../skills/body.js";
 
@@ -36,7 +42,10 @@ const GIVE_UP_RANGE = 16;
 const v = (p: Pos) => new Vec3(p.x, p.y, p.z);
 
 /** Where the pathfinder heads for each spaced-melee move. */
-function goalFor(move: Move, mob: Entity): InstanceType<typeof goals.Goal> | null {
+function goalFor(
+  move: Move,
+  mob: Entity,
+): InstanceType<typeof goals.Goal> | null {
   switch (move) {
     case "back":
       return new goals.GoalInvert(new goals.GoalFollow(mob, SPACING.tooClose));
@@ -101,7 +110,10 @@ export class MineflayerBody implements Body {
 
   #stopMoving = () => this.bot.pathfinder.stop();
 
-  async #go(goal: InstanceType<typeof goals.Goal>, signal: AbortSignal): Promise<boolean> {
+  async #go(
+    goal: InstanceType<typeof goals.Goal>,
+    signal: AbortSignal,
+  ): Promise<boolean> {
     const ok = async () => {
       await this.bot.pathfinder.goto(goal);
       return true;
@@ -117,20 +129,35 @@ export class MineflayerBody implements Body {
     return this.#go(new goals.GoalY(y), signal);
   }
 
-  async follow(player: string, range: number, ms: number, signal: AbortSignal): Promise<boolean> {
+  async follow(
+    player: string,
+    range: number,
+    ms: number,
+    signal: AbortSignal,
+  ): Promise<boolean> {
     const target = this.bot.players[player]?.entity;
     if (target === undefined) {
       return false;
     }
     this.bot.pathfinder.setGoal(new goals.GoalFollow(target, range), true);
-    const stay = new Promise<boolean>((resolve) => setTimeout(() => resolve(true), ms));
-    const kept = await bounded(signal, ms + 1000, () => stay, this.#stopMoving, false);
+    const stay = new Promise<boolean>((resolve) =>
+      setTimeout(() => resolve(true), ms),
+    );
+    const kept = await bounded(
+      signal,
+      ms + 1000,
+      () => stay,
+      this.#stopMoving,
+      false,
+    );
     this.bot.pathfinder.setGoal(null);
     return kept;
   }
 
   findBlock(names: readonly string[], radius: number): Pos | null {
-    const ids = names.flatMap((n) => this.bot.registry.blocksByName[n]?.id ?? []);
+    const ids = names.flatMap(
+      (n) => this.bot.registry.blocksByName[n]?.id ?? [],
+    );
     const found = this.bot.findBlock({ matching: ids, maxDistance: radius });
     return found === null ? null : posOf(found.position);
   }
@@ -139,7 +166,8 @@ export class MineflayerBody implements Body {
   findRipe(name: string, radius: number): Pos | null {
     const id = this.bot.registry.blocksByName[name]?.id;
     const found = this.bot.findBlock({
-      matching: (b: Block) => b.type === id && Number(b.getProperties().age) === RIPE_AGE,
+      matching: (b: Block) =>
+        b.type === id && Number(b.getProperties().age) === RIPE_AGE,
       maxDistance: radius,
       useExtraInfo: true,
     });
@@ -147,10 +175,14 @@ export class MineflayerBody implements Body {
   }
 
   findSoil(radius: number): Pos | null {
-    const ids = ["dirt", "grass_block"].flatMap((n) => this.bot.registry.blocksByName[n]?.id ?? []);
+    const ids = ["dirt", "grass_block"].flatMap(
+      (n) => this.bot.registry.blocksByName[n]?.id ?? [],
+    );
     const found = this.bot.findBlock({
       matching: (b: Block) =>
-        ids.includes(b.type) && this.bot.blockAt(b.position.offset(0, 1, 0))?.name === "air" && !this.#underfoot(b.position),
+        ids.includes(b.type) &&
+        this.bot.blockAt(b.position.offset(0, 1, 0))?.name === "air" &&
+        !this.#underfoot(b.position),
       maxDistance: radius,
       useExtraInfo: true,
     });
@@ -198,10 +230,18 @@ export class MineflayerBody implements Body {
     // path ("Took to long to decide path to goal") on the first try and
     // finds one on the second (live probe, 15 Nov 2026), so try twice.
     const collect = async () => {
-      await this.bot.collectBlock.collect(block).catch(() => this.bot.collectBlock.collect(block));
+      await this.bot.collectBlock
+        .collect(block)
+        .catch(() => this.bot.collectBlock.collect(block));
       return true;
     };
-    return bounded(signal, CALL_LIMIT_MS, collect, () => this.bot.collectBlock.cancelTask(), false);
+    return bounded(
+      signal,
+      CALL_LIMIT_MS,
+      collect,
+      () => this.bot.collectBlock.cancelTask(),
+      false,
+    );
   }
 
   /**
@@ -211,12 +251,22 @@ export class MineflayerBody implements Body {
    */
   #canHarvest(block: Block): boolean {
     const tools = block.harvestTools;
-    return tools === undefined || this.bot.inventory.items().some((i) => tools[i.type] === true);
+    return (
+      tools === undefined ||
+      this.bot.inventory.items().some((i) => tools[i.type] === true)
+    );
   }
 
   /** A solid neighbour of `at` to place against, and the face to use. */
   #reference(at: Pos): [Block, Vec3] | null {
-    const faces = [new Vec3(0, -1, 0), new Vec3(1, 0, 0), new Vec3(-1, 0, 0), new Vec3(0, 0, 1), new Vec3(0, 0, -1), new Vec3(0, 1, 0)];
+    const faces = [
+      new Vec3(0, -1, 0),
+      new Vec3(1, 0, 0),
+      new Vec3(-1, 0, 0),
+      new Vec3(0, 0, 1),
+      new Vec3(0, 0, -1),
+      new Vec3(0, 1, 0),
+    ];
     for (const f of faces) {
       const ref = this.bot.blockAt(v(at).plus(f));
       if (ref !== null && ref.boundingBox === "block") {
@@ -242,7 +292,7 @@ export class MineflayerBody implements Body {
 
   #mobNear(at: Pos): Entity | null {
     return this.bot.nearestEntity(
-      (e) => e !== this.bot.entity && e.type !== "player" && e.position.distanceTo(v(at)) <= 3,
+      (e) => attackable(e.type) && e.position.distanceTo(v(at)) <= 3,
     );
   }
 
@@ -270,7 +320,9 @@ export class MineflayerBody implements Body {
         let last: Move | null = null;
         onTick = () => {
           swing.tick();
-          const d = mob.isValid ? mob.position.distanceTo(this.bot.entity.position) : 0;
+          const d = mob.isValid
+            ? mob.position.distanceTo(this.bot.entity.position)
+            : 0;
           if (!mob.isValid || d > GIVE_UP_RANGE) {
             stop();
             resolve(!mob.isValid);
@@ -278,7 +330,10 @@ export class MineflayerBody implements Body {
           }
           const move = nextMove(d, swing.ready());
           if (move === "hit") {
-            void this.bot.lookAt(mob.position.offset(0, mob.height * 0.8, 0), true);
+            void this.bot.lookAt(
+              mob.position.offset(0, mob.height * 0.8, 0),
+              true,
+            );
             this.bot.attack(mob);
             swing.swung();
           }
@@ -305,7 +360,11 @@ export class MineflayerBody implements Body {
     return bounded(signal, CALL_LIMIT_MS, consume, () => undefined, false);
   }
 
-  async craft(item: string, table: Pos | null, signal: AbortSignal): Promise<boolean> {
+  async craft(
+    item: string,
+    table: Pos | null,
+    signal: AbortSignal,
+  ): Promise<boolean> {
     const id = this.bot.registry.itemsByName[item]?.id;
     if (id === undefined) {
       return false;
@@ -325,10 +384,16 @@ export class MineflayerBody implements Body {
     return bounded(signal, CALL_LIMIT_MS, make, () => undefined, false);
   }
 
-  async smelt(input: string, furnace: Pos, signal: AbortSignal): Promise<boolean> {
+  async smelt(
+    input: string,
+    furnace: Pos,
+    signal: AbortSignal,
+  ): Promise<boolean> {
     const reg = this.bot.registry.itemsByName;
     const inId = reg[input]?.id;
-    const fuel = ["coal", "charcoal", "oak_planks", "oak_log"].find((f) => this.inventory().get(f));
+    const fuel = ["coal", "charcoal", "oak_planks", "oak_log"].find((f) =>
+      this.inventory().get(f),
+    );
     const block = this.bot.blockAt(v(furnace));
     if (inId === undefined || fuel === undefined || block === null) {
       return false;
@@ -366,6 +431,12 @@ export class MineflayerBody implements Body {
   }
 
   async wait(ms: number, signal: AbortSignal): Promise<void> {
-    await bounded(signal, ms, () => new Promise<void>(() => undefined), () => undefined, undefined);
+    await bounded(
+      signal,
+      ms,
+      () => new Promise<void>(() => undefined),
+      () => undefined,
+      undefined,
+    );
   }
 }

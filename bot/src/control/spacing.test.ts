@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { SPACING, Swing, nextMove } from "./spacing.js";
+import { SPACING, Swing, attackable, nextMove } from "./spacing.js";
 
 test("recharged: hit within reach, close in beyond it", () => {
   assert.equal(nextMove(3, true), "hit", "at the edge of reach");
@@ -33,4 +33,13 @@ test("a swing is ready at the start and again after its cooldown", () => {
   }
   s.tick();
   assert.ok(s.ready(), "12 ticks later");
+});
+
+test("only living mobs are attackable", () => {
+  for (const t of ["hostile", "mob", "animal", "passive"]) {
+    assert.equal(attackable(t), true, t);
+  }
+  for (const t of ["player", "object", "orb", "projectile", "other", ""]) {
+    assert.equal(attackable(t), false, t);
+  }
 });
