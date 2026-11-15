@@ -9,7 +9,7 @@
 //! names no offered id, B takes the cheapest, safest candidate instead and
 //! counts the fallback.
 
-mod novelty;
+pub(crate) mod novelty;
 mod prompt;
 mod think;
 

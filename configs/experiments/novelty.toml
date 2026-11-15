@@ -1,0 +1,69 @@
+# Paper §9 / 07 M2: does curiosity as a magnitude (C) beat a count-based
+# novelty bonus, without an LLM? Arm A+N is the behaviour tree with B+N's
+# bonus β/√(n+1) added to its goal; β sweeps from goal-led to
+# novelty-led. "static C" is the brain with C held at its base.
+#
+# Primary metric, named before the run: new things on open_day and
+# long_horizon, C against each A+N arm, paired by seed (exact sign test,
+# Holm-corrected over the 6 tests). Everything else is exploratory: tech
+# pace (stone pickaxe), survival, self-started share, held_out transfer.
+id = "NOVELTY"
+question = "Does C add anything over a count-based novelty bonus? (paper §9, 07 M2)"
+scenarios = ["open_day", "long_horizon", "commanded", "held_out"]
+seeds = 200
+teacher_off = true
+
+[[arms]]
+label = "C (brain)"
+arm = "c"
+expected = "If C is more than a novelty bonus: at least as many new things as the best A+N on open_day and long_horizon while keeping more tech than A+N at that β. If not: some β matches C on new things with as much tech."
+
+[[arms]]
+label = "static C"
+arm = "c"
+config = { curiosity = { rate = 0.0 } }
+expected = "Fewer new things than C on open_day and long_horizon if C's dynamics matter."
+
+[[arms]]
+label = "A (behaviour tree)"
+arm = "a"
+expected = "Most tech, fewest new things of the code arms (β = 0)."
+
+[[arms]]
+label = "A+N, β 2"
+arm = "an"
+beta = 2.0
+expected = "More new things than A, a little less tech."
+
+[[arms]]
+label = "A+N, β 4"
+arm = "an"
+beta = 4.0
+expected = "More new things than β 2, less tech."
+
+[[arms]]
+label = "A+N, β 8"
+arm = "an"
+beta = 8.0
+expected = "Novelty-led: most new things of the A+N arms, least tech."
+
+# Added after the first run (15 Nov 2026), so exploratory, not primary:
+# counting targets barely raised new things over arm A, so these arms
+# count regions stood in (a state count, the unit C's novelty signal uses).
+[[arms]]
+label = "A+N by region, β 2"
+arm = "anr"
+beta = 2.0
+expected = "More new things than A+N by target at the same β."
+
+[[arms]]
+label = "A+N by region, β 4"
+arm = "anr"
+beta = 4.0
+expected = "More new things than β 2, less tech."
+
+[[arms]]
+label = "A+N by region, β 8"
+arm = "anr"
+beta = 8.0
+expected = "Novelty-led: the strongest count-based explorer here."

@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use baselines::arm_b::{ArmB, DEFAULT_BETA};
-use baselines::{ArmA, ArmBConfig, Policy};
+use baselines::{ArmA, ArmAN, ArmBConfig, Policy};
 use llm::anthropic::{Anthropic, AnthropicConfig};
 use llm::openai::{OpenAi, OpenAiConfig};
 use llm::{CacheMode, Cached, Provider, Tier};
@@ -15,6 +15,10 @@ pub enum McArm {
     B,
     /// B with the count bonus at β.
     BN,
+    /// The tree with the count bonus at β (no LLM).
+    AN,
+    /// The same, counting regions visited (no LLM).
+    ANR,
 }
 
 impl McArm {
@@ -23,12 +27,14 @@ impl McArm {
             "a" => Some(Self::A),
             "b" => Some(Self::B),
             "bn" => Some(Self::BN),
+            "an" => Some(Self::AN),
+            "anr" => Some(Self::ANR),
             _ => None,
         }
     }
 
     pub fn needs_llm(self) -> bool {
-        self != Self::A
+        !matches!(self, Self::A | Self::AN | Self::ANR)
     }
 }
 
@@ -82,16 +88,29 @@ pub fn provider(
         .map_err(|e| format!("cannot open the cache: {e}"))
 }
 
-/// The policy for an arm. B and B+N use `llm` at `tier`; B+N uses
+/// The policy for an arm. B and B+N use `llm` at `tier`; B+N and A+N use
 /// [`DEFAULT_BETA`].
 pub fn arm(
     which: McArm,
     tier: Tier,
     llm: Option<Box<dyn Provider>>,
 ) -> Result<Box<dyn Policy>, String> {
-    let novelty = (which == McArm::BN).then_some(DEFAULT_BETA);
+    arm_with(which, tier, llm, None)
+}
+
+/// [`arm`] with B+N's and A+N's β set (`None`: [`DEFAULT_BETA`]).
+pub fn arm_with(
+    which: McArm,
+    tier: Tier,
+    llm: Option<Box<dyn Provider>>,
+    beta: Option<f32>,
+) -> Result<Box<dyn Policy>, String> {
+    let beta = beta.unwrap_or(DEFAULT_BETA);
+    let novelty = (which == McArm::BN).then_some(beta);
     match (which, llm) {
         (McArm::A, _) => Ok(Box::new(ArmA::default())),
+        (McArm::AN, _) => Ok(Box::new(ArmAN::new(beta))),
+        (McArm::ANR, _) => Ok(Box::new(ArmAN::by_region(beta))),
         (_, None) => Err("arms B and B+N need an LLM".into()),
         (_, Some(p)) => {
             let cfg = ArmBConfig {
