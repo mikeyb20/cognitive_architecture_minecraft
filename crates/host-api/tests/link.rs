@@ -36,6 +36,12 @@ fn requests_and_replies_on_the_wire() {
         hello["config"]["thresholds"]["starvingFood"],
         json!(0.05f32)
     );
+    assert_eq!(hello["config"]["dangerRange"], json!(0.0));
+    // Additive: a hello from before the danger range still reads, as off.
+    let mut old = hello["config"].clone();
+    old.as_object_mut().unwrap().remove("dangerRange");
+    let read: BotConfig = serde_json::from_value(old).unwrap();
+    assert_eq!(read, BotConfig::default());
     let ready: LinkReply =
         serde_json::from_value(json!({"reply": "ready", "names": ["stone"]})).unwrap();
     assert_eq!(

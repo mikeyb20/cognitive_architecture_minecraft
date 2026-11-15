@@ -118,7 +118,11 @@ fn connect_says_hello_then_looks() {
     let hello = got.recv().unwrap();
     assert_eq!(hello["op"], "hello");
     let config: BotConfig = serde_json::from_value(hello["config"].clone()).unwrap();
-    assert_eq!(config, BotConfig::default());
+    let want = BotConfig {
+        danger_range: McParams::default().threat_range,
+        ..BotConfig::default()
+    };
+    assert_eq!(config, want, "the bot gets the candidates' threat range");
     assert_eq!(got.recv().unwrap(), json!({"op": "perceive"}));
     assert_eq!(h.perceive(), obs(&[]));
     assert!(h.error.is_none());
