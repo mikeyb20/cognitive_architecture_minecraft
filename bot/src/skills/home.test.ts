@@ -95,6 +95,8 @@ test("a home's door is crafted when needed; a failed step stops the build; a far
     ["1,62,1", "air"],
     ["-1,62,1", "air"],
     ["1,62,-1", "air"],
+    ["1,63,1", "water"],
+    ["-1,64,-1", "lava"],
   ]) {
     const f = new FakeBody();
     f.inv.set("dirt", HOME_BLOCKS);
@@ -106,6 +108,7 @@ test("a home's door is crafted when needed; a failed step stops the build; a far
   const firm = new FakeBody();
   firm.inv.set("dirt", HOME_BLOCKS);
   firm.names.set("1,62,1", "stone").set("-1,62,-1", "grass_block").set("2,62,0", "air").set("0,62,-2", "air");
+  firm.names.set("2,63,0", "water").set("0,65,0", "water").set("1,63,-2", "lava");
   await go(firm, req("shelter", null), new Set(), live());
   assert.deepEqual(firm.home(), P(0, 64, 0));
   // A flower in a wall is dug out, then built over; if it cannot be dug, the build stops there.

@@ -312,18 +312,24 @@ async function bedStep(body: Body, foot: Pos, signal: AbortSignal): Promise<bool
 }
 
 /** Blocks a home's floor cannot rest on. */
-const LOOSE = ["water", "lava", ...OPEN];
+const WET = ["water", "lava"];
+const LOOSE = [...WET, ...OPEN];
 
 /**
  * Whether a home started at `o` would have a floor: the 3x3 two below the
  * feet is not air, liquid or leaves (a live probe once started one in a
- * tree's crown).
+ * tree's crown), and the room itself is not under water or lava (one
+ * started on a lake shore).
  */
 function firmFloor(body: Body, o: Pos): boolean {
   for (let x = o.x - 1; x <= o.x + 1; x++) {
     for (let z = o.z - 1; z <= o.z + 1; z++) {
       const name = body.blockName({ x, y: o.y - 2, z });
       if (name !== null && (LOOSE.includes(name) || name.endsWith("_leaves"))) {
+        return false;
+      }
+      const cells = [o.y - 1, o.y].map((y) => body.blockName({ x, y, z }));
+      if (cells.some((n) => WET.some((w) => w === n))) {
         return false;
       }
     }
