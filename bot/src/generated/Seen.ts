@@ -6,4 +6,20 @@ import type { ThingId } from "./ThingId.js";
 /**
  * Something perceived this tick.
  */
-export type Seen = { thing: ThingId, kind: SeenKind, pos: Pos, distance: number, };
+export type Seen = { 
+/**
+ * What it is (`block:<name>`, `entity:<name>`, ...).
+ */
+thing: ThingId, 
+/**
+ * Block, entity or player.
+ */
+kind: SeenKind, 
+/**
+ * Where it is.
+ */
+pos: Pos, 
+/**
+ * Straight-line distance from the agent.
+ */
+distance: number, };

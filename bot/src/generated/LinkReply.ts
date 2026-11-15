@@ -5,4 +5,20 @@ import type { Outcome } from "./Outcome.js";
 /**
  * Bot → runner, one per request.
  */
-export type LinkReply = { "reply": "ready", names: Array<string>, } | { "reply": "observed", obs: Observation, } | { "reply": "done", outcome: Outcome, } | { "reply": "said" } | { "reply": "failed", message: string, };
+export type LinkReply = { "reply": "ready", 
+/**
+ * Block and item names.
+ */
+names: Array<string>, } | { "reply": "observed", 
+/**
+ * What the bot sees now.
+ */
+obs: Observation, } | { "reply": "done", 
+/**
+ * What the action did.
+ */
+outcome: Outcome, } | { "reply": "said" } | { "reply": "failed", 
+/**
+ * Why.
+ */
+message: string, };

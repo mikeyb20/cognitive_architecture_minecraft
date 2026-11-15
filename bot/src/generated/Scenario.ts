@@ -3,4 +3,8 @@
 /**
  * A named scenario from `configs/scenarios/` (spec §21, §26).
  */
-export type Scenario = { name: string, };
+export type Scenario = { 
+/**
+ * File stem in `configs/scenarios/`.
+ */
+name: string, };

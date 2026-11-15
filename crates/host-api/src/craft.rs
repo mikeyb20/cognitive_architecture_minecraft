@@ -56,12 +56,17 @@ pub fn worth_crafting(inv: &Inventory) -> impl Iterator<Item = &'static Recipe> 
 /// A recipe: inputs, output, and whether it needs a crafting table or furnace.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Recipe {
+    /// Item made.
     pub output: &'static str,
+    /// How many one craft makes.
     pub count: u32,
+    /// Items used up, with counts.
     pub inputs: &'static [(&'static str, u32)],
+    /// Station the agent must hold (`crafting_table`, `furnace`), if any.
     pub needs: Option<&'static str>,
 }
 
+/// The tech tree both worlds share.
 pub const RECIPES: &[Recipe] = &[
     Recipe {
         output: "oak_planks",
@@ -119,10 +124,12 @@ pub const RECIPES: &[Recipe] = &[
     },
 ];
 
+/// The recipe that makes `output`, if there is one.
 pub fn recipe(output: &str) -> Option<&'static Recipe> {
     RECIPES.iter().find(|r| r.output == output)
 }
 
+/// Whether `inv` holds the station and every input for `r`.
 pub fn can_craft(inv: &Inventory, r: &Recipe) -> bool {
     r.needs.is_none_or(|n| inv.count(n) > 0) && r.inputs.iter().all(|(i, n)| inv.count(i) >= *n)
 }
@@ -144,6 +151,7 @@ pub fn take(inv: &mut Inventory, item: &str, n: u32) -> bool {
     true
 }
 
+/// Add `n` of an item.
 pub fn give(inv: &mut Inventory, item: &str, n: u32) {
     match inv.items.iter_mut().find(|(name, _)| name == item) {
         Some((_, c)) => *c += n,
