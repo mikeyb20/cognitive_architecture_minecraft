@@ -326,6 +326,16 @@ pub fn reference(e: &Experiment) -> &str {
         .unwrap_or("")
 }
 
+/// How many runs call an LLM: LLM arms × scenarios × seeds (plan §5.5).
+pub fn llm_runs(e: &Experiment) -> u64 {
+    let arms = e
+        .arms
+        .iter()
+        .filter(|a| a.arm.baseline().is_some_and(McArm::needs_llm))
+        .count() as u64;
+    arms * e.scenarios.len() as u64 * e.seeds
+}
+
 /// Every arm × scenario × seed, in a fixed order. Runs go `threads` at a
 /// time, or one at a time when an arm calls an LLM (one provider, one
 /// cache file).

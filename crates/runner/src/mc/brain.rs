@@ -65,6 +65,7 @@ pub fn run_brain(
     let day_ticks = host.params().day_ticks;
     let mut tools = SimTools {
         bed: run.teacher,
+        dig_in: true,
         teach_until: teach_until(run.teach_days, day_ticks),
         ..SimTools::default()
     };

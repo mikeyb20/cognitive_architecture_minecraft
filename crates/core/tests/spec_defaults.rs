@@ -194,8 +194,8 @@ fn brain_defaults_match_spec_19() {
 fn version_constants() {
     assert_eq!(
         cognitive_core::DEFS_VERSION,
-        "01 v3.1",
-        "v3 adds felt needs (#47); v3.1 lets them steer choice (#51)"
+        "01 v3.7",
+        "v3.1 needs steer choice (#51); v3.2 g power (#55); v3.6 ρ (#61); v3.7 κ (#64)"
     );
     assert_eq!(cognitive_core::SPEC_VERSION, "0.2");
 }

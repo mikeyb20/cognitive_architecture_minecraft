@@ -114,21 +114,25 @@ const BUILD = [...ENCLOSURE.filter(([, dy]) => dy < 2), [1, 2, 0] as const, ...E
 const OPEN = ["air", "cave_air", "short_grass", "tall_grass"];
 
 /**
- * The quick shelter: three blocks down, then close the top of the hole (needs one
- * building block). The top is placed one below the old floor, so the
- * ground around it holds it. Where the ground cannot be dug (stone with
- * no pickaxe), build the enclosure around the agent instead.
+ * The quick shelter: three blocks down, then close the top of the hole
+ * with a building block, which the digging itself gives on dirt (skill
+ * audit, 15 Nov 2026: 24 of 69 shelter picks were refused for holding no
+ * block before digging). The top is placed one below the old floor, so
+ * the ground around it holds it. Where the ground cannot be dug (stone
+ * with no pickaxe), build the enclosure around the agent instead, which
+ * needs blocks held.
  */
 async function hole(body: Body, signal: AbortSignal): Promise<Done> {
-  const block = BUILDING.find((b) => (body.inventory().get(b) ?? 0) > 0);
-  if (block === undefined) {
-    return BLOCKED;
-  }
   const top = body.position();
   const below = (n: number) => ({ x: top.x, y: top.y - n, z: top.z });
   let dug = true;
   for (const n of [1, 2, 3]) {
     dug = dug && (await body.dig(below(n), signal));
+  }
+  const block = BUILDING.find((b) => (body.inventory().get(b) ?? 0) > 0);
+  if (block === undefined) {
+    // Nothing to build with: dug in on sand or gravel, or refused on rock.
+    return dug ? { success: false, progress: 0.5, blocked: false } : BLOCKED;
   }
   return dug ? done(await body.place(block, below(1), signal)) : build(body, signal);
 }
@@ -316,6 +320,8 @@ const lastStuck = new WeakMap<Body, string>();
 
 /** Blocks a home's floor cannot rest on. */
 const WET = ["water", "lava"];
+/** Ground that is never under water: where a bot at sea swims to shelter. */
+const LAND = ["grass_block"];
 const LOOSE = [...WET, ...OPEN];
 
 /**
@@ -347,6 +353,15 @@ function firmFloor(body: Body, o: Pos): boolean {
  * check with the agent inside.
  */
 async function shelter(body: Body, cfg: SkillConfig, signal: AbortSignal): Promise<Done> {
+  // No shelter can be dug or built in water (live run, 15 Nov 2026: two
+  // bots at sea retried Shelter all night, a minute each): swim to the
+  // nearest grass first. Grass never lies under water, unlike dirt or sand.
+  if (WET.includes(String(body.blockName(body.position())))) {
+    const land = body.findBlock(LAND, cfg.searchRadius);
+    if (land === null || !(await body.goto({ x: land.x, y: land.y + 1, z: land.z }, 1, signal))) {
+      return BLOCKED;
+    }
+  }
   const count = BUILDING.reduce((n, b) => n + (body.inventory().get(b) ?? 0), 0);
   const me = body.position();
   const known = body.home();

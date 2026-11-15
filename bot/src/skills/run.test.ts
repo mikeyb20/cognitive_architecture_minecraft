@@ -225,8 +225,6 @@ test("crafting uses or places the station the recipe needs", async () => {
 
 test("shelter digs in three blocks and closes the hole", async () => {
   const b = new FakeBody();
-  const none = await go(b, req("shelter", null), new Set(), live());
-  assert.ok(none.blocked, "no building block held");
   b.inv.set("dirt", 3);
   const ok = await go(b, req("shelter", null), new Set(), live());
   assert.ok(ok.success);
@@ -255,6 +253,53 @@ test("shelter digs in three blocks and closes the hole", async () => {
     ],
     "stops digging at the first failure",
   );
+});
+
+test("shelter digs in holding no block: the digging gives the block", async () => {
+  // Each dig of dirt picks up one dirt; the top is closed with it.
+  const b = new FakeBody();
+  b.effects.set("dig", () => b.inv.set("dirt", (b.inv.get("dirt") ?? 0) + 1));
+  const ok = await go(b, req("shelter", null), new Set(), live());
+  assert.deepEqual([ok.success, ok.progress, ok.blocked], [true, 1, false]);
+  assert.deepEqual(b.calls.at(-1), ["place", "dirt", P(0, 63, 0)]);
+  // Dug in, but the ground gave nothing to build with: halfway, not refused.
+  const sand = new FakeBody();
+  const half = await go(sand, req("shelter", null), new Set(), live());
+  assert.deepEqual([half.success, half.progress, half.blocked], [false, 0.5, false]);
+  assert.ok(!sand.calls.some(([m]) => m === "place"));
+  // Cannot dig and holds nothing: refused, nothing built.
+  const rock = new FakeBody();
+  rock.answers.set("dig", false);
+  const none = await go(rock, req("shelter", null), new Set(), live());
+  assert.deepEqual([none.success, none.progress, none.blocked], [false, 0, true]);
+  assert.deepEqual(rock.calls, [["dig", P(0, 63, 0)]]);
+});
+
+test("shelter in water swims to grass first, else is refused", async () => {
+  const b = new FakeBody();
+  b.inv.set("dirt", 3);
+  b.names.set("0,64,0", "water");
+  const none = await go(b, req("shelter", null), new Set(), live());
+  assert.deepEqual([none.success, none.blocked], [false, true], "no grass in reach");
+  assert.deepEqual(
+    b.calls.filter(([m]) => m !== "blockName"),
+    [["findBlock", ["grass_block"], SKILLS.searchRadius]],
+  );
+  b.calls = [];
+  b.blocks.set("grass_block", P(5, 63, 2));
+  b.answers.set("goto", false);
+  const stuck = await go(b, req("shelter", null), new Set(), live());
+  assert.ok(stuck.blocked, "could not reach it");
+  b.calls = [];
+  b.answers.set("goto", true);
+  b.effects.set("goto", () => b.names.delete("0,64,0"));
+  const ok = await go(b, req("shelter", null), new Set(), live());
+  assert.ok(ok.success);
+  const moves = b.calls.filter(([m]) => m === "goto" || m === "dig").slice(0, 2);
+  assert.deepEqual(moves, [
+    ["goto", P(5, 64, 2), 1],
+    ["dig", P(0, 63, 0)],
+  ]);
 });
 
 test("shelter builds walls and a roof where it cannot dig in", async () => {

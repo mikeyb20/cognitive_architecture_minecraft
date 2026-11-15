@@ -17,7 +17,9 @@ pub mod memory;
 pub mod modes;
 
 /// Version of `01-definitions.md` this code implements (logged in run headers, spec §25).
-pub const DEFS_VERSION: &str = "01 v3.1";
+/// 01 v3.8 and v3.9 only rename terms and symbols (#66, #67); the code still
+/// uses the v3.7 names, so it cites v3.7.
+pub const DEFS_VERSION: &str = "01 v3.7";
 /// Version of the paper draft `00-framework-original.md` used for intent.
 pub const PAPER_VERSION: &str = "00 v0.1";
 /// Version of `06-sim-spec.md` this code follows.

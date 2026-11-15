@@ -14,6 +14,7 @@ pub mod metrics;
 pub mod mob_lessons;
 pub mod paired;
 pub(crate) mod par;
+pub mod progress;
 pub mod recovery;
 pub mod sweep;
 pub(crate) mod taught;
