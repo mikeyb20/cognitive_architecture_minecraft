@@ -1,0 +1,34 @@
+# Paper §9 with the LLM arms (plan §5.1), Tier A (local Ollama, free).
+# Run with:
+#   runner run --experiment configs/experiments/novelty-llm.toml --tier local \
+#     --cache runs/novelty-llm.jsonl --out results/novelty-llm
+# B and B+N share the tier (D#37); A and C use no LLM and are reruns of the
+# same seeds, so every arm is paired with C by seed.
+#
+# Primary metric, named before the run: new things on open_day and
+# long_horizon, (1) C vs B+N and (2) B+N vs B, paired by seed, Holm over 4.
+# Everything else is exploratory.
+id = "NOVELTY_LLM"
+question = "Does C add anything over an LLM agent with a novelty bonus? (paper §9, plan §5.1)"
+scenarios = ["open_day", "long_horizon", "commanded"]
+seeds = 30
+
+[[arms]]
+label = "C (brain)"
+arm = "c"
+expected = "If C is more than a novelty bonus: at least as many new things as B+N on open_day and long_horizon."
+
+[[arms]]
+label = "A (behaviour tree)"
+arm = "a"
+expected = "Most tech, fewest new things."
+
+[[arms]]
+label = "B (LLM loop)"
+arm = "b"
+expected = "Follows commands; explores little without a goal."
+
+[[arms]]
+label = "B+N (LLM loop + novelty bonus)"
+arm = "bn"
+expected = "More new things than B on open_day: the key steelman of \"C is just a novelty bonus\"."
