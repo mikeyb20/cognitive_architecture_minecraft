@@ -17,6 +17,7 @@ fn minecraft_host_defaults() {
     );
     assert_eq!(p.day_ticks, 24_000);
     assert_eq!(p.shoot_range, 15.0);
+    assert_eq!(p.bed_reach, 4.0);
     let m = PlaceParams::default();
     assert_eq!((m.max_per_thing, m.confirm_radius), (32, 4.0));
 }
