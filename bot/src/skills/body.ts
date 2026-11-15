@@ -35,6 +35,12 @@ export interface Body {
   /** Place one `item` against the block at `at`, standing where it is. */
   place(item: string, at: Pos, signal: AbortSignal): Promise<boolean>;
 
+  /** Whether the agent is in a closed room now (`perceive/shelter.ts` `enclosed`). */
+  sheltered(): boolean;
+  /** The home the agent built, if any; kept after a death, as the world keeps it. */
+  home(): Pos | null;
+  setHome(at: Pos | null): void;
+
   /** Walk near `at` and use one `item` on the top of the block there (hoe to till, seeds to sow). */
   use(item: string, at: Pos, signal: AbortSignal): Promise<boolean>;
 

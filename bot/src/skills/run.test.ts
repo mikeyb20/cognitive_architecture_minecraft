@@ -4,7 +4,7 @@ import { test } from "node:test";
 import type { Candidate, Outcome, Skill, SkillConfig, Target } from "../host.js";
 import type { Body } from "./body.js";
 import { FakeBody } from "./fake.test-util.js";
-import { type Request, gained, run, searchNames } from "./run.js";
+import { HOME_BLOCKS, type Request, gained, homePlan, run, searchNames } from "./run.js";
 
 const P = (x: number, y: number, z: number) => ({ x, y, z });
 const live = () => new AbortController().signal;
@@ -411,4 +411,114 @@ test("farm grows wheat: seeds from grass, a hoe, till and sow, then harvest", as
   b.calls = [];
   assert.deepEqual(res(await farm()), [true, 1, false]);
   assert.deepEqual(b.calls, [["findRipe", "wheat", 64], ["dig", P(4, 64, 4)]]);
+});
+
+test("a home: a sunk 3x3 room with walls, a roof and a door, remembered and finished on return", async () => {
+  const b = new FakeBody();
+  const shelter = () => go(b, req("shelter", null), new Set(), live());
+  const res = (o: Outcome) => [o.success, o.progress, o.blocked];
+  const steps = homePlan(P(0, 64, 0));
+  assert.equal(steps.length, 68);
+  // Fewer blocks than a home needs and no home yet: the quick hole.
+  b.inv.set("dirt", HOME_BLOCKS - 1);
+  await shelter();
+  assert.deepEqual(b.calls[0], ["dig", P(0, 63, 0)]);
+  assert.equal(b.home(), null);
+  // Enough blocks: start the home here. The floor is dirt; one floor block holds a bed, which stays.
+  b.calls = [];
+  b.inv.set("dirt", HOME_BLOCKS);
+  for (const [dx, dz] of [
+    [-1, -1],
+    [0, 0],
+    [2, 0],
+  ]) {
+    b.names.set(`${dx},63,${dz}`, "dirt");
+  }
+  b.names.set("1,63,1", "white_bed");
+  b.names.set("2,64,1", "dirt");
+  const first = await shelter();
+  assert.deepEqual(res(first), [false, 67 / 68, false], "no door and no planks for one");
+  assert.deepEqual(b.calls[0], ["setHome", P(0, 64, 0)]);
+  const digs = b.calls.filter(([m]) => m === "dig").map(([, at]) => at);
+  assert.deepEqual(digs, [P(-1, 63, -1), P(0, 63, 0), P(2, 63, 0)]);
+  assert.ok(b.calls.some((c) => c[0] === "goto" && JSON.stringify(c.slice(1)) === JSON.stringify([P(0, 63, 0), 0])));
+  const placed = b.calls.filter(([m]) => m === "place").map(([, , at]) => at);
+  assert.equal(placed.length, 15 + 14 + 25, "walls (one already solid), roof");
+  assert.deepEqual(placed.at(0), P(-2, 63, -2));
+  assert.deepEqual(placed.slice(-10), [P(2, 65, 0), ...steps.slice(-10, -1).map((s) => s.at)]);
+  // Back from far away with a door: walk home and finish it.
+  b.calls = [];
+  b.at = P(30, 70, 0);
+  b.inv.set("oak_door", 1);
+  b.closed = true;
+  assert.deepEqual(res(await shelter()), [true, 1, false]);
+  assert.deepEqual(b.calls.at(-1), ["place", "oak_door", P(2, 63, 0)]);
+  // The door is in: nothing left to do but stand inside.
+  b.names.set("2,63,0", "oak_door").set("2,64,0", "oak_door");
+  b.calls = [];
+  await shelter();
+  assert.deepEqual(
+    b.calls.filter(([m]) => m !== "place").map(([m]) => m),
+    ["setHome", "dig", "dig", "goto"],
+  );
+  assert.ok(!b.calls.some(([, item]) => item === "oak_door"), "the door stays");
+  b.closed = false;
+  assert.deepEqual(res(await shelter()), [false, 1, false], "done but not sheltered");
+});
+
+test("a home's door is crafted when needed; a failed step stops the build; a far home is replaced", async () => {
+  const b = new FakeBody();
+  const shelter = () => go(b, req("shelter", null), new Set(), live());
+  b.inv.set("dirt", HOME_BLOCKS).set("oak_planks", 6);
+  b.blocks.set("crafting_table", P(5, 64, 0));
+  await shelter();
+  assert.deepEqual(b.calls.slice(-2), [
+    ["craft", "oak_door", P(5, 64, 0)],
+    ["place", "oak_door", P(2, 63, 0)],
+  ]);
+  b.answers.set("craft", false);
+  b.closed = true;
+  b.calls = [];
+  const noDoor = await shelter();
+  assert.deepEqual([noDoor.success, noDoor.progress], [false, 67 / 68]);
+  b.answers.delete("craft");
+  b.inv.set("oak_planks", 5);
+  b.calls = [];
+  await shelter();
+  assert.ok(!b.calls.some(([m]) => m === "craft"), "too few planks: no craft tried");
+  assert.ok(!b.calls.some(([m, item]) => m === "place" && item === "oak_door"));
+  // Out of blocks part way: stop at the first wall that cannot be placed.
+  const c = new FakeBody();
+  c.inv.set("dirt", HOME_BLOCKS);
+  c.effects.set("place", () => c.inv.delete("dirt"));
+  const short = await go(c, req("shelter", null), new Set(), live());
+  assert.deepEqual([short.success, short.progress], [false, 13 / 68]);
+  // Digging and walking fail too.
+  const d = new FakeBody();
+  d.inv.set("dirt", HOME_BLOCKS);
+  d.names.set("-1,63,-1", "dirt");
+  d.answers.set("dig", false);
+  assert.equal((await go(d, req("shelter", null), new Set(), live())).progress, 0);
+  d.answers.delete("dig");
+  d.answers.set("goto", false);
+  assert.equal((await go(d, req("shelter", null), new Set(), live())).progress, 11 / 68);
+  // A home farther than the search radius is left; a new one starts here.
+  const e = new FakeBody();
+  e.inv.set("dirt", HOME_BLOCKS);
+  e.remembered = P(10, 64, -10);
+  e.at = P(11 + SKILLS.searchRadius, 64, -10);
+  await go(e, req("shelter", null), new Set(), live());
+  assert.deepEqual(e.calls[0], ["setHome", P(11 + SKILLS.searchRadius, 64, -10)]);
+  e.inv.set("dirt", 1);
+  for (const at of [P(10 + SKILLS.searchRadius, 64, -10), P(10, 64, SKILLS.searchRadius - 10)]) {
+    e.calls = [];
+    e.at = at;
+    e.remembered = P(10, 64, -10);
+    await go(e, req("shelter", null), new Set(), live());
+    assert.deepEqual(e.calls[0], ["setHome", P(10, 64, -10)], "within the radius: go home");
+  }
+  e.calls = [];
+  e.at = P(10, 64, SKILLS.searchRadius - 9);
+  await go(e, req("shelter", null), new Set(), live());
+  assert.deepEqual(e.calls[0], ["dig", P(10, 63, SKILLS.searchRadius - 9)], "just past it on z, too few blocks: a hole");
 });

@@ -23,6 +23,7 @@ import {
 } from "../control/spacing.js";
 import type { Pos } from "../host.js";
 import type { Body } from "../skills/body.js";
+import { sheltered } from "./perception.js";
 
 const { goals } = pathfinderPkg;
 
@@ -85,7 +86,21 @@ async function bounded<T>(
 }
 
 export class MineflayerBody implements Body {
+  #home: Pos | null = null;
+
   constructor(private readonly bot: Bot) {}
+
+  sheltered(): boolean {
+    return sheltered(this.bot);
+  }
+
+  home(): Pos | null {
+    return this.#home;
+  }
+
+  setHome(at: Pos | null): void {
+    this.#home = at;
+  }
 
   age(): number {
     return Number(this.bot.time.age);

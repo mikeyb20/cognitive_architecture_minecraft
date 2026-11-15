@@ -64,6 +64,19 @@ export class FakeBody implements Body {
   blockName(at: Pos): string | null {
     return this.names.get(`${at.x},${at.y},${at.z}`) ?? null;
   }
+  /** What sheltered() answers. */
+  closed = false;
+  remembered: Pos | null = null;
+  sheltered(): boolean {
+    return this.closed;
+  }
+  home(): Pos | null {
+    return this.remembered;
+  }
+  setHome(at: Pos | null): void {
+    this.calls.push(["setHome", at]);
+    this.remembered = at;
+  }
   async use(item: string, at: Pos): Promise<boolean> {
     return this.#do("use", item, at);
   }
