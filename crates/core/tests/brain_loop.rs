@@ -156,17 +156,36 @@ fn same_seed_same_trace_and_the_trace_is_pinned() {
 
 /// Float sums per golden run (busy, default, low-commanded).
 const GOLDEN_SUMS: [[f64; 5]; 3] = [
-    [593.4007, 0.0, 303.2425, 493.2478, 542.3824],
-    [127.0671, 0.0, 52.8973, 65.9636, 319.7344],
-    [110.6187, 0.0, 53.8668, 72.9103, 588.6315],
+    [206.1859, 0.0, 78.8391, 118.6005, 115.9695],
+    [85.6426, 0.0, 48.9113, 84.5739, 129.8226],
+    [123.8424, 0.0, 45.7946, 57.0355, 312.5448],
 ];
 
-const GOLDEN_COUNTS: (u32, u32, u32, u32) = (644, 0, 8, 1);
+const GOLDEN_COUNTS: (u32, u32, u32, u32) = (205, 0, 62, 1);
 const GOLDEN_HASHES: (u64, u64, u64) = (
-    14_805_271_352_350_971_735,
-    3_128_813_346_291_201_424,
-    11_609_055_933_350_304_351,
+    2_817_028_572_735_045_423,
+    14_359_003_841_151_303_042,
+    7_203_310_686_972_994_788,
 );
+
+#[test]
+fn argmax_credit_collapses_onto_performing_and_sampled_credit_does_not() {
+    // Spec §8 (#65): crediting the mode that most drove the action feeds
+    // back on itself (B1 found it); crediting a mode drawn from w does not.
+    let mean_wp = |sampled| {
+        let cfg = BrainConfig {
+            credit_sampled: sampled,
+            ..busy()
+        };
+        let mut rows = vec![];
+        run(Brain::new(cfg, 11), 2 * DAY, &mut rows);
+        let p = Mode::Performing.index();
+        rows.iter().map(|r| r.w[p]).sum::<f32>() / rows.len() as f32
+    };
+    let (argmax, sampled) = (mean_wp(false), mean_wp(true));
+    assert!(argmax > 0.7, "argmax {argmax}");
+    assert!(sampled < 0.5, "sampled {sampled}");
+}
 
 #[test]
 fn intensity_is_used() {

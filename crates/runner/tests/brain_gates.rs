@@ -210,15 +210,17 @@ fn golden_trace_is_stable() {
 #[test]
 fn golden_commanded_run_counts_reflexes_and_new_things() {
     // Seed 0 with all four sim audit fixes (14 Nov 2026) fired one reflex
-    // and lived to the end; with skeletons (15 Nov 2026) it fires two and
-    // a zombie kills it at tick 2,475.
-    let (_, r) = run("commanded", 0, Brain::new(BrainConfig::default(), 0));
+    // and lived to the end; with skeletons (15 Nov 2026) it fired two and a
+    // zombie killed it at tick 2,475. With sampled Oracle credit (#65) it
+    // fires none and starves, so the pin moved to seed 10, which fires one
+    // reflex and lives to the end.
+    let (_, r) = run("commanded", 10, Brain::new(BrainConfig::default(), 10));
     let got = (r.decisions, r.idle, r.thoughts, r.reflexes, r.new_things);
     assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");
 }
 
-const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (129, 35, 13, 2, 47);
-const GOLDEN_COUNTS: (u32, u32, u32) = (215, 133, 18);
-const GOLDEN_HASH: u64 = 5_678_293_006_837_657_699;
+const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (364, 55, 126, 1, 84);
+const GOLDEN_COUNTS: (u32, u32, u32) = (1070, 900, 125);
+const GOLDEN_HASH: u64 = 11_894_555_120_345_401_580;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).
-const GOLDEN_SUMS: [f64; 5] = [54.2152, 0.0, 18.0861, 47.7912, 155.3463];
+const GOLDEN_SUMS: [f64; 5] = [202.9664, 0.0, -104.1376, 100.6361, 717.7401];

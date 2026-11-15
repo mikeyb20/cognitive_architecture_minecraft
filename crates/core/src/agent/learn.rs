@@ -13,6 +13,7 @@ use crate::memory::store::LINK_STEP;
 use crate::memory::{ActionKey, PriorityInputs, Source, Tier};
 use crate::modes::{Mode, ModeNetwork, OutcomeView, Thresholds, all_success};
 use host_api::{Observation, Outcome, Skill};
+use rand::Rng;
 
 /// Window for "useful" memories: in TM within 20 ticks before R > 0 (spec §14).
 pub(crate) const USEFUL_WINDOW: u64 = 20;
@@ -80,7 +81,12 @@ impl Brain {
         self.learn_lenses(&p, &success, obs.tick);
         let credited = Oracle::credited(&p.w, &p.m);
         let ten = self.tenacity.for_task(p.task);
-        self.oracle.update(&p.x, &p.w, credited, r, &ten);
+        let to_oracle = if self.config.credit_sampled {
+            Oracle::sampled(&p.w, self.credit_rng.random())
+        } else {
+            credited
+        };
+        self.oracle.update(&p.x, &p.w, to_oracle, r, &ten);
         self.tenacity.step(EpisodeTick {
             tick: obs.tick,
             task: p.task,

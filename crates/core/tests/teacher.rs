@@ -301,10 +301,18 @@ fn a_goal_is_done_when_its_known_test_passes() {
         shows: 0,
     };
     assert_eq!(until_done(&mut b, &mut t, 0, 50), None, "fails: not done");
+    let acted = b.last_log().chosen != "idle";
     t.test = Some(true);
     let done = until_done(&mut b, &mut t, 50, 5).expect("done once it passes");
-    assert_eq!(done, 50, "on the next learning step");
-    assert!(b.last_log().d_goal > 0.0, "and it counts as goal progress");
+    assert_eq!(done, 50, "on the next step");
+    // The last action earns the progress; after an idle tick the goal is
+    // closed before moving and nothing is credited (01 §4.11, #58).
+    let d_goal = b.last_log().d_goal;
+    if acted {
+        assert!(d_goal > 0.0, "an action counts as goal progress");
+    } else {
+        assert_eq!(d_goal, 0.0, "idling earns nothing");
+    }
 }
 
 #[test]

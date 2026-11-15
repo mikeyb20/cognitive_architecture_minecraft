@@ -72,14 +72,7 @@ fn pick(arm: Arm, w: &[f32; 4], u: f32) -> usize {
     if arm == Arm::BanditArgmax {
         return (0..4).fold(0, |b, i| if w[i] > w[b] { i } else { b });
     }
-    let mut acc = 0.0;
-    for (i, wi) in w.iter().enumerate() {
-        acc += wi;
-        if u < acc {
-            return i;
-        }
-    }
-    3
+    Oracle::sampled(w, u).index()
 }
 
 /// One seed of the concurrent VI task. A reward, once armed, waits until its

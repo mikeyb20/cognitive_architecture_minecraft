@@ -161,6 +161,8 @@ fn brain_defaults_match_spec_19() {
         (b.oracle_bias, b.oracle_eta, b.oracle_floor),
         ([0.0; 4], 0.05, 0.02)
     );
+    // The Oracle credits a mode drawn from w (spec §8, #65).
+    assert!(b.credit_sampled);
     assert!(b.lens_priors.is_empty());
     assert_eq!((b.lens_lr, b.lens_frozen), ([1.0; 4], [false; 4]));
     assert_eq!((b.tm_k, b.tm_tau), (7, 50.0));

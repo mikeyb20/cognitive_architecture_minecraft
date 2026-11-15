@@ -110,6 +110,9 @@ pub struct BrainConfig {
     /// Oracle learner: `None` is the contextual gradient bandit (spec §8);
     /// `Some` uses EXP3 (OQ18 alternative).
     pub oracle_exp3: Option<Exp3>,
+    /// The Oracle credits a mode drawn from w (spec §8, #65); `false`
+    /// credits the mode that most drove the action (argmax, the old rule).
+    pub credit_sampled: bool,
     /// Multiplier on the dominant mode's temperature (OQ19 sweep handle).
     pub tau_scale: f32,
     /// k_g in R (spec §13).
@@ -160,6 +163,7 @@ impl Default for BrainConfig {
             g_k: G_LOG_K,
             budget_policy: BudgetPolicy::default(),
             oracle_exp3: None,
+            credit_sampled: true,
             tau_scale: 1.0,
             k_goal: 0.5,
             rho_pre: 0.0,
