@@ -86,6 +86,15 @@ pub struct Rules {
     /// Damage per swing, and most swings in one attack action.
     pub swing_damage: f32,
     pub max_swings: u32,
+    /// How far the agent can hit a hostile, in tiles (straight-line). A
+    /// zombie hits only from the next tile, so the agent can strike first.
+    /// Minecraft's survival entity reach is 3 blocks (not verified this
+    /// session: minecraft.wiki refused fetches; a tile is a block).
+    pub attack_reach: f32,
+    /// Tiles a landed hit pushes a hostile back, which also restarts its
+    /// move timer. Proposed: Minecraft pushes a hit mob back, but the
+    /// distance for an unenchanted, non-sprint hit was not found.
+    pub knockback: i32,
     /// Longest rest in one action, in ticks.
     pub rest_ticks: u32,
     /// Success multiplier when a hostile is within 2 tiles and the agent is
@@ -136,6 +145,8 @@ impl Default for Rules {
             mine_ticks: [40, 30, 20],
             swing_damage: 0.34,
             max_swings: 4,
+            attack_reach: 3.0,
+            knockback: 1,
             rest_ticks: 300,
             threat_penalty: 0.75,
             blocked_ticks: 5,

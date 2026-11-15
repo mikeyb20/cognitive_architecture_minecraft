@@ -7,6 +7,7 @@ use host_api::{Candidate, Intensity, Pos, Skill, Target, TaskType};
 
 use crate::world::{MAX_CANDIDATES, Reach, SimWorld};
 
+mod combat;
 mod crafting;
 mod eating;
 mod gathering;

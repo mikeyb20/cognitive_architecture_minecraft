@@ -1,4 +1,5 @@
-//! Attack a mob: pigs for food, or a hostile (offered by `threats`).
+//! Attack a mob: pigs for food, or a hostile (offered by `threats`, fought
+//! with spacing in `combat`).
 
 use host_api::{Candidate, Intensity, Skill, Target, TaskType};
 use rand::Rng;
@@ -41,6 +42,9 @@ impl Handler for Hunting {
             return BLOCKED;
         };
         let kind = w.mobs[i].kind;
+        if kind.hostile() {
+            return super::combat::fight(w, kind, w.mobs[i].pos, it);
+        }
         let mut idx = i;
         for _ in 0..w.rules.max_swings {
             let at = w.mobs[idx].pos;

@@ -145,6 +145,18 @@ impl SimWorld {
         }
     }
 
+    /// Take one step onto the next tile `p` (combat footwork). Below
+    /// `min_effort` the agent stays put (spec §16) and just lets a tick
+    /// pass. Returns whether the action may go on.
+    pub(crate) fn step_once(&mut self, p: Pos, effort: f32) -> bool {
+        if effort < self.rules.min_effort {
+            return self.wait(1);
+        }
+        let per = self.tile_ticks(effort);
+        self.enter(p);
+        self.wait(per)
+    }
+
     /// Walk to `goal` (or next to it). Returns whether it got there alive.
     /// Below `min_effort` the agent stays put (spec §16): it gets there only
     /// if it is there already.

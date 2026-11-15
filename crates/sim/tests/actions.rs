@@ -262,6 +262,9 @@ fn pigs_take_two_swings_and_drop_porkchops() {
     assert!(w.mobs.is_empty());
 }
 
+// A zombie next to the agent at the start: hit at 0 pushes it to 2 tiles,
+// it steps back in at tick 6 and hits once, the agent steps back, and the
+// recharged swings at 10 and 20 finish it (spaced attack, `combat`).
 #[test]
 fn zombies_take_three_swings() {
     let mut w = flat();
@@ -269,10 +272,11 @@ fn zombies_take_three_swings() {
     zombie(&mut w, 25, 24);
     let o = w.execute(&at(Skill::Attack, 25, 24), FULL);
     assert!(o.success);
-    assert_eq!(o.duration_ticks, 30);
+    assert_eq!(o.duration_ticks, 20);
     assert!(w.mobs.is_empty());
     assert!(o.items_gained.items.is_empty());
-    assert!(close(o.damage, 0.2), "hit at ticks 1 and 21: {}", o.damage);
+    assert!(close(o.damage, 0.1), "hit at tick 6 only: {}", o.damage);
+    assert_eq!(w.body.pos, p(23, 24), "stepped back once");
 }
 
 #[test]

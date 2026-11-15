@@ -5,7 +5,7 @@ use host_api::Pos;
 use rand::Rng;
 
 use super::{Reach, SimWorld};
-use crate::geom::{cheb, offset};
+use crate::geom::{cheb, dist, neighbours4, offset};
 use crate::map::Biome;
 use crate::mob::{Mob, MobKind, chase_steps};
 
@@ -70,5 +70,48 @@ impl SimWorld {
                 return;
             }
         }
+    }
+
+    /// The mob of `kind` nearest `last`, within 2 tiles of it: the one the
+    /// agent is fighting, after it moved or was pushed.
+    pub(crate) fn track(&self, kind: MobKind, last: Pos) -> Option<usize> {
+        self.mobs
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.kind == kind && cheb(m.pos, last) <= 2)
+            .min_by(|a, b| dist(a.1.pos, last).total_cmp(&dist(b.1.pos, last)))
+            .map(|(i, _)| i)
+    }
+
+    /// A landed hit pushes mob `i` up to `Rules::knockback` tiles straight
+    /// away from the agent, stopping at anything a mob cannot stand on, and
+    /// restarts its move timer (Minecraft: a hit knocks the mob back).
+    pub(crate) fn knock_back(&mut self, i: usize) {
+        let me = self.body.pos;
+        let m = self.mobs[i].pos;
+        let (dx, dz) = ((m.x - me.x).signum(), (m.z - me.z).signum());
+        for _ in 0..self.rules.knockback {
+            let p = offset(self.mobs[i].pos, dx, dz);
+            if !self.walkable_free(p) {
+                break;
+            }
+            self.mobs[i].pos = p;
+        }
+        self.mobs[i].next_move = self.tick + self.rules.mob_move_ticks;
+    }
+
+    /// The free neighbouring tile that takes the agent furthest from
+    /// `threat`, if any is further than where it stands (stepping back).
+    pub(crate) fn back_off(&self, threat: Pos) -> Option<Pos> {
+        let me = self.body.pos;
+        let here = dist(me, threat);
+        neighbours4(me)
+            .into_iter()
+            .filter(|p| self.map.get(*p).walkable())
+            .filter(|p| self.mobs.iter().all(|m| m.pos != *p))
+            .map(|p| (p, dist(p, threat)))
+            .filter(|(_, d)| *d > here)
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(p, _)| p)
     }
 }
