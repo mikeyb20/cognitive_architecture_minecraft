@@ -126,7 +126,23 @@ fn night_shelter_beds_and_lava() {
     let c = candidates(&o, &Places::default(), &McParams::default());
     assert_eq!(row(&c[0]), (Skill::Rest, None, TaskType::Building));
     close(&c[0], 0.1, 0.0);
-    assert_ne!(c[1].skill, Skill::Rest, "sheltered: no bed trip offered");
+    assert_eq!(
+        row(&c[1]),
+        (Skill::Rest, pos(0, 64, 3), TaskType::Building),
+        "sheltered: the bed in the room is offered"
+    );
+    let reach = |bed_reach| McParams {
+        bed_reach,
+        ..McParams::default()
+    };
+    let c = candidates(&o, &Places::default(), &reach(3.0));
+    assert_eq!(c[1].target, pos(0, 64, 3), "at the reach: offered");
+    let c = candidates(&o, &Places::default(), &reach(2.9));
+    assert_ne!(
+        c[1].skill,
+        Skill::Rest,
+        "sheltered: no bed trip out offered"
+    );
 }
 
 #[test]

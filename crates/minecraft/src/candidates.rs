@@ -33,6 +33,10 @@ pub struct McParams {
     /// Game ticks in one Minecraft day (20 min at 20 ticks/s), for
     /// once-a-day events such as the teacher's dusk call (01 §4.11).
     pub day_ticks: u64,
+    /// A bed this close (blocks, from the bot to the bed block's corner)
+    /// is offered for rest even when sheltered: the home's bed is in its
+    /// 3x3 room (Michael, 15 Nov 2026), at most about 3.8 away.
+    pub bed_reach: f32,
 }
 
 impl Default for McParams {
@@ -44,6 +48,7 @@ impl Default for McParams {
             explore_distance: 24,
             shelter_blocks: 8,
             day_ticks: 24_000,
+            bed_reach: 4.0,
         }
     }
 }
@@ -208,19 +213,22 @@ fn eating(cx: &mut Ctx) {
 
 fn shelter(cx: &mut Ctx) {
     let o = cx.obs;
-    if o.sheltered {
-        cx.add(Skill::Rest, None, TaskType::Building, 0.1, 0.0);
-        return;
-    }
-    let ready = BUILDING
-        .iter()
-        .any(|b| o.inventory.count(b) >= cx.p.shelter_blocks);
-    let cost = if ready { 0.1 } else { 0.25 };
-    let risk = cx.risk_at(o.position);
-    cx.add(Skill::Shelter, None, TaskType::Building, cost, risk);
     let bed = cx
         .nearest(|s| s.kind == SeenKind::Block && s.thing.0.ends_with("_bed"))
         .map(|s| (s.pos, s.distance));
+    let bed = if o.sheltered {
+        cx.add(Skill::Rest, None, TaskType::Building, 0.1, 0.0);
+        // No trip out of the shelter to a bed: only the one in the room.
+        bed.filter(|&(_, d)| d <= cx.p.bed_reach)
+    } else {
+        let ready = BUILDING
+            .iter()
+            .any(|b| o.inventory.count(b) >= cx.p.shelter_blocks);
+        let cost = if ready { 0.1 } else { 0.25 };
+        let risk = cx.risk_at(o.position);
+        cx.add(Skill::Shelter, None, TaskType::Building, cost, risk);
+        bed
+    };
     if let Some((p, d)) = bed {
         let (cost, risk) = (cx.cost(d, 0.1), cx.risk_at(p));
         cx.add(

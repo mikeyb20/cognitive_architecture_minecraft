@@ -11,6 +11,7 @@ use sim::player::ScriptedPlayer;
 use super::{McHost, McStep};
 use crate::FULL;
 use crate::brain::SimTools;
+use crate::teachability::teach_until;
 
 /// What one Minecraft run of the brain did, for the CLI summary.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -40,6 +41,10 @@ pub struct BrainRun {
     /// code tools show the shelter recipe and explain the test with the
     /// bot's own sheltered flag. As in the sim's dusk-call scenarios.
     pub teacher: bool,
+    /// Days the teacher shows its recipes, shelter and bed (`bed_lesson`),
+    /// before they fade to the test alone (plan §5.0 teachability); `None`
+    /// shows them for the whole run.
+    pub teach_days: Option<u64>,
 }
 
 /// Run `brain` on the bot (spec §22). The sim's code tools stand in for
@@ -53,10 +58,14 @@ pub fn run_brain(
     mut wait: impl FnMut(),
     mut log: impl FnMut(&McStep),
 ) -> BrainCounts {
-    let mut tools = SimTools::default();
+    let day_ticks = host.params().day_ticks;
+    let mut tools = SimTools {
+        bed: run.teacher,
+        teach_until: teach_until(run.teach_days, day_ticks),
+        ..SimTools::default()
+    };
     let mut player = ScriptedPlayer::idle();
     player.dusk_call = run.teacher;
-    let day_ticks = host.params().day_ticks;
     let mut n = BrainCounts::default();
     for _ in 0..run.decisions {
         if host.error.is_some() {

@@ -25,6 +25,8 @@ pub struct SimTools {
     pub teach_until: Option<u64>,
     /// The mob lessons' tests, set before each decision.
     pub mob: MobTest,
+    /// The bed lesson (`bed_lesson`), Minecraft only.
+    pub bed: bool,
 }
 
 /// Dusk, from which the planner puts shelter first (same as arm A's tree).
@@ -79,7 +81,11 @@ impl ThinkTools for SimTools {
             return None;
         }
         if goal == SHELTER {
-            Some(shelter_recipe(&obs.inventory))
+            let mut r = shelter_recipe(&obs.inventory);
+            if self.bed {
+                crate::bed_lesson::add_to(&mut r, obs);
+            }
+            Some(r)
         } else {
             crate::mob_lessons::recipe(goal)
         }
@@ -319,6 +325,7 @@ mod tests {
                 zombie_near: true,
                 shot_at: false,
             },
+            bed: false,
         };
         obs.tick = 99;
         assert!(t.show(SHELTER, &obs).is_some());
@@ -330,6 +337,40 @@ mod tests {
         assert_eq!(t.explain(SHELTER, &obs), Some(false));
         assert_eq!(t.explain(FIGHT_ZOMBIE_GOAL, &obs), Some(false));
         assert_eq!(t.explain(HIDE_SKELETON_GOAL, &obs), Some(true));
+    }
+
+    // The bed lesson (`bed_lesson`) is shown only when turned on, as in
+    // Minecraft; the sim's shelter recipe is unchanged.
+    #[test]
+    fn the_bed_lesson_adds_a_wool_step_only_when_on() {
+        use host_api::Host;
+        let mut obs = setup("first_night", 0).world.perceive();
+        obs.visible.push(host_api::Seen {
+            thing: host_api::ThingId("entity:sheep".into()),
+            kind: host_api::SeenKind::Entity { hostile: false },
+            pos: obs.position,
+            distance: 2.0,
+        });
+        let skills = |bed| {
+            let mut t = SimTools {
+                bed,
+                ..SimTools::default()
+            };
+            let r = t.show(SHELTER, &obs).unwrap();
+            r.steps.iter().map(|s| s.skill).collect::<Vec<_>>()
+        };
+        let plain = skills(false);
+        assert_eq!(
+            plain,
+            shelter_recipe(&obs.inventory)
+                .steps
+                .iter()
+                .map(|s| s.skill)
+                .collect::<Vec<_>>()
+        );
+        let mut with_bed = plain.clone();
+        with_bed.insert(plain.len() - 1, Skill::Attack);
+        assert_eq!(skills(true), with_bed);
     }
 
     // A run passes its teaching days to the brain's teacher: asked at
