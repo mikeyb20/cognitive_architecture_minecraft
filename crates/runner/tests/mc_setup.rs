@@ -307,11 +307,19 @@ fn a_log_row_by_hand() {
         cost_usd: 0.25,
     };
     let step = McStep {
-        obs: obs(),
+        obs: Observation {
+            chat: vec![host_api::ChatMsg {
+                from: "steve".into(),
+                text: "get shelter".into(),
+            }],
+            ..obs()
+        },
         chosen: Some(cand()),
         reflex: true,
         outcome: Some(outcome.clone()),
         llm: Some(stats),
+        goal: Some("shelter".into()),
+        recipe_step: Some("Shelter:".into()),
     };
     assert_eq!(
         row(&step),
@@ -319,6 +327,7 @@ fn a_log_row_by_hand() {
             "tick": 5, "health": 1.0, "food": 0.5, "day_phase": 0.25,
             "position": {"x": 1, "y": 2, "z": 3}, "sheltered": false,
             "chosen": cand(), "reflex": true, "outcome": outcome,
+            "chat": ["steve: get shelter"], "goal": "shelter", "recipe_step": "Shelter:",
             "llm": {"calls": 2, "cached": 1, "fallbacks": 3, "unparsed": 4,
                     "input_tokens": 50, "output_tokens": 6, "cost_usd": 0.25},
         })
@@ -329,6 +338,10 @@ fn a_log_row_by_hand() {
         outcome: None,
         reflex: false,
         obs: obs(),
+        goal: None,
+        recipe_step: None,
     };
     assert_eq!(row(&bare)["llm"], serde_json::Value::Null);
+    assert_eq!(row(&bare)["chat"], json!([]));
+    assert_eq!(row(&bare)["goal"], serde_json::Value::Null);
 }
