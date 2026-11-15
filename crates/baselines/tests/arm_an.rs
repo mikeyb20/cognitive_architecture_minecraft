@@ -1,6 +1,6 @@
 //! Arm A+N: the tree plus B+N's count bonus (spec §24; 07 M2).
 
-use baselines::{ArmA, ArmAN, Policy};
+use baselines::{ArmA, ArmAN, CountBy, Policy};
 use host_api::{
     AgentId, Candidate, Inventory, Observation, Pos, Seen, SeenKind, Skill, Target, TaskType,
     ThingId,
@@ -110,4 +110,31 @@ fn danger_comes_first_and_is_counted() {
     assert_eq!(arm.counts().count(&cands[0]), 0);
     assert_eq!(arm.beta, 10.0);
     assert_eq!(arm.choose(&o, &[]), None);
+}
+
+#[test]
+fn by_region_counts_decisions_where_the_agent_stands() {
+    // All three decisions so far were made in region (0, 0), where the
+    // tree is: Chop's bonus there falls as 2/√(n+1) as before, so it wins
+    // while n ≤ 3. The new places' regions were never stood in, so both
+    // keep 1.875 and the first stays ahead on ties until the agent moves.
+    let mut arm = ArmAN::by_region(2.0);
+    assert_eq!(arm.count_by, CountBy::Region);
+    let got: Vec<usize> = (0..7)
+        .map(|_| arm.choose(&obs(), &three()).unwrap())
+        .collect();
+    assert_eq!(got, [0, 0, 0, 0, 1, 1, 1]);
+    assert_eq!(arm.counts().count_key("region:0,0"), 7);
+    // Standing in region (1, 0) instead spends that region's bonus, not
+    // the tree's: Chop leads to region (0, 0), never stood in, so it keeps
+    // 1 + 2 − 0.075 and always wins.
+    let mut o = obs();
+    o.position = p(8, 0);
+    let mut moved = ArmAN::by_region(2.0);
+    let picks: Vec<usize> = (0..7)
+        .map(|_| moved.choose(&o, &three()).unwrap())
+        .collect();
+    assert_eq!(picks, vec![0; 7]);
+    assert_eq!(moved.counts().count_key("region:1,0"), 7);
+    assert_eq!(moved.counts().count_key("region:0,0"), 0);
 }

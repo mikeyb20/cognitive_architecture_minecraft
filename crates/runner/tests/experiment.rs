@@ -526,15 +526,15 @@ expected = "-"
     };
     assert_eq!(
         wrong("a", "1.0"),
-        "A+N: β is for arms bn and an, at 0 or more"
+        "A+N: β is for arms bn, an and anr, at 0 or more"
     );
     assert_eq!(
         wrong("an", "-1.0"),
-        "A+N: β is for arms bn and an, at 0 or more"
+        "A+N: β is for arms bn, an and anr, at 0 or more"
     );
     assert_eq!(
         wrong("an", "nan"),
-        "A+N: β is for arms bn and an, at 0 or more"
+        "A+N: β is for arms bn, an and anr, at 0 or more"
     );
     assert!(
         parse(&text.replacen("arm = \"an\"\nbeta = 2.0", "arm = \"bn\"\nbeta = 0.0", 1)).is_ok()

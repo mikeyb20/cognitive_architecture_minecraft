@@ -34,6 +34,8 @@ pub enum ArmKind {
     BN,
     /// The behaviour tree with the count bonus (no LLM; 07 M2).
     AN,
+    /// The same, counting regions visited instead of targets picked.
+    ANR,
     /// The brain.
     C,
 }
@@ -46,6 +48,7 @@ impl ArmKind {
             Self::B => Some(McArm::B),
             Self::BN => Some(McArm::BN),
             Self::AN => Some(McArm::AN),
+            Self::ANR => Some(McArm::ANR),
             Self::C => None,
         }
     }
@@ -143,9 +146,10 @@ pub fn parse(text: &str) -> Result<Experiment, String> {
             return Err(format!("{}: only arm c has brain settings", arm.label));
         }
         if let Some(b) = arm.beta {
-            if !matches!(arm.arm, ArmKind::BN | ArmKind::AN) || b.is_nan() || b < 0.0 {
+            if !matches!(arm.arm, ArmKind::BN | ArmKind::AN | ArmKind::ANR) || b.is_nan() || b < 0.0
+            {
                 return Err(format!(
-                    "{}: β is for arms bn and an, at 0 or more",
+                    "{}: β is for arms bn, an and anr, at 0 or more",
                     arm.label
                 ));
             }

@@ -17,6 +17,8 @@ pub enum McArm {
     BN,
     /// The tree with the count bonus at β (no LLM).
     AN,
+    /// The same, counting regions visited (no LLM).
+    ANR,
 }
 
 impl McArm {
@@ -26,12 +28,13 @@ impl McArm {
             "b" => Some(Self::B),
             "bn" => Some(Self::BN),
             "an" => Some(Self::AN),
+            "anr" => Some(Self::ANR),
             _ => None,
         }
     }
 
     pub fn needs_llm(self) -> bool {
-        !matches!(self, Self::A | Self::AN)
+        !matches!(self, Self::A | Self::AN | Self::ANR)
     }
 }
 
@@ -107,6 +110,7 @@ pub fn arm_with(
     match (which, llm) {
         (McArm::A, _) => Ok(Box::new(ArmA::default())),
         (McArm::AN, _) => Ok(Box::new(ArmAN::new(beta))),
+        (McArm::ANR, _) => Ok(Box::new(ArmAN::by_region(beta))),
         (_, None) => Err("arms B and B+N need an LLM".into()),
         (_, Some(p)) => {
             let cfg = ArmBConfig {
