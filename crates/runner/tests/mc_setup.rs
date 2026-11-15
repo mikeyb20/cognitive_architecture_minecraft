@@ -15,6 +15,8 @@ fn arm_and_tier_names() {
     assert_eq!(McArm::parse("a"), Some(McArm::A));
     assert_eq!(McArm::parse("b"), Some(McArm::B));
     assert_eq!(McArm::parse("bn"), Some(McArm::BN));
+    assert_eq!(McArm::parse("an"), Some(McArm::AN));
+    assert!(!McArm::AN.needs_llm(), "A+N is code only");
     assert_eq!(McArm::parse("c"), None);
     assert!(!McArm::A.needs_llm());
     assert!(McArm::B.needs_llm() && McArm::BN.needs_llm());

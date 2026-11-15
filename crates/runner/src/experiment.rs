@@ -14,10 +14,11 @@ use serde::Deserialize;
 use sim::world::ShelterTest;
 
 use crate::FULL;
-use crate::brain::{BrainResult, setup};
+use crate::brain::{BrainResult, floored};
 use crate::drive::{Driver, run_scenario};
 use crate::mc::McArm;
 use crate::metrics::{Meter, RunMetrics, kept, pace, recovery, summarise, tech_held};
+use crate::paired::Run;
 use crate::sweep::Row;
 use crate::taught::Teacher;
 use crate::teachability::teach_until;
@@ -32,6 +33,8 @@ pub enum ArmKind {
     B,
     /// The LLM loop with the count bonus.
     BN,
+    /// The behaviour tree with the count bonus (no LLM; 07 M2).
+    AN,
     /// The brain.
     C,
 }
@@ -43,6 +46,7 @@ impl ArmKind {
             Self::A => Some(McArm::A),
             Self::B => Some(McArm::B),
             Self::BN => Some(McArm::BN),
+            Self::AN => Some(McArm::AN),
             Self::C => None,
         }
     }
@@ -70,6 +74,10 @@ pub struct ArmSpec {
     /// `teacher.show = false`).
     #[serde(default = "on")]
     pub teacher: bool,
+    /// The count bonus weight β for arms `bn` and `an` (spec §24); the
+    /// default β unless set.
+    #[serde(default)]
+    pub beta: Option<f32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -105,6 +113,10 @@ pub struct Experiment {
     /// shows and explains it (`mob_lessons`). Off unless set.
     #[serde(default)]
     pub mob_lessons: bool,
+    /// The arm every other arm is paired with by seed (07 M1: the
+    /// reference brain rerun in the same job). The first arm unless set.
+    #[serde(default)]
+    pub reference: Option<String>,
     pub arms: Vec<ArmSpec>,
 }
 
@@ -131,9 +143,22 @@ pub fn parse(text: &str) -> Result<Experiment, String> {
             return Err(format!("unknown scenario {sc:?}"));
         }
     }
+    if let Some(r) = &e.reference {
+        if !e.arms.iter().any(|a| &a.label == r) {
+            return Err(format!("reference {r:?} is not an arm"));
+        }
+    }
     for arm in &e.arms {
         if arm.arm != ArmKind::C && !arm.config.is_empty() {
             return Err(format!("{}: only arm c has brain settings", arm.label));
+        }
+        if let Some(b) = arm.beta {
+            if !matches!(arm.arm, ArmKind::BN | ArmKind::AN) || b.is_nan() || b < 0.0 {
+                return Err(format!(
+                    "{}: β is for arms bn and an, at 0 or more",
+                    arm.label
+                ));
+            }
         }
         config_for(&e, arm, 0)?;
     }
@@ -256,8 +281,7 @@ pub fn run_arm(
     seed: u64,
     llm: Option<&Llm>,
 ) -> Result<(RunMetrics, LlmStats), String> {
-    let mut s = setup(scenario, seed);
-    s.player.dusk_call = e.floor;
+    let mut s = floored(scenario, seed, e.floor);
     s.player.mob_calls = e.mob_lessons;
     s.teach_days = e.teach_days;
     let until = teach_until(s.teach_days, s.world.rules.day_ticks);
@@ -272,7 +296,7 @@ pub fn run_arm(
         (_, l) => (l.map_or(Tier::Local, |l| l.tier), None),
     };
     let mut d = PolicyDriver {
-        policy: crate::mc::arm(which, tier, provider)?,
+        policy: crate::mc::arm_with(which, tier, provider, arm.beta)?,
         teacher: Teacher::new(arm.teacher, until),
     };
     let no_rows = &mut |_: &TickLog| unreachable!("baseline arms keep no log rows");
@@ -281,11 +305,21 @@ pub fn run_arm(
     Ok((baseline_metrics(&r), used))
 }
 
-/// The results table and each arm's total LLM use (plan §5.5).
+/// The results table, every run, and each arm's total LLM use (plan §5.5).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Results {
     pub rows: Vec<Row>,
+    pub runs: Vec<Run>,
     pub llm: Vec<(String, LlmStats)>,
+}
+
+/// The label of the arm others are paired with (`reference`, else the
+/// first arm).
+pub fn reference(e: &Experiment) -> &str {
+    e.reference
+        .as_deref()
+        .or_else(|| e.arms.first().map(|a| a.label.as_str()))
+        .unwrap_or("")
 }
 
 /// Every arm × scenario × seed, in a fixed order. Runs go `threads` at a
@@ -337,7 +371,21 @@ pub fn run(e: &Experiment, threads: usize, llm: Option<&Llm>) -> Result<Results,
         }
     }
     llm_use.retain(|(_, s)| s.calls + s.fallbacks > 0);
-    Ok(Results { rows, llm: llm_use })
+    let runs = out
+        .iter()
+        .zip(&jobs)
+        .map(|((m, _, _), (ai, sc, seed))| Run {
+            arm: e.arms[*ai].label.clone(),
+            scenario: (*sc).to_string(),
+            seed: *seed,
+            m: *m,
+        })
+        .collect();
+    Ok(Results {
+        rows,
+        runs,
+        llm: llm_use,
+    })
 }
 
 /// The run header (spec §25, §26): versions, the experiment and every
@@ -352,6 +400,7 @@ pub fn header(e: &Experiment) -> serde_json::Value {
                 "expected": a.expected,
                 "config": a.config,
                 "teacher": a.teacher,
+                "beta": a.beta,
             })
         })
         .collect();
@@ -367,6 +416,7 @@ pub fn header(e: &Experiment) -> serde_json::Value {
         "mob_lessons": e.mob_lessons,
         "teacher_off": e.teacher_off,
         "teach_days": e.teach_days,
+        "reference": reference(e),
         "arms": arms,
         "defs_version": cognitive_core::DEFS_VERSION,
         "paper_version": cognitive_core::PAPER_VERSION,
@@ -385,6 +435,8 @@ pub fn markdown(e: &Experiment, res: &Results) -> String {
     }
     t += "\n";
     t += &crate::sweep::table(&res.rows, e.seeds);
+    let r = reference(e);
+    t += &crate::paired::markdown(&crate::paired::pairs(&res.runs, r), r);
     for (label, u) in &res.llm {
         t += &format!(
             "\nLLM use, {label}: {} calls ({} cached, {} fallbacks, {} unusable), {} input and {} output tokens, ${:.4}.\n",

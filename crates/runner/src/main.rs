@@ -2,8 +2,10 @@
 //! it was built against.
 //!
 //! - `runner first-night [N]`: arm A over N seeds (build step 3 gate).
-//! - `runner brain <scenario> [N] [--log FILE]`: the brain over N seeds,
-//!   optionally writing one JSONL row per decision (spec §25).
+//! - `runner brain <scenario> [N] [--log FILE] [--no-floor]`: the brain
+//!   over N seeds, optionally writing one JSONL row per decision (spec §25).
+//!   The shared survival floor is on, as in experiments, unless
+//!   `--no-floor`.
 //! - `runner speed [N] [--gate G]`: world ticks per second for the brain
 //!   (step 4 gate: at least 5,000); exits non-zero below the gate.
 //! - `runner sweep <OQ|all> [--seeds N] [--scenarios a,b] [--out DIR]`: an
@@ -73,9 +75,10 @@ fn brain(args: &[String]) {
     let mut out = log_path.map(|p| {
         std::io::BufWriter::new(std::fs::File::create(p).expect("cannot create the log file"))
     });
+    let floor = !args.iter().any(|a| a == "--no-floor");
     let mut alive = 0;
     for seed in 0..n {
-        let setup = runner::brain::setup(name, seed);
+        let setup = runner::brain::floored(name, seed, floor);
         if let Some(f) = out.as_mut() {
             let header = runner::brain::header(name, seed);
             writeln!(f, "{header}").expect("log write failed");
@@ -105,7 +108,8 @@ fn brain(args: &[String]) {
             r.inventory
         );
     }
-    println!("brain {name}: {alive}/{n} survived");
+    let on = if floor { "on" } else { "off" };
+    println!("brain {name}: {alive}/{n} survived (survival floor {on})");
 }
 
 fn speed(n: u64, gate: f64) {
@@ -234,17 +238,48 @@ fn experiment(args: &[String]) {
     if let Some(n) = flag(args, "--seeds").and_then(|s| s.parse().ok()) {
         e.seeds = n;
     }
-    // The header, with every arm's expected direction, is written first.
+    // The header, with every arm's expected direction, the commit and the
+    // config's hash (07 M1), is written first.
+    let mut head = header(&e);
+    head["commit"] = git_commit().into();
+    head["config_hash"] = runner::paired::config_hash(&text).into();
     if let Some(dir) = flag(args, "--out") {
         std::fs::create_dir_all(dir).expect("cannot create the output folder");
         let p = std::path::Path::new(dir).join(format!("{}.header.json", e.id));
-        std::fs::write(p, header(&e).to_string()).expect("write failed");
+        std::fs::write(p, head.to_string()).expect("write failed");
     }
     let (tier, make) = llm_setup(args);
     let llm = Llm { tier, make: &make };
     let res = run(&e, threads(), Some(&llm)).unwrap_or_else(|err| fail(err));
     let csv = runner::sweep::csv_rows("experiment", &e.id, &res.rows);
     publish(args, &e.id, &markdown(&e, &res), &csv);
+    if let Some(dir) = flag(args, "--out") {
+        let p = std::path::Path::new(dir).join(format!("{}.runs.csv", e.id));
+        std::fs::write(p, runner::paired::runs_csv(&res.runs)).expect("write failed");
+    }
+}
+
+/// The commit the runner was run from (and "+dirty" with local changes),
+/// or "unknown" outside a git checkout.
+fn git_commit() -> String {
+    let git = |a: &[&str]| {
+        std::process::Command::new("git")
+            .args(a)
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    };
+    match git(&["rev-parse", "HEAD"]) {
+        Some(c)
+            if git(&["status", "--porcelain", "--untracked-files=no"])
+                .is_some_and(|s| !s.is_empty()) =>
+        {
+            format!("{c}+dirty")
+        }
+        Some(c) => c,
+        None => "unknown".into(),
+    }
 }
 
 /// Connect to the bot at `--addr` and say hello (spec §22).

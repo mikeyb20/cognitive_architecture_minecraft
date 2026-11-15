@@ -40,10 +40,16 @@ impl Counts {
     }
 }
 
-/// Candidate indices, best first, by bonus minus the mean of cost and risk
-/// (ties keep the host's order).
+/// A candidate's novelty value: its bonus minus the mean of its cost and
+/// risk (spec §24). B+N ranks by it; A+N adds it to its goal.
+pub(crate) fn value(x: &Candidate, counts: &Counts, beta: f32) -> f32 {
+    counts.bonus(x, beta) - (x.est_cost + x.est_risk) / 2.0
+}
+
+/// Candidate indices, best first, by [`value`] (ties keep the host's
+/// order).
 pub(crate) fn ranked(c: &[Candidate], counts: &Counts, beta: f32) -> Vec<usize> {
-    let score = |x: &Candidate| counts.bonus(x, beta) - (x.est_cost + x.est_risk) / 2.0;
+    let score = |x: &Candidate| value(x, counts, beta);
     let mut order: Vec<usize> = (0..c.len()).collect();
     order.sort_by(|&a, &b| score(&c[b]).total_cmp(&score(&c[a])));
     order

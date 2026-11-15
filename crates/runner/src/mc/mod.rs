@@ -11,7 +11,7 @@ mod setup;
 pub use brain::{BrainCounts, BrainRun, run_brain};
 pub use host::McHost;
 pub use link::{Link, LinkError};
-pub use setup::{McArm, arm, provider, tier};
+pub use setup::{McArm, arm, arm_with, provider, tier};
 
 use baselines::Policy;
 use host_api::reflex::{ReflexThresholds, emergency_reflex};
