@@ -12,6 +12,17 @@ import { enclosed } from "../perceive/shelter.js";
 /** Most block positions asked of Mineflayer per scan. */
 const SCAN_COUNT = 512;
 
+/** Whether the bot stands in a closed room (spec §2 `sheltered`). */
+export function sheltered(bot: Bot): boolean {
+  const feet = bot.entity.position.floored();
+  const solid = (dx: number, dy: number, dz: number) => {
+    const b = bot.blockAt(feet.plus(new Vec3(dx, dy, dz)));
+    // A door's box does not change when it opens; an open door lets mobs in.
+    return b?.boundingBox === "block" && !(b.name.endsWith("_door") && String(b.getProperties().open) === "true");
+  };
+  return enclosed(solid);
+}
+
 export class Perception {
   #chat: ChatMsg[] = [];
   #lastHealth: number;
@@ -49,11 +60,8 @@ export class Perception {
     return d.length === 0 ? null : Math.min(...d);
   }
 
-    #sheltered(): boolean {
-    const feet = this.bot.entity.position.floored();
-    const solid = (dx: number, dy: number, dz: number) =>
-      this.bot.blockAt(feet.plus(new Vec3(dx, dy, dz)))?.boundingBox === "block";
-    return enclosed(solid);
+  #sheltered(): boolean {
+    return sheltered(this.bot);
   }
 
   /** What the survival interrupt checks; reads nothing it would consume. */

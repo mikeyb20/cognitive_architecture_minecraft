@@ -23,6 +23,8 @@ import {
 } from "../control/spacing.js";
 import type { Pos } from "../host.js";
 import type { Body } from "../skills/body.js";
+import { Home } from "./home.js";
+import { sheltered } from "./perception.js";
 
 const { goals } = pathfinderPkg;
 
@@ -85,7 +87,36 @@ async function bounded<T>(
 }
 
 export class MineflayerBody implements Body {
-  constructor(private readonly bot: Bot) {}
+  readonly #home: Home;
+
+  constructor(private readonly bot: Bot) {
+    this.#home = new Home(bot);
+  }
+
+  sheltered(): boolean {
+    return sheltered(this.bot);
+  }
+
+  home(): Pos | null {
+    return this.#home.at;
+  }
+
+  setHome(at: Pos | null): void {
+    this.#home.set(at);
+  }
+
+  enterHome(signal: AbortSignal): Promise<boolean> {
+    return this.#home.enter(signal, (to) => this.#near(to, 0, signal));
+  }
+
+  /** Out of the home by the door first, when bound for `target` outside it. */
+  #out(target: Pos | null, signal: AbortSignal): Promise<void> {
+    return this.#home.leave(target, signal, (to) => this.#near(to, 0, signal));
+  }
+
+  #near(to: Pos, range: number, signal: AbortSignal): Promise<boolean> {
+    return this.#go(new goals.GoalNear(to.x, to.y, to.z, range), signal);
+  }
 
   age(): number {
     return Number(this.bot.time.age);
@@ -121,11 +152,13 @@ export class MineflayerBody implements Body {
     return bounded(signal, CALL_LIMIT_MS, ok, this.#stopMoving, false);
   }
 
-  goto(to: Pos, range: number, signal: AbortSignal): Promise<boolean> {
-    return this.#go(new goals.GoalNear(to.x, to.y, to.z, range), signal);
+  async goto(to: Pos, range: number, signal: AbortSignal): Promise<boolean> {
+    await this.#out(to, signal);
+    return this.#near(to, range, signal);
   }
 
-  gotoY(y: number, signal: AbortSignal): Promise<boolean> {
+  async gotoY(y: number, signal: AbortSignal): Promise<boolean> {
+    await this.#out(null, signal);
     return this.#go(new goals.GoalY(y), signal);
   }
 
@@ -135,6 +168,7 @@ export class MineflayerBody implements Body {
     ms: number,
     signal: AbortSignal,
   ): Promise<boolean> {
+    await this.#out(null, signal);
     const target = this.bot.players[player]?.entity;
     if (target === undefined) {
       return false;
@@ -198,6 +232,10 @@ export class MineflayerBody implements Body {
     return p.x === me.x && p.z === me.z && p.y === me.y - 1;
   }
 
+  solid(at: Pos): boolean {
+    return this.bot.blockAt(v(at))?.boundingBox === "block";
+  }
+
   blockName(at: Pos): string | null {
     return this.bot.blockAt(v(at))?.name ?? null;
   }
@@ -222,6 +260,7 @@ export class MineflayerBody implements Body {
   }
 
   async dig(at: Pos, signal: AbortSignal): Promise<boolean> {
+    await this.#out(at, signal);
     const block = this.bot.blockAt(v(at));
     if (block === null || block.name === "air" || !this.#canHarvest(block)) {
       return false;
@@ -303,6 +342,7 @@ export class MineflayerBody implements Body {
    * when the mob is gone (dead or despawned); gives up if it gets away.
    */
   async attack(at: Pos, signal: AbortSignal): Promise<boolean> {
+    await this.#out(at, signal);
     const mob = this.#mobNear(at);
     if (mob === null) {
       return false;
