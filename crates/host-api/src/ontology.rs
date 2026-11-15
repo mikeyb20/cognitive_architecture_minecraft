@@ -134,6 +134,10 @@ pub const DUSK: f32 = 0.42;
 pub const FIGHT_ZOMBIE_GOAL: &str = "fight_zombie";
 /// See [`FIGHT_ZOMBIE_GOAL`].
 pub const HIDE_SKELETON_GOAL: &str = "hide_from_skeleton";
+/// The zombie lesson for a weak agent (Michael, 15 Nov 2026: "fighting
+/// should only occur with enough energy otherwise run hide and get health
+/// and food bars up"): run, and pass once no zombie is within threat range.
+pub const ESCAPE_ZOMBIE_GOAL: &str = "escape_zombie";
 
 /// The goal the teacher knows a recipe and a test for (01 §4.11, #58): a
 /// shelter that passes the host's shelter test.

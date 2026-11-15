@@ -318,6 +318,7 @@ mod tests {
             mob: MobTest {
                 zombie_near: true,
                 shot_at: false,
+                weak: false,
             },
         };
         obs.tick = 99;

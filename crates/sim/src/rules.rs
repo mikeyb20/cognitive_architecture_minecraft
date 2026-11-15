@@ -76,6 +76,11 @@ pub struct Rules {
     /// How far a skeleton follows the agent (Minecraft: "chases players
     /// within 16 blocks"; `chase_radius` is the zombie's 40).
     pub skeleton_follow: i32,
+    /// The mob lesson says fight a zombie only while health is at least
+    /// this; below it, run (Michael, 15 Nov 2026: "fighting should only
+    /// occur with enough energy"). Proposed; a food gate was tried and
+    /// starves the agent when a zombie stands on its only food.
+    pub fight_health: f32,
     /// Food restored by eating.
     pub meat_food: f32,
     pub bread_food: f32,
@@ -155,6 +160,7 @@ impl Default for Rules {
             arrow_hit: 0.5,
             keep_away: 4,
             skeleton_follow: 16,
+            fight_health: 0.5,
             meat_food: 0.3,
             bread_food: 0.5,
             shelter_ticks_blocks: 20,

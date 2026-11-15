@@ -7,7 +7,7 @@
 
 use cognitive_core::control::teacher::Recipe;
 use cognitive_core::direction::PlanStep;
-use host_api::ontology::{FIGHT_ZOMBIE_GOAL, HIDE_SKELETON_GOAL};
+use host_api::ontology::{ESCAPE_ZOMBIE_GOAL, FIGHT_ZOMBIE_GOAL, HIDE_SKELETON_GOAL};
 use host_api::{Skill, TaskType};
 use sim::world::MobTest;
 
@@ -16,7 +16,7 @@ use sim::world::MobTest;
 pub fn recipe(goal: &str) -> Option<Recipe> {
     let (skill, thing, task) = match goal {
         FIGHT_ZOMBIE_GOAL => (Skill::Attack, "entity:zombie", TaskType::Combat),
-        HIDE_SKELETON_GOAL => (Skill::Flee, "", TaskType::Travel),
+        HIDE_SKELETON_GOAL | ESCAPE_ZOMBIE_GOAL => (Skill::Flee, "", TaskType::Travel),
         _ => return None,
     };
     Some(Recipe {
@@ -33,7 +33,7 @@ pub fn recipe(goal: &str) -> Option<Recipe> {
 /// near (fight), or no skeleton can shoot it (hide).
 pub fn test(goal: &str, t: MobTest) -> Option<bool> {
     match goal {
-        FIGHT_ZOMBIE_GOAL => Some(!t.zombie_near),
+        FIGHT_ZOMBIE_GOAL | ESCAPE_ZOMBIE_GOAL => Some(!t.zombie_near),
         HIDE_SKELETON_GOAL => Some(!t.shot_at),
         _ => None,
     }
@@ -63,15 +63,25 @@ mod tests {
         let near = MobTest {
             zombie_near: true,
             shot_at: false,
+            weak: false,
         };
         let shot = MobTest {
             zombie_near: false,
             shot_at: true,
+            weak: false,
         };
         assert_eq!(test(FIGHT_ZOMBIE_GOAL, near), Some(false));
         assert_eq!(test(FIGHT_ZOMBIE_GOAL, shot), Some(true));
         assert_eq!(test(HIDE_SKELETON_GOAL, shot), Some(false));
         assert_eq!(test(HIDE_SKELETON_GOAL, near), Some(true));
+        assert_eq!(test(ESCAPE_ZOMBIE_GOAL, near), Some(false));
+        assert_eq!(test(ESCAPE_ZOMBIE_GOAL, shot), Some(true));
+        let run = recipe(ESCAPE_ZOMBIE_GOAL).unwrap();
+        let s = &run.steps[0];
+        assert_eq!(
+            (run.goal.as_str(), s.skill, s.thing.as_str()),
+            (ESCAPE_ZOMBIE_GOAL, Skill::Flee, "")
+        );
         assert_eq!(test("shelter", near), None);
     }
 }
