@@ -20,7 +20,7 @@ use host_api::{Candidate, Observation, Target};
 use crate::Policy;
 use crate::arm_a::ArmA;
 use crate::arm_b::Counts;
-use crate::arm_b::novelty::value;
+use crate::arm_b::novelty::{value, value_at};
 
 /// What n counts.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -72,10 +72,7 @@ impl ArmAN {
     fn value(&self, obs: &Observation, x: &Candidate) -> f32 {
         match self.count_by {
             CountBy::Target => value(x, &self.counts, self.beta),
-            CountBy::Region => {
-                let n = self.counts.count_key(&region_key(obs, x));
-                self.beta / ((n + 1) as f32).sqrt() - (x.est_cost + x.est_risk) / 2.0
-            }
+            CountBy::Region => value_at(self.counts.count_key(&region_key(obs, x)), x, self.beta),
         }
     }
 

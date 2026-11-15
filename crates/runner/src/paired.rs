@@ -259,6 +259,21 @@ mod tests {
     }
 
     #[test]
+    fn a_lopsided_pair_gives_small_p_values() {
+        // Five seeds where only the arm survives and finds 2 more things,
+        // and one where both survive and tie: a 5 vs 0 split, p = 0.0625.
+        let mut runs: Vec<Run> = (0..5).map(|s| run("ref", s, false, 10)).collect();
+        runs.extend((0..5).map(|s| run("x", s, true, 12)));
+        runs.push(run("ref", 5, true, 10));
+        runs.push(run("x", 5, true, 10));
+        let p = &pairs(&runs, "ref")[0];
+        assert_eq!((p.only_arm, p.only_ref, p.new_up, p.new_down), (5, 0, 5, 0));
+        assert!((p.survival_p() - 0.0625).abs() < 1e-12);
+        assert!((p.new_p() - 0.0625).abs() < 1e-12);
+        assert!((p.new_diff - 10.0 / 6.0).abs() < 1e-12);
+    }
+
+    #[test]
     fn a_pair_with_no_shared_seeds_is_empty() {
         let p = pair(&[run("x", 4, true, 1)], "ref", "x", "s");
         assert_eq!((p.n, p.new_diff), (0, 0.0));
