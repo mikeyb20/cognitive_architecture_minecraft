@@ -5,22 +5,31 @@
 //! Once a day from the afternoon (`ontology::BED_CALL`) until dusk, while
 //! the agent has no bed, the player says "get bed". The teacher (01 §4.11,
 //! #59) shows a recipe and explains a test, as for shelter:
-//! - Recipe: hunt a sheep for each wool still wanted, then Shelter. The
-//!   bot's Shelter makes the bed and puts it in the home.
+//! - Recipe: hunt a sheep for each wool still wanted, chop and plank the
+//!   wood a home with a door and a bed still wants, then Shelter. The bot's
+//!   Shelter builds the home, makes the bed and puts it in.
 //! - Test: a bed is in view.
 //!
 //! Live runs shaped it: put in the dusk shelter recipe, the hunt came
 //! before the shelter every night; with one "explore" step for a sheep not
-//! in view, the explore used the step up and no sheep was ever hunted. The recipe fades with ρ; the test does not.
+//! in view, the explore used the step up and no sheep was ever hunted;
+//! with wool but 5 dirt left, there was no home to put a bed in. The recipe fades with ρ; the test does not.
 
 use cognitive_core::control::teacher::Recipe;
 use cognitive_core::direction::PlanStep;
+use host_api::craft::recipe as recipe_for;
 use host_api::ontology::{BED_CALL, BED_GOAL, DUSK};
 use host_api::{ChatMsg, Observation, SeenKind, Skill, TaskType};
 use sim::player::PLAYER;
 
 /// Wool of one colour a bed takes (Minecraft 1.21's recipe, with three planks).
 pub const BED_WOOL: u32 = 3;
+/// Planks a bed and a door take (Minecraft 1.21: 3 and 6).
+const BED_DOOR_PLANKS: u32 = 3 + 6;
+/// Building blocks a home takes: the bot's `HOME_BLOCKS` (bot/src/skills/run.ts).
+pub const HOME_BLOCKS: u32 = 32;
+/// Blocks the bot builds with besides planks (bot `BUILDING`).
+const STONE_AND_DIRT: [&str; 3] = ["cobblestone", "dirt", "cobbled_deepslate"];
 const SHEEP: &str = "entity:sheep";
 
 /// The lesson's test: a bed (`*_bed` block) is in view.
@@ -52,8 +61,23 @@ fn wool_wanted(obs: &Observation) -> u32 {
     }
 }
 
+/// Logs still to chop for a home with a door and a bed: planks for the
+/// bed and door, and planks for the walls stone and dirt do not cover;
+/// each log makes `oak_planks`' recipe count (host-api craft).
+fn logs_wanted(obs: &Observation) -> u32 {
+    let inv = &obs.inventory;
+    let per_log = recipe_for("oak_planks")
+        .expect("oak_planks is in the tech tree")
+        .count;
+    let blocks: u32 = STONE_AND_DIRT.iter().map(|b| inv.count(b)).sum();
+    let planks = inv.count("oak_planks") + per_log * inv.count("oak_log");
+    let need = BED_DOOR_PLANKS + HOME_BLOCKS.saturating_sub(blocks);
+    need.saturating_sub(planks).div_ceil(per_log)
+}
+
 /// The recipe (module doc): one sheep hunted for each wool still wanted
-/// (a sheep drops one), then Shelter. A recipe is shown once per goal and
+/// (a sheep drops one), a log chopped and made into planks for each log
+/// the home still wants, then Shelter. A recipe is shown once per goal and
 /// a done step stays done, so every hunt is its own step; with no sheep in
 /// view no hunt is offered and the brain looks around on its own.
 pub fn recipe(obs: &Observation) -> Recipe {
@@ -64,6 +88,10 @@ pub fn recipe(obs: &Observation) -> Recipe {
     };
     let hunt = step(Skill::Attack, SHEEP, TaskType::Farming);
     let mut steps = vec![hunt; wool_wanted(obs) as usize];
+    for _ in 0..logs_wanted(obs) {
+        steps.push(step(Skill::Chop, "block:oak_log", TaskType::Mining));
+        steps.push(step(Skill::Craft, "item:oak_planks", TaskType::Crafting));
+    }
     steps.push(step(Skill::Shelter, "", TaskType::Building));
     Recipe {
         goal: BED_GOAL.to_string(),
@@ -132,13 +160,20 @@ mod tests {
 
     const SHELTER: (Skill, &str, TaskType) = (Skill::Shelter, "", TaskType::Building);
 
+    /// Enough for a home with a door and a bed: no wood steps.
+    const STOCKED: [(&str, u32); 2] = [("dirt", 32), ("oak_planks", 9)];
+
+    fn hunts(r: &Recipe) -> usize {
+        r.steps.iter().filter(|s| s.skill == Skill::Attack).count()
+    }
+
     #[test]
     fn the_recipe_hunts_a_sheep_per_wool_wanted_then_shelters() {
         let hunt = (Skill::Attack, "entity:sheep", TaskType::Farming);
-        let r = recipe(&view(&[], &["entity:pig"]));
+        let r = recipe(&view(&STOCKED, &["entity:pig"]));
         assert_eq!(r.goal, "bed");
         assert_eq!(skills(&r), [hunt, hunt, hunt, SHELTER]);
-        let n = |items: &[(&str, u32)]| recipe(&view(items, &[])).steps.len() - 1;
+        let n = |items: &[(&str, u32)]| hunts(&recipe(&view(items, &[])));
         assert_eq!(
             n(&[("white_wool", 2), ("red_wool", 1)]),
             1,
@@ -173,10 +208,58 @@ mod tests {
                         BED_WOOL.saturating_sub(white.max(red))
                     };
                     let r = recipe(&view(&items, &[SHEEP]));
-                    assert_eq!(r.steps.len() as u32, want + 1, "{items:?}");
+                    assert_eq!(hunts(&r) as u32, want, "{items:?}");
                 }
             }
         }
+    }
+
+    #[test]
+    fn the_recipe_gets_the_wood_a_home_with_door_and_bed_still_wants() {
+        let logs = |items: &[(&str, u32)]| {
+            let r = recipe(&view(items, &[]));
+            let chops = r.steps.iter().filter(|s| s.skill == Skill::Chop).count();
+            let crafts = r.steps.iter().filter(|s| s.skill == Skill::Craft).count();
+            assert_eq!(chops, crafts, "each log made into planks");
+            chops
+        };
+        // Nothing held: 32 + 9 = 41 planks, 11 logs of 4.
+        assert_eq!(logs(&[("white_wool", 3)]), 11);
+        let r = recipe(&view(
+            &[("white_wool", 3), ("dirt", 32), ("oak_planks", 5)],
+            &[],
+        ));
+        let chop = (Skill::Chop, "block:oak_log", TaskType::Mining);
+        let plank = (Skill::Craft, "item:oak_planks", TaskType::Crafting);
+        assert_eq!(
+            skills(&r),
+            [chop, plank, SHELTER],
+            "4 planks short: one log"
+        );
+        assert_eq!(logs(&STOCKED), 0);
+        assert_eq!(
+            logs(&[
+                ("cobblestone", 20),
+                ("cobbled_deepslate", 12),
+                ("oak_log", 3)
+            ]),
+            0
+        );
+        assert_eq!(
+            logs(&[
+                ("cobblestone", 20),
+                ("cobbled_deepslate", 12),
+                ("oak_log", 2)
+            ]),
+            1
+        );
+        assert_eq!(
+            logs(&[("dirt", 40), ("oak_planks", 8)]),
+            1,
+            "extra dirt is not planks"
+        );
+        assert_eq!(logs(&[("dirt", 31), ("oak_planks", 10)]), 0);
+        assert_eq!(logs(&[("dirt", 30), ("oak_planks", 10)]), 1);
     }
 
     #[test]
