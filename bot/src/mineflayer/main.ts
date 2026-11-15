@@ -5,6 +5,7 @@
 //   MC_VERSION                  game version (default the pinned 1.21.11)
 //   LINK_PORT                   where the runner connects (default 7878, localhost only)
 
+import { SwimUp } from "../control/swim.js";
 import { BotServer } from "../link/server.js";
 import { listen } from "../link/socket.js";
 import { MineflayerBody } from "./body.js";
@@ -32,6 +33,18 @@ const link = new BotServer({
 });
 bot.on("health", () => {
   link.watch(perception.body(isFood));
+});
+// Float up in water or lava (body reflex, below any decision).
+const swim = new SwimUp();
+const inLiquid = () => {
+  const e = bot.entity as { isInWater?: boolean; isInLava?: boolean };
+  return e.isInWater === true || e.isInLava === true;
+};
+bot.on("physicsTick", () => {
+  const jump = swim.tick(inLiquid());
+  if (jump !== null) {
+    bot.setControlState("jump", jump);
+  }
 });
 bot.on("death", () => link.reset());
 bot.on("end", (reason) => {
