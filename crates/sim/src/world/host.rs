@@ -5,10 +5,8 @@ use host_api::{
     AgentId, Candidate, Host, Intensity, Inventory, Observation, Outcome, Pos, Scenario, Seen,
     SeenKind, ThingId, World,
 };
-use rand::SeedableRng;
-use rand_chacha::ChaCha8Rng;
 
-use super::{Body, MAX_VISIBLE_BLOCKS, SimWorld};
+use super::{Body, MAX_VISIBLE_BLOCKS, SimWorld, Stream, Streams};
 use crate::geom::{cheb, dist, square};
 use crate::map::{Biome, Map, Tile};
 use crate::mob::{Mob, MobKind};
@@ -16,8 +14,9 @@ use crate::mob::{Mob, MobKind};
 impl World for SimWorld {
     fn reset(&mut self, seed: u64, scenario: &Scenario) {
         let _ = scenario;
-        self.rng = ChaCha8Rng::seed_from_u64(seed);
-        self.map = Map::generate(self.rules.map_size, self.rules.tree_chops, &mut self.rng);
+        self.rng = Streams::new(seed);
+        let rng = self.rng.rng(Stream::Map);
+        self.map = Map::generate(self.rules.map_size, self.rules.tree_chops, rng);
         self.tick = 0;
         self.mobs.clear();
         self.damage_since_perceive = 0.0;
@@ -36,7 +35,9 @@ impl World for SimWorld {
                 let p = Pos { x, y: 0, z };
                 if self.map.biome(p) == Biome::Plains
                     && self.map.get(p) == Tile::Grass
-                    && self.chance(self.rules.animal_density / 100.0)
+                    && self
+                        .rng
+                        .chance(Stream::Map, self.rules.animal_density / 100.0)
                 {
                     self.mobs.push(Mob::new(MobKind::Pig, p, 0));
                 }

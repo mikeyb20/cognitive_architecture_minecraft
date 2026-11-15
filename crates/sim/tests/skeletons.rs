@@ -201,7 +201,8 @@ fn the_skeleton_share_sets_the_spawn_mix() {
 }
 
 // Beyond its follow range (16) a skeleton does not come for the agent: in
-// 60 ticks a chaser would have walked in to 15 tiles and stopped there.
+// 60 ticks a chaser would have walked straight in along z = 24 to 15 tiles
+// and stopped there; a wanderer steps off that line or away.
 #[test]
 fn a_skeleton_follows_only_within_16_tiles() {
     let mut w = night(Rules {
@@ -209,8 +210,14 @@ fn a_skeleton_follows_only_within_16_tiles() {
         ..exact()
     });
     skeleton(&mut w, 24 + 17, 24);
-    w.step_world(60);
-    assert_ne!(w.mobs[0].pos, p(39, 24));
+    let mut strayed = false;
+    for _ in 0..60 {
+        let was = w.mobs[0].pos;
+        w.step_world(1);
+        let now = w.mobs[0].pos;
+        strayed |= now.z != 24 || now.x > was.x;
+    }
+    assert!(strayed, "it wandered: {:?}", w.mobs[0].pos);
     let mut near = night(Rules {
         arrow_hit: 0.0,
         ..exact()
@@ -240,8 +247,9 @@ fn a_zero_share_spawns_as_before() {
     assert_eq!(at, PINNED);
 }
 
-// Spawn spots from `main` before skeletons (checked on 424b88d).
-const PINNED: [(i32, i32); 3] = [(22, 34), (58, 80), (87, 35)];
+// Spawn spots from `main` before skeletons (checked on 424b88d), re-pinned
+// when spawns got their own random stream (07 M4).
+const PINNED: [(i32, i32); 3] = [(77, 80), (53, 17), (85, 80)];
 
 // The mob lessons' tests (01 §4.11): a zombie within the threat range, a
 // skeleton that can shoot; both false in a hut.

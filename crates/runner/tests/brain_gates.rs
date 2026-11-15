@@ -213,14 +213,16 @@ fn golden_commanded_run_counts_reflexes_and_new_things() {
     // and lived to the end; with skeletons (15 Nov 2026) it fired two and a
     // zombie killed it at tick 2,475. With sampled Oracle credit (#65) it
     // fires none and starves, so the pin moved to seed 10, which fires one
-    // reflex and lives to the end.
-    let (_, r) = run("commanded", 10, Brain::new(BrainConfig::default(), 10));
+    // reflex and lives to the end. With separate random streams (07 M4)
+    // seed 10 no longer lives with a reflex, so the pin moved to seed 11,
+    // which fires five and lives to the end.
+    let (_, r) = run("commanded", 11, Brain::new(BrainConfig::default(), 11));
     let got = (r.decisions, r.idle, r.thoughts, r.reflexes, r.new_things);
     assert_eq!(got, GOLDEN_COMMANDED, "{r:?}");
 }
 
-const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (364, 55, 126, 1, 84);
-const GOLDEN_COUNTS: (u32, u32, u32) = (1070, 900, 125);
-const GOLDEN_HASH: u64 = 11_894_555_120_345_401_580;
+const GOLDEN_COMMANDED: (u32, u32, u32, u32, usize) = (419, 138, 103, 5, 85);
+const GOLDEN_COUNTS: (u32, u32, u32) = (1219, 1063, 93);
+const GOLDEN_HASH: u64 = 14_239_914_286_351_297_890;
 /// Σ C, Σ D, Σ V, Σ R, Σ w_P (checked to 1e-3, see `digest`).
-const GOLDEN_SUMS: [f64; 5] = [202.9664, 0.0, -104.1376, 100.6361, 717.7401];
+const GOLDEN_SUMS: [f64; 5] = [188.7250, 94.3514, -215.3188, 52.2564, 798.8385];

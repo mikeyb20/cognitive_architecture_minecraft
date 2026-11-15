@@ -8,7 +8,7 @@
 
 use host_api::Pos;
 
-use super::SimWorld;
+use super::{SimWorld, Stream};
 use crate::geom::{between, cheb, dist, neighbours4};
 use crate::mob::Mob;
 use crate::world::Death;
@@ -47,7 +47,7 @@ impl SimWorld {
             return;
         }
         self.mobs[i].next_hit = self.tick + self.rules.arrow_ticks;
-        if self.chance(self.rules.arrow_hit) {
+        if self.rng.chance(Stream::Arrow, self.rules.arrow_hit) {
             self.hurt(self.rules.mob_damage, Death::Arrow);
         }
     }
