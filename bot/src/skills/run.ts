@@ -320,6 +320,8 @@ const lastStuck = new WeakMap<Body, string>();
 
 /** Blocks a home's floor cannot rest on. */
 const WET = ["water", "lava"];
+/** Ground that is never under water: where a bot at sea swims to shelter. */
+const LAND = ["grass_block"];
 const LOOSE = [...WET, ...OPEN];
 
 /**
@@ -351,6 +353,15 @@ function firmFloor(body: Body, o: Pos): boolean {
  * check with the agent inside.
  */
 async function shelter(body: Body, cfg: SkillConfig, signal: AbortSignal): Promise<Done> {
+  // No shelter can be dug or built in water (live run, 15 Nov 2026: two
+  // bots at sea retried Shelter all night, a minute each): swim to the
+  // nearest grass first. Grass never lies under water, unlike dirt or sand.
+  if (WET.includes(String(body.blockName(body.position())))) {
+    const land = body.findBlock(LAND, cfg.searchRadius);
+    if (land === null || !(await body.goto({ x: land.x, y: land.y + 1, z: land.z }, 1, signal))) {
+      return BLOCKED;
+    }
+  }
   const count = BUILDING.reduce((n, b) => n + (body.inventory().get(b) ?? 0), 0);
   const me = body.position();
   const known = body.home();
