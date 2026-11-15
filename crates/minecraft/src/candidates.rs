@@ -266,19 +266,23 @@ fn gathering(cx: &mut Ctx, places: &Places) {
     }
 }
 
+/// The nearest animal of each kind in view, so a hunt for one kind (the
+/// bed lesson's sheep) is offered even when another kind is nearer.
 fn hunting(cx: &mut Ctx) {
-    let game = cx
-        .nearest(|s| GAME.contains(&s.thing.0.as_str()))
-        .map(|s| (s.pos, s.distance));
-    if let Some((p, d)) = game {
-        let (cost, risk) = (cx.cost(d, 0.15), cx.risk_at(p));
-        cx.add(
-            Skill::Attack,
-            Some(Target::Pos(p)),
-            TaskType::Farming,
-            cost,
-            risk,
-        );
+    for kind in GAME {
+        let game = cx
+            .nearest(|s| s.thing.0 == kind)
+            .map(|s| (s.pos, s.distance));
+        if let Some((p, d)) = game {
+            let (cost, risk) = (cx.cost(d, 0.15), cx.risk_at(p));
+            cx.add(
+                Skill::Attack,
+                Some(Target::Pos(p)),
+                TaskType::Farming,
+                cost,
+                risk,
+            );
+        }
     }
 }
 

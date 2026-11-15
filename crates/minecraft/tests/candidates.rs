@@ -302,3 +302,27 @@ fn a_skeleton_is_a_threat_from_its_shooting_range() {
     assert_eq!(threat("entity:skeleton", 16), None, "out of range");
     assert_eq!(threat("entity:zombie", 8), Some(pos(-16, 64, 0)));
 }
+
+#[test]
+fn the_nearest_animal_of_each_kind_is_offered_for_hunting() {
+    // A sheep behind two pigs is still offered: the bed lesson hunts it.
+    let me = at(0, 64, 0);
+    let o = obs(
+        me,
+        &[],
+        vec![
+            seen("entity:pig", PASSIVE, me, at(2, 64, 0)),
+            seen("entity:pig", PASSIVE, me, at(3, 64, 0)),
+            seen("entity:sheep", PASSIVE, me, at(0, 64, 7)),
+            seen("entity:sheep", PASSIVE, me, at(0, 64, 9)),
+            seen("entity:villager", PASSIVE, me, at(1, 64, 1)),
+        ],
+    );
+    let c = candidates(&o, &Places::default(), &McParams::default());
+    let hunts: Vec<_> = c
+        .iter()
+        .filter(|c| c.skill == Skill::Attack)
+        .map(|c| c.target.clone())
+        .collect();
+    assert_eq!(hunts, [pos(2, 64, 0), pos(0, 64, 7)]);
+}
