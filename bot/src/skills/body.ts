@@ -48,6 +48,9 @@ export interface Body {
   /** Walk near `at` and use one `item` on the top of the block there (hoe to till, seeds to sow). */
   use(item: string, at: Pos, signal: AbortSignal): Promise<boolean>;
 
+  /** Place one `item` at `at` facing west (-x), for blocks whose facing matters (a bed's head goes west). */
+  placeWest(item: string, at: Pos, signal: AbortSignal): Promise<boolean>;
+
   /** Fight the mob nearest `at` until it dies, flees out of reach, or the signal aborts. */
   attack(at: Pos, signal: AbortSignal): Promise<boolean>;
   eat(item: string, signal: AbortSignal): Promise<boolean>;
@@ -55,6 +58,7 @@ export interface Body {
   craft(item: string, table: Pos | null, signal: AbortSignal): Promise<boolean>;
   /** Smelt one `input` in the furnace at `furnace`, waiting for the result. */
   smelt(input: string, furnace: Pos, signal: AbortSignal): Promise<boolean>;
+  /** Sleep in the bed at `bed`, going into the home first if it is there. */
   sleep(bed: Pos, signal: AbortSignal): Promise<boolean>;
   /** Stand still for `ms`. */
   wait(ms: number, signal: AbortSignal): Promise<void>;

@@ -95,6 +95,9 @@ export class FakeBody implements Body {
   async place(item: string, at: Pos): Promise<boolean> {
     return this.#do("place", item, at);
   }
+  async placeWest(item: string, at: Pos): Promise<boolean> {
+    return this.#do("placeWest", item, at);
+  }
   async attack(at: Pos): Promise<boolean> {
     return this.#do("attack", at);
   }
