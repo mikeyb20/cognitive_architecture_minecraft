@@ -28,6 +28,8 @@ export interface Body {
   findRipe(name: string, radius: number): Pos | null;
   /** The nearest dirt or grass block with air above within `radius`, if any. */
   findSoil(radius: number): Pos | null;
+  /** Whether the block at `at` is a full solid block (a mob cannot pass it). */
+  solid(at: Pos): boolean;
   /** The name of the block at `at`, if loaded. */
   blockName(at: Pos): string | null;
   /** Mine the block at `at` (walking there) and pick up what drops. */
@@ -40,6 +42,8 @@ export interface Body {
   /** The home the agent built, if any; kept after a death, as the world keeps it. */
   home(): Pos | null;
   setHome(at: Pos | null): void;
+  /** Walk into the home through its door, closing it behind; true if already in the room. */
+  enterHome(signal: AbortSignal): Promise<boolean>;
 
   /** Walk near `at` and use one `item` on the top of the block there (hoe to till, seeds to sow). */
   use(item: string, at: Pos, signal: AbortSignal): Promise<boolean>;

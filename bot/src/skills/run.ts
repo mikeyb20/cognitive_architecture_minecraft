@@ -82,7 +82,8 @@ async function station(body: Body, name: string, signal: AbortSignal): Promise<P
     return near;
   }
   const me = body.position();
-  const spot = { x: me.x + 1, y: me.y, z: me.z };
+  // On the -x side: at home, +x is the way to the door.
+  const spot = { x: me.x - 1, y: me.y, z: me.z };
   return (await body.place(name, spot, signal)) ? spot : null;
 }
 
@@ -184,11 +185,36 @@ function ring(r: number): Array<[number, number]> {
   return [...cells, [r, 0]];
 }
 
+/** The lower block of a home's door. */
+export function homeDoor(o: Pos): Pos {
+  return { x: o.x + 2, y: o.y - 1, z: o.z };
+}
+
+/** Where to stand inside a home to go out: just inside the door. */
+export function homeInside(o: Pos): Pos {
+  return { x: o.x + 1, y: o.y - 1, z: o.z };
+}
+
+/** The dug step just outside a home's door. */
+export function homeOutside(o: Pos): Pos {
+  return { x: o.x + 3, y: o.y - 1, z: o.z };
+}
+
+/** Whether `p` is in a home's 3x3 room. */
+export function inRoom(o: Pos, p: Pos): boolean {
+  return Math.abs(p.x - o.x) <= 1 && Math.abs(p.z - o.z) <= 1 && p.y === o.y - 1;
+}
+
+/** Whether `p` is part of the home at `o`: its floor, walls, door or roof. */
+export function inHome(o: Pos, p: Pos): boolean {
+  return Math.abs(p.x - o.x) <= 2 && Math.abs(p.z - o.z) <= 2 && p.y >= o.y - 2 && p.y <= o.y + 1;
+}
+
 /**
  * The home (Michael, 15 Nov 2026): a 3x3 room around `o` sunk one block
  * into the ground, walls two high, a roof, and a door on the +x side. In
- * build order: dig the floor and the doorway, stand inside, wall, roof
- * (each block placed against one already there), then the door.
+ * build order: dig the floor, the doorway and a step outside it, stand inside, wall, roof
+ * (each block placed against one already there), then the door, and in.
  */
 export function homePlan(o: Pos): Step[] {
   const at = (dx: number, dy: number, dz: number) => ({ x: o.x + dx, y: o.y + dy, z: o.z + dz });
@@ -198,15 +224,19 @@ export function homePlan(o: Pos): Step[] {
     ...inner.map(([dx, dz]): Step => ({ kind: "dig", at: at(dx, -1, dz) })),
     { kind: "dig", at: at(2, -1, 0) },
     { kind: "dig", at: at(2, 0, 0) },
+    // A step outside the door: there is no room to jump up out of the doorway under the roof.
+    { kind: "dig", at: homeOutside(o) },
     { kind: "stand", at: at(0, -1, 0) },
     ...[-1, 0].flatMap((dy) => walls.map(([dx, dz]): Step => ({ kind: "wall", at: at(dx, dy, dz) }))),
     ...[...ring(2), ...inner].map(([dx, dz]): Step => ({ kind: "wall", at: at(dx, 1, dz) })),
-    { kind: "door", at: at(2, -1, 0) },
+    { kind: "door", at: homeDoor(o) },
+    // In, with the door shut.
+    { kind: "stand", at: at(0, -1, 0) },
   ];
 }
 
 /** Do one step of a home; true when the block is as the plan wants it. */
-async function homeStep(body: Body, s: Step, signal: AbortSignal): Promise<boolean> {
+async function homeStep(body: Body, o: Pos, s: Step, signal: AbortSignal): Promise<boolean> {
   const name = body.blockName(s.at) ?? "air";
   const open = OPEN.includes(name);
   const held = (n: string) => (body.inventory().get(n) ?? 0) > 0;
@@ -214,10 +244,18 @@ async function homeStep(body: Body, s: Step, signal: AbortSignal): Promise<boole
     case "dig":
       return open || KEEP.some((k) => name.endsWith(k)) || body.dig(s.at, signal);
     case "stand":
-      return body.goto(s.at, 0, signal);
+      // Through the door once there is one; before that, straight in.
+      return body.blockName(homeDoor(o)) === DOOR ? body.enterHome(signal) : body.goto(s.at, 0, signal);
     case "wall": {
+      if (body.solid(s.at)) {
+        return true;
+      }
+      // A flower or bush is not solid and cannot be built into: clear it first.
+      if (!open && !(await body.dig(s.at, signal))) {
+        return false;
+      }
       const block = BUILDING.find(held);
-      return !open || (block !== undefined && body.place(block, s.at, signal));
+      return block !== undefined && body.place(block, s.at, signal);
     }
     case "door":
       if (name === DOOR) {
@@ -228,6 +266,26 @@ async function homeStep(body: Body, s: Step, signal: AbortSignal): Promise<boole
       }
       return body.place(DOOR, s.at, signal);
   }
+}
+
+/** Blocks a home's floor cannot rest on. */
+const LOOSE = ["water", "lava", ...OPEN];
+
+/**
+ * Whether a home started at `o` would have a floor: the 3x3 two below the
+ * feet is not air, liquid or leaves (a live probe once started one in a
+ * tree's crown).
+ */
+function firmFloor(body: Body, o: Pos): boolean {
+  for (let x = o.x - 1; x <= o.x + 1; x++) {
+    for (let z = o.z - 1; z <= o.z + 1; z++) {
+      const name = body.blockName({ x, y: o.y - 2, z });
+      if (name !== null && (LOOSE.includes(name) || name.endsWith("_leaves"))) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 /**
@@ -241,15 +299,20 @@ async function shelter(body: Body, cfg: SkillConfig, signal: AbortSignal): Promi
   const me = body.position();
   const known = body.home();
   const near = known !== null && Math.max(Math.abs(known.x - me.x), Math.abs(known.z - me.z)) <= cfg.searchRadius;
-  if (!near && count < HOME_BLOCKS) {
+  if (!near && (count < HOME_BLOCKS || !firmFloor(body, me))) {
     return hole(body, signal);
   }
   const o = near ? known : me;
   body.setHome(o);
   const steps = homePlan(o);
   let done = 0;
-  while (done < steps.length && (await homeStep(body, steps[done] as Step, signal))) {
+  while (done < steps.length && (await homeStep(body, o, steps[done] as Step, signal))) {
     done += 1;
+  }
+  if (!near && done === 0) {
+    // Not even the floor could be dug here (stone, no pickaxe): no home, the quick hole.
+    body.setHome(null);
+    return hole(body, signal);
   }
   return { success: done === steps.length && body.sheltered(), progress: done / steps.length, blocked: false };
 }

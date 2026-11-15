@@ -61,6 +61,12 @@ export class FakeBody implements Body {
     this.calls.push(["findSoil", radius]);
     return this.found.get("soil") ?? null;
   }
+  /** Names solid() treats as not solid; anything else named is solid, anything unnamed is not. */
+  soft = new Set(["air", "cave_air", "short_grass", "tall_grass", "poppy", "bush", "wheat"]);
+  solid(at: Pos): boolean {
+    const name = this.blockName(at);
+    return name !== null && !this.soft.has(name);
+  }
   blockName(at: Pos): string | null {
     return this.names.get(`${at.x},${at.y},${at.z}`) ?? null;
   }
@@ -76,6 +82,9 @@ export class FakeBody implements Body {
   setHome(at: Pos | null): void {
     this.calls.push(["setHome", at]);
     this.remembered = at;
+  }
+  async enterHome(): Promise<boolean> {
+    return this.#do("enterHome");
   }
   async use(item: string, at: Pos): Promise<boolean> {
     return this.#do("use", item, at);
