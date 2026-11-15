@@ -93,9 +93,8 @@ impl Mind {
             food: obs.food,
             result: None,
         });
-        while self.recent.len() > keep {
-            self.recent.pop_front();
-        }
+        let excess = self.recent.len().saturating_sub(keep);
+        self.recent.drain(..excess);
     }
 
     /// Keep a thought's answer as a one-line note of at most `chars`.
