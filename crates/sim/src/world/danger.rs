@@ -7,16 +7,12 @@
 //! in view.
 
 use super::SimWorld;
-use crate::geom::cheb;
 
 impl SimWorld {
-    /// Whether a hostile is within `Rules::threat_range` of the unsheltered agent.
+    /// Whether a hostile threatens the unsheltered agent: within
+    /// `Rules::threat_range`, or a skeleton that can shoot it (`ranged`).
     pub fn in_danger(&self) -> bool {
-        !self.sheltered()
-            && self
-                .mobs
-                .iter()
-                .any(|m| m.kind.hostile() && cheb(m.pos, self.body.pos) <= self.rules.threat_range)
+        !self.sheltered() && self.mobs.iter().any(|m| self.threatens(m))
     }
 
     /// After each tick: interrupt an action begun out of danger once danger

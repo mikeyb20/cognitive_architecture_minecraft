@@ -39,6 +39,8 @@ exclude_re = [
     # hostile as the agent's own tile (on integer tiles |v − e|² − |v|² =
     # 1 − 2·v·e is odd, so never 0), so `>` and `>=` pick the same tiles.
     "replace > with >= in SimWorld::back_off",
+    # The same parity argument for a skeleton backing off one tile.
+    "replace > with >= in SimWorld::skeleton_steps",
     # Sim random draw `rng < p` vs `<= p`: differs only when a uniform f32
     # draw equals p exactly (probability ~2^-24 per draw).
     "replace < with <= in SimWorld::chance",

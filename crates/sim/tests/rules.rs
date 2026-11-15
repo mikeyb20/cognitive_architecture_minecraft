@@ -20,6 +20,11 @@ fn default_rules_are_pinned() {
     assert_eq!(r.threat_range, 8);
     assert_eq!((r.mob_move_ticks, r.chase_radius), (6, 40));
     assert_eq!((r.mob_damage, r.mob_hit_ticks), (0.1, 20));
+    assert_eq!((r.skeleton_share, r.shoot_range, r.keep_away), (0.5, 15, 4));
+    assert_eq!(
+        (r.arrow_ticks, r.arrow_hit, r.skeleton_follow),
+        (40, 0.5, 16)
+    );
     assert_eq!((r.meat_food, r.bread_food), (0.3, 0.5));
     assert_eq!((r.shelter_ticks_blocks, r.shelter_ticks_dig), (20, 6));
     assert_eq!(

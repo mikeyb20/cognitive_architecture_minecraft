@@ -1,5 +1,6 @@
 //! Hostile spawning and mob movement (spec §21; sim audit 14 Nov 2026:
-//! spawns 24–40 tiles out, chasers follow a walkable path).
+//! spawns 24–40 tiles out, chasers follow a walkable path; skeletons hold
+//! at range, see `ranged`).
 
 use host_api::Pos;
 use rand::Rng;
@@ -14,10 +15,16 @@ impl SimWorld {
         self.map.get(p).mob_walkable()
     }
 
-    /// Whether mob `i` is a hostile within `chase_radius` of the agent.
+    /// Whether mob `i` is a hostile within its follow range of the agent
+    /// (`chase_radius` for zombies, `skeleton_follow` for skeletons).
     pub(super) fn chases(&self, i: usize) -> bool {
         let m = &self.mobs[i];
-        m.kind.hostile() && cheb(m.pos, self.body.pos) <= self.rules.chase_radius
+        let r = if m.kind.ranged() {
+            self.rules.skeleton_follow
+        } else {
+            self.rules.chase_radius
+        };
+        m.kind.hostile() && cheb(m.pos, self.body.pos) <= r
     }
 
     pub(super) fn hostile_count(&self) -> usize {
@@ -34,19 +41,29 @@ impl SimWorld {
             }
             let p = offset(self.body.pos, dx, dz);
             if self.walkable_free(p) {
-                self.mobs.push(Mob::new(MobKind::Zombie, p, self.tick));
+                let share = self.rules.skeleton_share;
+                let kind = if share > 0.0 && self.chance(share) {
+                    MobKind::Skeleton
+                } else {
+                    MobKind::Zombie
+                };
+                self.mobs.push(Mob::new(kind, p, self.tick));
                 return;
             }
         }
     }
 
-    /// A chaser (`reach` given: a hostile within `chase_radius`) follows a
-    /// shortest walkable path to the agent (#62), or the greedy steps when
-    /// no path exists; every other mob wanders.
+    /// A chaser (`reach` given: a hostile within its follow range) follows
+    /// a shortest walkable path to the agent (#62), or the greedy steps when
+    /// no path exists; a skeleton holds or backs off instead when it can
+    /// (`skeleton_steps`); every other mob wanders.
     pub(super) fn move_mob(&mut self, i: usize, reach: Option<&Reach>) {
         let m = &self.mobs[i];
         let me = self.body.pos;
-        let steps: Vec<(i32, i32)> = if let Some(reach) = reach {
+        let held = reach.and_then(|_| self.skeleton_steps(i));
+        let steps: Vec<(i32, i32)> = if let Some(s) = held {
+            s
+        } else if let Some(reach) = reach {
             if cheb(m.pos, me) <= 1 {
                 return;
             }
