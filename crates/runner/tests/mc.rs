@@ -392,6 +392,17 @@ fn the_teacher_calls_once_at_dusk_and_the_brain_takes_the_goal() {
         .collect();
     assert_eq!(said, ["get shelter"]);
     assert_eq!(steps[0].obs.chat[0].from, "steve");
+    let last = steps.last().unwrap();
+    assert_eq!(
+        last.goal.as_deref(),
+        Some("shelter"),
+        "the log shows the goal"
+    );
+    assert_eq!(
+        last.recipe_step.as_deref(),
+        Some("Craft:item:oak_planks"),
+        "and the shown step"
+    );
     assert_eq!(
         brain.goal().map(|g| (g.item.as_str(), g.commanded)),
         Some(("shelter", true))

@@ -117,6 +117,8 @@ pub fn run_brain(
             reflex,
             outcome,
             llm: None,
+            goal: brain.goal().map(|g| g.item.clone()),
+            recipe_step: brain.last_log().recipe_step.clone(),
         });
     }
     n
