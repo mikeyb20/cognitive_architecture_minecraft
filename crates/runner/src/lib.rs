@@ -12,6 +12,7 @@ pub mod experiment;
 pub mod mc;
 pub mod metrics;
 pub mod mob_lessons;
+pub mod paired;
 pub(crate) mod par;
 pub mod recovery;
 pub mod sweep;

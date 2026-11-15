@@ -277,6 +277,17 @@ pub fn setup(name: &str, seed: u64) -> Setup {
         .unwrap_or_else(|| panic!("unknown scenario {name}; known: {:?}", scenario::NAMES))
 }
 
+/// A scenario with the shared survival floor on or off (plan §5.0, #60):
+/// with it on, the player asks for a shelter at each dusk. Both `runner
+/// brain` and the experiment runner build their runs with this, so the two
+/// give the same result for the same seed (07 M3: they once differed only
+/// because `runner brain` left the floor off).
+pub fn floored(name: &str, seed: u64, floor: bool) -> Setup {
+    let mut s = setup(name, seed);
+    s.player.dusk_call = floor;
+    s
+}
+
 /// Run header (spec §25): versions, scenario, seed, arm. The git commit and
 /// config hash are added by the caller when it knows them.
 pub fn header(scenario: &str, seed: u64) -> String {
