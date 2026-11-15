@@ -50,6 +50,23 @@ export class FakeBody implements Body {
     this.calls.push(["findBlock", [...names], radius]);
     return this.blocks.get(names[0] as string) ?? null;
   }
+  /** Answers for findRipe/findSoil by name ("soil" for findSoil); blockName answers by "x,y,z". */
+  found = new Map<string, Pos>();
+  names = new Map<string, string>();
+  findRipe(name: string, radius: number): Pos | null {
+    this.calls.push(["findRipe", name, radius]);
+    return this.found.get(name) ?? null;
+  }
+  findSoil(radius: number): Pos | null {
+    this.calls.push(["findSoil", radius]);
+    return this.found.get("soil") ?? null;
+  }
+  blockName(at: Pos): string | null {
+    return this.names.get(`${at.x},${at.y},${at.z}`) ?? null;
+  }
+  async use(item: string, at: Pos): Promise<boolean> {
+    return this.#do("use", item, at);
+  }
   async dig(at: Pos): Promise<boolean> {
     return this.#do("dig", at);
   }

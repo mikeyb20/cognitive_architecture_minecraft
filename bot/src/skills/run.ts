@@ -120,6 +120,55 @@ async function shelter(body: Body, signal: AbortSignal): Promise<Done> {
   return done(dug && (await body.place(block, below(1), signal)));
 }
 
+const GRASS = ["short_grass", "tall_grass"];
+const SEEDS = "wheat_seeds";
+const HOE = "wooden_hoe";
+/** Minecraft 1.21's wooden hoe recipe; not in the shared tech tree, so the sim is unchanged. */
+const HOE_RECIPE: RecipeHint = {
+  station: "crafting_table",
+  inputs: [
+    ["oak_planks", 2],
+    ["stick", 2],
+  ],
+};
+
+/**
+ * Farm (host-api `Skill::Farm`, "harvest or plant wheat"). Wild wheat does
+ * not grow in Minecraft, so the agent grows its own: harvest ripe wheat in
+ * range; else break grass for seeds; else make a wooden hoe; else till one
+ * soil block and sow it. Harvest and sowing succeed; the steps before them
+ * only make progress.
+ */
+async function farm(body: Body, cfg: SkillConfig, signal: AbortSignal): Promise<Done> {
+  const ripe = body.findRipe("wheat", cfg.searchRadius);
+  if (ripe !== null) {
+    return done(await body.dig(ripe, signal));
+  }
+  const count = (n: string) => body.inventory().get(n) ?? 0;
+  if (count(SEEDS) === 0) {
+    const grass = body.findBlock(GRASS, cfg.searchRadius);
+    if (grass === null) {
+      return BLOCKED;
+    }
+    const broke = await body.dig(grass, signal);
+    return { success: false, progress: broke && count(SEEDS) > 0 ? 0.5 : 0.25, blocked: false };
+  }
+  if (count(HOE) === 0) {
+    if (!HOE_RECIPE.inputs.every(([i, n]) => count(i) >= n)) {
+      return BLOCKED;
+    }
+    const made = await craft(body, HOE, HOE_RECIPE, signal);
+    return { ...made, success: false, progress: made.success ? 0.5 : 0 };
+  }
+  const soil = body.findSoil(cfg.searchRadius);
+  if (soil === null) {
+    return BLOCKED;
+  }
+  const crop = { x: soil.x, y: soil.y + 1, z: soil.z };
+  const sown = (await body.use(HOE, soil, signal)) && (await body.use(SEEDS, soil, signal));
+  return done(sown && body.blockName(crop) === "wheat");
+}
+
 async function act(body: Body, req: Request, cfg: SkillConfig, signal: AbortSignal): Promise<Done> {
   const t = req.action.target;
   const at = pos(t);
@@ -134,9 +183,10 @@ async function act(body: Body, req: Request, cfg: SkillConfig, signal: AbortSign
       }
       return at === null ? BLOCKED : done(await body.goto(at, 1, signal));
     }
+    case "farm":
+      return farm(body, cfg, signal);
     case "mine":
-    case "chop":
-    case "farm": {
+    case "chop": {
       const key = thing(t);
       if (key !== null) {
         return search(body, key, cfg, signal);
