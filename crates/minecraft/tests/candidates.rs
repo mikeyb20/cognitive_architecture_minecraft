@@ -267,3 +267,22 @@ mod props {
         }
     }
 }
+
+#[test]
+fn a_skeleton_is_a_threat_from_its_shooting_range() {
+    // A zombie 12 blocks out is not a threat (range 8); a skeleton (or a
+    // stray) there is (it shoots within 15), and the flee runs from it.
+    let me = at(0, 64, 0);
+    let threat = |name: &str, x: i32| {
+        let o = obs(me, &[], vec![seen(name, HOSTILE, me, at(x, 64, 0))]);
+        candidates(&o, &Places::default(), &McParams::default())
+            .first()
+            .filter(|c| c.skill == Skill::Flee)
+            .map(|c| c.target.clone())
+    };
+    assert_eq!(threat("entity:zombie", 12), None);
+    assert_eq!(threat("entity:skeleton", 12), Some(pos(-16, 64, 0)));
+    assert_eq!(threat("entity:stray", 15), Some(pos(-16, 64, 0)));
+    assert_eq!(threat("entity:skeleton", 16), None, "out of range");
+    assert_eq!(threat("entity:zombie", 8), Some(pos(-16, 64, 0)));
+}

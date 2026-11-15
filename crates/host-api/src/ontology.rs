@@ -139,6 +139,11 @@ pub const HIDE_SKELETON_GOAL: &str = "hide_from_skeleton";
 /// shelter that passes the host's shelter test.
 pub const SHELTER_GOAL: &str = "shelter";
 
+/// Hostiles that shoot from range: the skeleton and its 1.21 variants
+/// (stray, bogged). Both worlds count one that can shoot as a threat from
+/// further out than a melee mob (sim `world::ranged`).
+pub const RANGED_HOSTILES: [&str; 3] = ["entity:skeleton", "entity:stray", "entity:bogged"];
+
 /// The novelty unit for the 8×8 region containing `pos` (spec §5, §21).
 pub fn region_of(pos: crate::Pos) -> crate::ThingId {
     crate::ThingId(format!(

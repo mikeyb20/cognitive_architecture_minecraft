@@ -6,6 +6,7 @@
 //! last, so they are the ones cut.
 
 use host_api::craft::{pick_tier, same_block, worth_crafting};
+use host_api::ontology::RANGED_HOSTILES;
 use host_api::{
     Candidate, MAX_CANDIDATES, Observation, Pos, Seen, SeenKind, Skill, Target, TaskType, ThingId,
 };
@@ -19,6 +20,10 @@ use crate::dist;
 pub struct McParams {
     /// A hostile this close (blocks) is a threat: offer flee and attack.
     pub threat_range: f32,
+    /// A skeleton (`ontology::RANGED_HOSTILES`) this close is a threat too:
+    /// it shoots "within 15 blocks" (minecraft.fandom.com/wiki/Skeleton).
+    /// Line of sight is not checked here, so one behind a wall counts.
+    pub shoot_range: f32,
     /// How far one flee runs.
     pub flee_distance: i32,
     /// How far one explore step goes; also scales cost.
@@ -34,6 +39,7 @@ impl Default for McParams {
     fn default() -> Self {
         Self {
             threat_range: 8.0,
+            shoot_range: 15.0,
             flee_distance: 16,
             explore_distance: 24,
             shelter_blocks: 8,
@@ -145,11 +151,18 @@ fn is_hostile(s: &Seen) -> bool {
     s.kind == (SeenKind::Entity { hostile: true })
 }
 
+/// A hostile in melee threat range, or a skeleton within its shooting range.
+fn is_threat(s: &Seen, p: &McParams) -> bool {
+    let range = if RANGED_HOSTILES.contains(&s.thing.0.as_str()) {
+        p.shoot_range
+    } else {
+        p.threat_range
+    };
+    is_hostile(s) && s.distance <= range
+}
+
 fn threats(cx: &mut Ctx) {
-    let Some(h) = cx
-        .nearest(|s| is_hostile(s) && s.distance <= cx.p.threat_range)
-        .cloned()
-    else {
+    let Some(h) = cx.nearest(|s| is_threat(s, cx.p)).cloned() else {
         return;
     };
     let me = cx.obs.position;
