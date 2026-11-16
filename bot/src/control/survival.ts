@@ -38,3 +38,28 @@ export function interruptIfEmergency(lock: ActionLock, s: BodyState, t: Threshol
   lock.release("survival");
   return true;
 }
+
+/**
+ * Emergencies cut short only a skill begun outside one. The reflex's own
+ * flee (or eat) starts in the emergency it answers; aborting it the next
+ * tick left the bot fleeing for 0 ticks again and again while a zombie
+ * killed it (live runs, 15 Nov 2026). With no body seen yet, a skill
+ * counts as begun calm.
+ */
+export class EmergencyWatch {
+  #calm = true;
+
+  /** Call as a skill starts. */
+  begin(s: BodyState | null, t: Thresholds): void {
+    this.#calm = s === null || !emergency(s, t);
+  }
+
+  /** `interruptIfEmergency`, for a skill begun calm; once per skill. */
+  check(lock: ActionLock, s: BodyState, t: Thresholds): boolean {
+    if (!this.#calm || !interruptIfEmergency(lock, s, t)) {
+      return false;
+    }
+    this.#calm = false;
+    return true;
+  }
+}

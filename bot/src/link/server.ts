@@ -4,7 +4,7 @@
 // short.
 
 import { DangerWatch } from "../control/danger.js";
-import { type BodyState, interruptIfEmergency } from "../control/survival.js";
+import { type BodyState, EmergencyWatch } from "../control/survival.js";
 import { ActionLock, Priority } from "../control/lock.js";
 import type { BotConfig, LinkReply, LinkRequest } from "../host.js";
 import { type Snapshot, toObservation } from "../perceive/observation.js";
@@ -27,6 +27,7 @@ export class BotServer {
   #config: BotConfig | null = null;
   #held = new Set<string>();
   #danger = new DangerWatch();
+  #emergency = new EmergencyWatch();
   /** The body as `watch` last saw it. */
   #last: BodyState | null = null;
   readonly lock = new ActionLock();
@@ -53,6 +54,7 @@ export class BotServer {
       case "execute": {
         const go = (signal: AbortSignal) => run(this.deps.body, req, this.#held, signal, cfg.skills);
         this.#danger.begin(this.#last, cfg.dangerRange);
+        this.#emergency.begin(this.#last, cfg.thresholds);
         const outcome = await this.lock.with(TASK, Priority.Task, go);
         return outcome === null ? { reply: "failed", message: "the body is busy" } : { reply: "done", outcome };
       }
@@ -78,8 +80,8 @@ export class BotServer {
 
   /**
    * Call on every health or food change and every few ticks: stops the
-   * running skill in an emergency, or when danger arrives during a skill
-   * begun calm.
+   * running skill when an emergency or danger arrives during a skill
+   * begun without it (the reflex's own flee runs on).
    */
   watch(s: BodyState): boolean {
     this.#last = s;
@@ -87,7 +89,7 @@ export class BotServer {
     if (cfg === null) {
       return false;
     }
-    return interruptIfEmergency(this.lock, s, cfg.thresholds) || this.#danger.check(this.lock, s, cfg.dangerRange);
+    return this.#emergency.check(this.lock, s, cfg.thresholds) || this.#danger.check(this.lock, s, cfg.dangerRange);
   }
 
   /** Death or reconnect: abort the running skill and start clean. */

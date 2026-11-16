@@ -148,6 +148,30 @@ test("watch interrupts a running skill only in an emergency", async () => {
   assert.equal(signal.aborted, true);
 });
 
+test("watch lets a skill begun in an emergency run on", async () => {
+  // The reflex's flee starts at critical health with a mob near; cutting it
+  // short left the bot fleeing for 0 ticks until it died (15 Nov 2026).
+  const { server, body } = setup();
+  const calm: BodyState = { health: 1, food: 1, sheltered: false, hostileNear: false, nearestHostile: null, hasFood: false };
+  const dying: BodyState = { ...calm, health: 0.1, hostileNear: true, nearestHostile: 9 };
+  await server.handle({ op: "hello", config: { ...config, dangerRange: 0 } });
+  server.watch(dying);
+  let signal: AbortSignal | null = null;
+  body.effects.set("dig", () => {
+    signal = server.lock.signal();
+    assert.equal(server.watch(dying), false, "begun in the emergency");
+  });
+  await server.handle(execute);
+  assert.equal((signal as AbortSignal | null)?.aborted, false);
+  server.watch(calm);
+  body.effects.set("dig", () => {
+    signal = server.lock.signal();
+    assert.equal(server.watch(dying), true, "emergency arrived mid-skill");
+  });
+  await server.handle(execute);
+  assert.equal((signal as AbortSignal | null)?.aborted, true);
+});
+
 test("watch stops a skill begun calm when danger arrives", async () => {
   const { server, body } = setup();
   const calm: BodyState = { health: 1, food: 1, sheltered: false, hostileNear: false, nearestHostile: null, hasFood: false };
