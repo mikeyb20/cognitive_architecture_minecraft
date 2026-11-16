@@ -120,9 +120,14 @@ fn connect_says_hello_then_looks() {
     let config: BotConfig = serde_json::from_value(hello["config"].clone()).unwrap();
     let want = BotConfig {
         danger_range: McParams::default().threat_range,
+        fight_health: sim::Rules::default().fight_health,
         ..BotConfig::default()
     };
-    assert_eq!(config, want, "the bot gets the candidates' threat range");
+    assert_eq!(
+        config, want,
+        "the bot gets the candidates' threat range and the sim's fight gate"
+    );
+    assert_eq!(config.fight_health, 0.5);
     assert_eq!(got.recv().unwrap(), json!({"op": "perceive"}));
     assert_eq!(h.perceive(), obs(&[]));
     assert!(h.error.is_none());

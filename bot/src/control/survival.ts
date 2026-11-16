@@ -6,6 +6,10 @@
 import type { Thresholds } from "../host.js";
 import type { DangerState } from "./danger.js";
 import { type ActionLock, Priority } from "./lock.js";
+import { Onset } from "./onset.js";
+
+/** Who takes the lock for an instant to stop the running skill. */
+const SURVIVAL = "survival";
 
 export type { Thresholds };
 
@@ -34,8 +38,8 @@ export function interruptIfEmergency(lock: ActionLock, s: BodyState, t: Threshol
   if (!emergency(s, t) || lock.holder() === null) {
     return false;
   }
-  lock.acquire("survival", Priority.Critical);
-  lock.release("survival");
+  lock.acquire(SURVIVAL, Priority.Critical);
+  lock.release(SURVIVAL);
   return true;
 }
 
@@ -47,19 +51,15 @@ export function interruptIfEmergency(lock: ActionLock, s: BodyState, t: Threshol
  * counts as begun calm.
  */
 export class EmergencyWatch {
-  #calm = true;
+  #onset = new Onset(true);
 
   /** Call as a skill starts. */
   begin(s: BodyState | null, t: Thresholds): void {
-    this.#calm = s === null || !emergency(s, t);
+    this.#onset.begin(s !== null && emergency(s, t));
   }
 
   /** `interruptIfEmergency`, for a skill begun calm; once per skill. */
   check(lock: ActionLock, s: BodyState, t: Thresholds): boolean {
-    if (!this.#calm || !interruptIfEmergency(lock, s, t)) {
-      return false;
-    }
-    this.#calm = false;
-    return true;
+    return this.#onset.fire(lock, emergency(s, t), SURVIVAL);
   }
 }
