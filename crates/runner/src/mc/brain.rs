@@ -1,6 +1,6 @@
 //! Arm C in Minecraft (spec §22, §26): the full brain drives the bot. Same
-//! order as the sim driver: perceive → candidates → teacher's dusk call →
-//! emergency reflex (#42) or the brain's decision → execute on the bot,
+//! order as the sim driver: perceive → candidates → teacher's dusk call
+//! (and bed and mob calls) → emergency reflex (#42) or the brain's decision → execute on the bot,
 //! outcome back to the brain.
 
 use cognitive_core::agent::{Brain, Decision};
@@ -8,6 +8,7 @@ use host_api::Host;
 use host_api::reflex::{ReflexThresholds, emergency_reflex};
 use sim::player::ScriptedPlayer;
 
+use super::mob::mob_test;
 use super::{McHost, McStep};
 use crate::FULL;
 use crate::bed_lesson::BedCall;
@@ -25,6 +26,9 @@ pub struct BrainCounts {
     pub dusk_calls: u32,
     /// Afternoon calls for a bed ("get bed", `bed_lesson`).
     pub bed_calls: u32,
+    /// Mob lessons the player gave ("get fight_zombie" and the like,
+    /// `mob_lessons`).
+    pub mob_calls: u32,
 }
 
 impl BrainCounts {
@@ -49,6 +53,12 @@ pub struct BrainRun {
     /// before they fade to the test alone (plan §5.0 teachability); `None`
     /// shows them for the whole run.
     pub teach_days: Option<u64>,
+    /// The mob lessons (`mob_lessons`; Michael, 15 Nov 2026: "zombie:
+    /// fight; skeleton: hide", run when weak): when a mob threatens, the
+    /// player says what to do and the teacher shows and explains it, as
+    /// the sim's `mob_lessons` experiment flag. Tests come from the bot's
+    /// view (`mob_test`).
+    pub mob_lessons: bool,
 }
 
 /// Run `brain` on the bot (spec §22). The sim's code tools stand in for
@@ -71,6 +81,7 @@ pub fn run_brain(
     };
     let mut player = ScriptedPlayer::idle();
     player.dusk_call = run.teacher;
+    player.mob_calls = run.mob_lessons;
     let mut bed_call = BedCall::default();
     let mut n = BrainCounts::default();
     for _ in 0..run.decisions {
@@ -85,6 +96,8 @@ pub fn run_brain(
         if run.teacher {
             n.bed_calls += u32::from(bed_call.call(&mut obs, day_ticks));
         }
+        tools.mob = mob_test(&obs, host.params());
+        n.mob_calls += u32::from(player.call_on_threat(&mut obs, tools.mob));
         let (chosen, it, reflex) = match emergency_reflex(&obs, &cands, run.thresholds) {
             Some((_, c)) => {
                 n.reflexes += 1;
