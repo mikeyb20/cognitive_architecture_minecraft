@@ -13,6 +13,7 @@ const config: BotConfig = {
   limits: { maxVisibleBlocks: 32, maxPerKind: 1 },
   thresholds: { criticalHealth: 0.2, starvingFood: 0.05 },
   dangerRange: 8,
+  fightHealth: 0.5,
 };
 
 const snapshot: Snapshot = {
@@ -148,6 +149,30 @@ test("watch interrupts a running skill only in an emergency", async () => {
   assert.equal(signal.aborted, true);
 });
 
+test("watch lets a skill begun in an emergency run on", async () => {
+  // The reflex's flee starts at critical health with a mob near; cutting it
+  // short left the bot fleeing for 0 ticks until it died (15 Nov 2026).
+  const { server, body } = setup();
+  const calm: BodyState = { health: 1, food: 1, sheltered: false, hostileNear: false, nearestHostile: null, hasFood: false };
+  const dying: BodyState = { ...calm, health: 0.1, hostileNear: true, nearestHostile: 9 };
+  await server.handle({ op: "hello", config: { ...config, dangerRange: 0 } });
+  server.watch(dying);
+  let signal: AbortSignal | null = null;
+  body.effects.set("dig", () => {
+    signal = server.lock.signal();
+    assert.equal(server.watch(dying), false, "begun in the emergency");
+  });
+  await server.handle(execute);
+  assert.equal((signal as AbortSignal | null)?.aborted, false);
+  server.watch(calm);
+  body.effects.set("dig", () => {
+    signal = server.lock.signal();
+    assert.equal(server.watch(dying), true, "emergency arrived mid-skill");
+  });
+  await server.handle(execute);
+  assert.equal((signal as AbortSignal | null)?.aborted, true);
+});
+
 test("watch stops a skill begun calm when danger arrives", async () => {
   const { server, body } = setup();
   const calm: BodyState = { health: 1, food: 1, sheltered: false, hostileNear: false, nearestHostile: null, hasFood: false };
@@ -174,6 +199,46 @@ test("watch stops a skill begun calm when danger arrives", async () => {
     assert.equal(server.watch(near), false);
   });
   await server.handle(execute);
+});
+
+test("watch stops an attack begun strong once health falls below the gate", async () => {
+  const { server, body } = setup();
+  const strong: BodyState = { health: 1, food: 1, sheltered: false, hostileNear: true, nearestHostile: 9, hasFood: false };
+  const hurt: BodyState = { ...strong, health: 0.45 };
+  const attack: LinkRequest = { ...execute, action: { ...chop, skill: "attack", task_type: "combat" } };
+  await server.handle({ op: "hello", config });
+  let signal: AbortSignal | null = null;
+  body.effects.set("attack", () => {
+    assert.equal(server.watch(hurt), false, "no body seen before it began");
+  });
+  await server.handle(attack);
+  const fight = (expect: boolean, why: string) =>
+    body.effects.set("attack", () => {
+      signal = server.lock.signal();
+      assert.equal(server.watch(strong), false);
+      assert.equal(server.watch({ ...strong, health: 0.5 }), false, "at the gate fights on");
+      assert.equal(server.watch(hurt), expect, why);
+      assert.equal(server.watch(hurt), false, "once per skill");
+    });
+  server.watch(strong);
+  fight(true, "fell below the gate mid-fight");
+  await server.handle(attack);
+  assert.equal((signal as AbortSignal | null)?.aborted, true);
+  // Begun already weak: the choice was made weak, so it runs on.
+  server.watch(hurt);
+  fight(false, "begun below the gate");
+  await server.handle(attack);
+  // Not an attack: the gate is only for fights.
+  server.watch(strong);
+  body.effects.set("dig", () => {
+    assert.equal(server.watch(hurt), false, "a chop runs on");
+  });
+  await server.handle(execute);
+  // Off when the runner sends no gate.
+  await server.handle({ op: "hello", config: { ...config, fightHealth: 0 } });
+  server.watch(strong);
+  fight(false, "gate off");
+  await server.handle(attack);
 });
 
 test("reset aborts whatever runs", () => {

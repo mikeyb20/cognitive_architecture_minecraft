@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ActionLock, Priority } from "./lock.js";
-import { type BodyState, emergency, interruptIfEmergency } from "./survival.js";
+import { type BodyState, EmergencyWatch, emergency, interruptIfEmergency } from "./survival.js";
 
 const t = { criticalHealth: 0.2, starvingFood: 0.05 };
 const calm: BodyState = { health: 1, food: 1, sheltered: false, hostileNear: false, nearestHostile: null, hasFood: true };
@@ -32,4 +32,27 @@ test("an emergency aborts the running skill and frees the body", () => {
   assert.ok(s.aborted);
   assert.match(String(s.reason), /survival/);
   assert.equal(lock.holder(), null);
+});
+
+test("only a skill begun outside the emergency is cut short, once", () => {
+  const dying = { ...calm, health: 0.1, hostileNear: true };
+  const lock = new ActionLock();
+  const w = new EmergencyWatch();
+  lock.acquire("runner", Priority.Task);
+  assert.ok(w.check(lock, dying, t), "no body seen yet counts as calm");
+  for (const start of [calm, null]) {
+    w.begin(start, t);
+    lock.acquire("runner", Priority.Task);
+    assert.ok(!w.check(lock, calm, t));
+    assert.ok(w.check(lock, dying, t), "emergency arrived mid-skill");
+    lock.acquire("runner", Priority.Task);
+    assert.ok(!w.check(lock, dying, t), "once per skill");
+  }
+  // The reflex's flee begins in the emergency: it runs on.
+  w.begin(dying, t);
+  lock.acquire("runner", Priority.Task);
+  const s = lock.signal();
+  assert.ok(!w.check(lock, dying, t));
+  assert.ok(!s.aborted);
+  assert.equal(lock.holder()?.owner, "runner");
 });

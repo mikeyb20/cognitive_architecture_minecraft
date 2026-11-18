@@ -26,4 +26,13 @@ thresholds: Thresholds,
  * that close. 0 turns it off (the default here); the Minecraft host
  * sends its candidates' threat range.
  */
-dangerRange: number, };
+dangerRange: number, 
+/**
+ * Fight gate (#87 in Minecraft; Michael, 15 Nov 2026: fight only
+ * with enough health): an attack begun at or above this health (0..1)
+ * stops once the bot's health falls below it, so the next decision
+ * sees the weak bot. The sim checks the gate before each swing; a bot
+ * attack lasts until the mob dies. 0 turns it off (the default here);
+ * the Minecraft host sends the sim's `fight_health`.
+ */
+fightHealth: number, };
